@@ -20,7 +20,41 @@
 - target-docs/auth-flow.md — Auth flow analysis
 - target-docs/onboarding-flow.md — Onboarding flow analysis
 
+## Iteration 2 — Site Map (2026-04-07)
+
+### What was done:
+- Started Ever CLI session, logged into workspace "foreverbrowsing"
+- Navigated and screenshotted all major pages:
+  - Home dashboard (Ask Linear welcome)
+  - Inbox (notification list)
+  - My Issues
+  - Team Issues (ENG — list view with All/Active/Backlog tabs)
+  - Team Board (ENG — kanban board)
+  - Team Triage (ENG — 68 items in triage queue)
+  - Team Cycles (ENG)
+  - Projects (workspace level)
+  - Views (workspace level)
+  - Initiatives
+  - Settings (full navigation extracted)
+- Mapped complete sidebar structure: Inbox, My Issues, Projects, Views, More (Agent/Members/Teams), per-team (Triage/Issues/Projects/Views), Initiatives, Cycles
+- Mapped all settings pages: Account (6 pages), Issues (3), Projects (4), Features (8), Administration (6), Per-team
+- Created sitemap.md with all URLs, page types, and interaction patterns
+- Identified key interaction patterns: Cmd+K, peek preview, drag & drop, keyboard shortcuts, Ask Linear AI
+
+### Screenshots captured:
+- ralph/screenshots/inspect/home-dashboard.jpg
+- ralph/screenshots/inspect/home-with-more-menu.jpg
+- ralph/screenshots/inspect/inbox.jpg
+- ralph/screenshots/inspect/my-issues.jpg
+- ralph/screenshots/inspect/team-issues.jpg
+- ralph/screenshots/inspect/team-board.jpg
+- ralph/screenshots/inspect/triage.jpg
+- ralph/screenshots/inspect/cycles.jpg
+- ralph/screenshots/inspect/projects.jpg
+- ralph/screenshots/inspect/views.jpg
+- ralph/screenshots/inspect/initiatives.jpg
+- ralph/screenshots/inspect/settings.jpg
+
 ### What remains:
-- Iteration 2: Site map — navigate the logged-in app, map all pages
-- Iterations 3-N: Deep dive each page/feature
+- Iteration 3+: Deep dive each page/feature (issue detail, creation modal, board interactions, project detail, cycle detail, etc.)
 - Final: Complete build-spec.md and reorder prd.json
