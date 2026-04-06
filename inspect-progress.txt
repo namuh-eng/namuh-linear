@@ -1,0 +1,26 @@
+## Iteration 1 — Phase A: Docs Extraction (2026-04-07)
+
+### What was done:
+- Fetched llms.txt from linear.app — found complete doc URL index (~110 URLs)
+- llms-full.txt returned HTML (not real docs), discarded
+- Bulk-downloaded ALL 125 doc pages via Jina Reader in parallel batches of 8
+- All docs saved as clean markdown with <!-- Source: URL --> headers
+- Fetched GraphQL SDL schema (43,106 lines) from GitHub
+- Verified all files are proper markdown (0 HTML contamination)
+- Created target-docs/INDEX.md with categorized listing of all pages
+- Created target-docs/auth-flow.md (Phase A.2) — auth methods: Google OAuth, email magic links, passkeys, SAML SSO
+- Created target-docs/onboarding-flow.md (Phase A.1) — signup → workspace creation → invite → dashboard
+
+### Docs structure:
+- target-docs/docs/ — 100 product documentation pages
+- target-docs/developers/ — 25 developer/API documentation pages
+- target-docs/developers/schema.graphql — Full GraphQL schema
+- target-docs/INDEX.md — Complete index
+- target-docs/llms-index.md — Raw llms.txt for reference
+- target-docs/auth-flow.md — Auth flow analysis
+- target-docs/onboarding-flow.md — Onboarding flow analysis
+
+### What remains:
+- Iteration 2: Site map — navigate the logged-in app, map all pages
+- Iterations 3-N: Deep dive each page/feature
+- Final: Complete build-spec.md and reorder prd.json

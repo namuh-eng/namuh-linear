@@ -1,16 +1,123 @@
 [
   {
-    "id": "US-001",
-    "title": "ASCII flow diagram of ralph-watchdog.sh",
-    "description": "Visualize all phases and control flow of ralph/ralph-watchdog.sh as an ASCII diagram",
-    "acceptanceCriteria": [
-      "Phase 1 (Inspect) loop with restart logic is shown",
-      "Phase 2 (Build) loop with up to 10 restarts is shown",
-      "Phase 3 (QA) loop and cycle structure (max 5 cycles) is shown",
-      "Lock file check, cron_backup, and helper functions are referenced",
-      "DONE/ABORT terminal states are visible",
-      "Diagram was output to the user"
-    ],
-    "passes": true
+    "id": "infra-001",
+    "category": "infrastructure",
+    "description": "Database schema setup — all core tables (workspaces, teams, issues, projects, cycles, initiatives, labels, views, comments, reactions, notifications) with Drizzle ORM migrations pushed to Postgres",
+    "page": "N/A",
+    "priority": "P0",
+    "core": true,
+    "dependent_on": [],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "infra-002",
+    "category": "infrastructure",
+    "description": "Redis connection setup for real-time sync, caching, and pub/sub. ElastiCache client configuration with ioredis",
+    "page": "N/A",
+    "priority": "P0",
+    "core": true,
+    "dependent_on": ["infra-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "infra-003",
+    "category": "infrastructure",
+    "description": "S3 storage setup for file attachments and avatars. Upload/download utilities with presigned URLs",
+    "page": "N/A",
+    "priority": "P0",
+    "core": true,
+    "dependent_on": [],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "infra-004",
+    "category": "infrastructure",
+    "description": "SES email setup for magic link auth emails and notifications. Email sending utility with templates",
+    "page": "N/A",
+    "priority": "P0",
+    "core": true,
+    "dependent_on": [],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "auth-001",
+    "category": "auth",
+    "description": "Google OAuth login via Better Auth. 'Continue with Google' button on login page, OAuth redirect flow, account creation on first login, session creation",
+    "page": "/login",
+    "priority": "P1",
+    "core": true,
+    "dependent_on": ["infra-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "auth-002",
+    "category": "auth",
+    "description": "Email magic link login via Better Auth + SES. 'Continue with Email' flow: enter email → receive magic link with 6-digit code → click link or enter code → session created",
+    "page": "/login",
+    "priority": "P1",
+    "core": true,
+    "dependent_on": ["infra-001", "infra-004"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "auth-003",
+    "category": "auth",
+    "description": "Session management and protected routes. Next.js middleware checking Better Auth sessions. Redirect unauthenticated users to /login. Sessions stored in Postgres via Drizzle adapter",
+    "page": "N/A",
+    "priority": "P1",
+    "core": true,
+    "dependent_on": ["auth-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "auth-004",
+    "category": "auth",
+    "description": "Login/signup page UI. Clean minimal page with 'Continue with Google' and 'Continue with Email' buttons. Linear-style branding. Dark theme. Handles both login and signup",
+    "page": "/login",
+    "priority": "P1",
+    "core": true,
+    "dependent_on": ["auth-001", "auth-002"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "onboarding-001",
+    "category": "onboarding",
+    "description": "Workspace creation flow. After first login, user creates a workspace: enter name + URL slug. Auto-creates a default team with the workspace name. Redirects to main dashboard",
+    "page": "/create-workspace",
+    "priority": "P2",
+    "core": true,
+    "dependent_on": ["auth-003", "infra-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "onboarding-002",
+    "category": "onboarding",
+    "description": "Invite team members step (skippable). After workspace creation, prompt to invite teammates by email. Enter multiple emails, select role. Skip button available",
+    "page": "/onboarding/invite",
+    "priority": "P3",
+    "core": false,
+    "dependent_on": ["onboarding-001", "infra-004"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "onboarding-003",
+    "category": "onboarding",
+    "description": "Empty states for all core features. Issues list: 'No issues' with create CTA. Projects: empty with create CTA. Cycles: 'No active cycle'. Inbox: 'You're all caught up'. My Issues: 'No issues assigned'",
+    "page": "Multiple",
+    "priority": "P3",
+    "core": false,
+    "dependent_on": ["onboarding-001"],
+    "build_pass": false,
+    "qa_pass": false
   }
 ]
