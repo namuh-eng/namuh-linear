@@ -231,26 +231,147 @@ REST API routes (Next.js App Router API routes):
 
 ## Settings Architecture
 
-### Team Settings (per-team configuration)
-- **General**: Name, identifier (key), timezone, estimates, broader settings
-- **Members**: Team member management
-- **Notifications**: Slack channel broadcasting
-- **Issue Labels**: Team-scoped labels (11 default)
-- **Templates**: Issue/document/project templates
-- **Recurring Issues**: Scheduled auto-creation
-- **Issue Statuses**: Customizable workflow states (16 states in categories: Triage, Backlog, Unstarted, Started, Completed, Canceled)
-- **Workflows & Automations**: Git workflows, auto-assignment, status transitions
-- **Triage**: Enable/disable, triage settings
-- **Cycles**: Enable/disable, schedule configuration
-- **Agents**: AI agent guidance per team
-- **Danger Zone**: Leave/retire/delete team
+### Settings Layout
+- Left sidebar navigation with grouped sections (Account, Issues, Projects, Features, Administration, Your teams)
+- "Back to app" link at top of sidebar
+- Section headers as non-clickable group labels
+- Active page highlighted in sidebar
+- Content area on right with form fields
+- Same dark/light theme as main app
 
-### Account Settings
-- Preferences: Home view, display names, first day of week, emoticons, comment shortcut, theme, font, sidebar
-- Profile: Name, avatar, username
-- Notifications: Desktop/mobile/email/Slack channels
-- Security: Passkeys, sessions
-- Connected accounts: OAuth connections
+### Account Settings (Personal — per-user)
+
+**Preferences** (`/settings/account/preferences`):
+- General: Default home view (combobox — options include Linear Agent, My Issues, etc.), Display names (combobox: Full name/First name), First day of week (combobox: Sunday/Monday), Convert emoticons toggle (checked by default), Send comment shortcut (combobox: ⌘+Enter / Enter)
+- Interface & theme: App sidebar "Customize" button (opens sidebar customization), Font size (Default), Use pointer cursors toggle, Interface theme selector with preview cards (System preference / Light / Dark), separate Light theme and Dark theme selectors
+- Desktop application: Open in desktop app toggle
+- Coding tools: link to sub-page
+
+**Profile** (`/settings/account/profile`):
+- Profile picture: circular avatar upload (recommended 256x256px), shows current avatar
+- Email: read-only display (jaeyunha0317@gmail.com)
+- Full name: editable text input
+- Username: editable text input ("One word, like a nickname or first name")
+- "Update" button to save changes
+- Workspace access section: "Leave workspace" button (danger action)
+
+**Notifications** (`/settings/account/notifications`):
+- Notification channels as clickable cards linking to sub-pages:
+  - Desktop (enabled for assignments, status changes, 10 others)
+  - Mobile (enabled for all notifications)
+  - Email (disabled)
+  - Slack (disabled)
+- Updates from Linear: Changelog (show in sidebar toggle, newsletter toggle), Marketing toggle
+- Other: Invite accepted, Privacy/legal updates, DPA toggles
+
+**Security & access**: Passkeys, active sessions, API keys
+**Connected accounts**: OAuth connections (Google, etc.)
+**Agent personalization**: AI agent behavior customization
+
+### Issues Settings (Workspace-level)
+
+**Labels** (`/settings/issue-labels`):
+- Table: Name (colored dot + text), Description (inline editable, placeholder "Add label description..."), Rules, Issues count, Last applied date, Created date
+- "New group" and "New label" buttons in header
+- Workspace-scoped (available to all teams)
+- Example labels: agent, browser, bug, extension, frontend, meta, V-2
+
+**Templates** (`/settings/issue-templates`): Pre-filled templates for issues, documents, projects
+**SLAs** (`/settings/sla`): Service level agreement configuration
+
+### Projects Settings (Workspace-level)
+- **Labels**: Project-scoped labels
+- **Templates**: Project templates
+- **Statuses**: Project status configuration
+- **Updates**: Project update settings
+
+### Features Settings (Workspace-level)
+- **AI & Agents**: AI feature configuration
+- **Initiatives**: Enable/configure initiatives
+- **Documents**: Document settings
+- **Customer requests**: Customer request integration
+- **Pulse**: Pulse check-in feature
+- **Asks**: Ask feature settings
+- **Emojis**: Custom emoji management
+- **Integrations**: Third-party integrations catalog
+
+### Administration Settings
+
+**Workspace** (`/settings/workspace`):
+- Logo upload (256x256 recommended, circular display with initials fallback)
+- Name: editable text input
+- URL: "linear.app/" + slug (editable)
+- Time & region: First month of fiscal year (combobox: January), Region (read-only, set at workspace creation, e.g., "United States")
+- Welcome message: Configure button
+- Danger zone: "Delete workspace" button (schedules permanent deletion)
+
+**Teams** (`/settings/teams`): Team list management
+**Members** (`/settings/members`):
+- Table: Name, Email, Status, Teams, Joined, Last seen
+- Tabs: "All"
+- "Export CSV" and "Invite" buttons
+- Shows Active count and Application count separately (e.g., "Active 2", "Application 3")
+
+**Security** (`/settings/security`):
+- Workspace access: Invite links toggle with generated URL + Copy, Approved email domains
+- Authentication methods: Google toggle, Email & passkey toggle, SAML & SCIM (paid feature link)
+- Note: "Admins and guests can always authenticate via Google and email/passkeys — even when disabled for members"
+- Workspace management permissions: New user invitations, Team creation, Manage workspace labels, Manage workspace templates, API key creation (Only admins), Modify agent guidance (Only admins) — each as permission level selector
+- Restrict file uploads toggle
+- AI: Improve AI toggle, Enable web search toggle
+- Compliance: HIPAA compliance toggle
+
+**API** (`/settings/api`):
+- GraphQL API description with docs link
+- OAuth Applications: list + "New OAuth application" button
+- Webhooks: list + "New webhook" button (HTTP POST on entity create/update/delete)
+- Member API keys: permission setting (Only admins), list showing key name, access level (full access/public teams), creator avatar, created/last used dates
+
+**Applications** (`/settings/applications`): Third-party app management
+**Billing** (`/settings/billing`): Out of scope (billing/paywalls excluded)
+**Import & export** (`/settings/import-export`): Data import/export tools
+
+### Team Settings (per-team configuration)
+
+**Hub page** (`/settings/teams/{key}`):
+- Card-style links to sub-pages with descriptions and counts
+- Sections: General, Members, Slack notifications | Issues/projects/docs | Workflow | AI | Team hierarchy | Danger zone
+
+**General** (`/settings/teams/{key}/general`):
+- Icon & Name: editable team icon + name
+- Identifier: used in issue IDs (e.g., "ENG"), editable
+- Timezone: combobox (GMT offset + city, e.g., "GMT-7:00 – Pacific Time - Los Angeles")
+- Estimates: Issue estimation toggle (options: Not in use / Linear / Exponential / T-shirt sizing)
+- Create issues by email: toggle with team-specific email address
+- Enable detailed issue history: toggle for audit-level change tracking
+
+**Members**: Team member management, shows count (e.g., "2 members")
+**Slack notifications**: Broadcast to Slack channel (e.g., "#linear")
+**Issue Labels**: Team-scoped labels (e.g., "11 labels"), separate from workspace labels
+**Templates**: Pre-filled templates for issues/documents/projects
+**Recurring Issues**: Scheduled auto-creation of issues
+
+**Issue Statuses** (`/settings/teams/{key}/statuses`):
+- Visual list grouped by category with section headers:
+  - **Triage**: Triage (68 issues, "Issue needs to be triaged")
+  - **Backlog**: Backlog (Default, 6 issues), Spec Needed (1), Research Needed (2)
+  - **Unstarted**: Todo
+  - **Started**: Research In Progress (1), Research in Review, Ready for Plan, Plan in Progress, Plan in Review (1), Ready for Dev, In Dev, Code Review (3)
+  - **Completed**: Done (25 issues, "Task completed")
+  - **Canceled**: Canceled, Duplicate (1)
+- Each status: name, issue count badge, description text
+- "Default" badge on first Backlog status
+- Duplicate issue status selector at bottom
+- Statuses reorderable and editable within categories, customizable per team
+
+**Workflows & Automations**: Git workflows, auto-assignment, status transition rules
+**Triage**: Enable/disable, triage settings (Enabled)
+**Cycles**: Focus team over time-boxed windows (Off / configurable)
+**Agents**: AI agent guidance per team
+**Discussion summaries**: Auto-generate AI summaries
+
+**Team hierarchy**: Parent team selector (sub-teams feature)
+**Danger zone**: Leave team, Retire team (preserves data), Delete team (30-day restoration window)
 
 ## Build Order
 
@@ -299,12 +420,19 @@ REST API routes (Next.js App Router API routes):
 9. **P8 — Initiatives** (feature-031)
    - Initiative management, project grouping, progress at scale
 
-10. **P9 — Settings** (settings pages)
-    - Account preferences + profile
-    - Team settings (workflow states, labels, templates, members)
-    - Workspace administration
+10. **P9 — Settings Core** (settings-001, settings-002, settings-003, settings-007, settings-010, settings-011, settings-012)
+    - Settings layout shell (sidebar nav + content area)
+    - Account preferences (theme, display names, home view)
+    - Account profile (name, avatar, username)
+    - Issue labels management (workspace-level)
+    - Team settings hub + general + issue statuses
 
-11. **P10 — Onboarding Polish** (onboarding-002, onboarding-003)
+11. **P10 — Settings Secondary** (settings-004, settings-005, settings-006, settings-008, settings-009, onboarding-002, onboarding-003)
+    - Account notifications
+    - Workspace admin (logo, name, URL, danger zone)
+    - Members admin (table, invite, export CSV)
+    - Workspace security (auth methods, permissions, invite links)
+    - API & webhooks admin
     - Invite team members flow
     - Empty states for all features
 

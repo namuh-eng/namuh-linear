@@ -317,5 +317,137 @@
     "dependent_on": ["feature-001", "feature-006"],
     "build_pass": false,
     "qa_pass": false
+  },
+  {
+    "id": "settings-001",
+    "category": "settings",
+    "description": "Settings layout shell — left sidebar navigation with sections (Account, Issues, Projects, Features, Administration, Your teams), 'Back to app' link, section headers, active state highlighting. Content area on right. Same dark/light theme as main app",
+    "page": "/settings/*",
+    "priority": "P9",
+    "core": false,
+    "dependent_on": ["layout-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-002",
+    "category": "settings",
+    "description": "Account Preferences page — General section: Default home view (combobox), Display names (combobox: Full name), First day of week (combobox: Sunday), Convert emoticons toggle, Send comment shortcut (combobox: Cmd+Enter). Interface section: App sidebar customize button, Font size (Default), Pointer cursors toggle, Interface theme (System/Light/Dark with preview cards). Desktop app section: Open in desktop toggle. Coding tools link",
+    "page": "/settings/account/preferences",
+    "priority": "P9",
+    "core": false,
+    "dependent_on": ["settings-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-003",
+    "category": "settings",
+    "description": "Account Profile page — Profile picture upload (circular avatar, recommended 256x256), Email (read-only), Full name (editable text input), Username (editable, 'one word like a nickname'). Update button. Workspace access section: 'Leave workspace' danger action",
+    "page": "/settings/account/profile",
+    "priority": "P9",
+    "core": false,
+    "dependent_on": ["settings-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-004",
+    "category": "settings",
+    "description": "Account Notifications page — Notification channels: Desktop (configurable per event type), Mobile, Email, Slack — each as a link to sub-page. Updates from Linear section: Changelog (show in sidebar toggle, newsletter toggle), Marketing toggle. Other: Invite accepted, Privacy/legal updates, DPA toggles",
+    "page": "/settings/account/notifications",
+    "priority": "P10",
+    "core": false,
+    "dependent_on": ["settings-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-005",
+    "category": "settings",
+    "description": "Workspace admin page — Logo upload (256x256 recommended, shows initials fallback 'FO'), Name text input, URL slug ('linear.app/{slug}'). Time & region section: First month of fiscal year (combobox: January), Region (read-only, set at creation). Welcome message: Configure button. Danger zone: Delete workspace button",
+    "page": "/settings/workspace",
+    "priority": "P10",
+    "core": false,
+    "dependent_on": ["settings-001", "onboarding-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-006",
+    "category": "settings",
+    "description": "Members admin page — Table with columns: Name, Email, Status, Teams, Joined, Last seen. Tabs: All. 'Export CSV' and 'Invite' buttons in header. Shows count of Active members and Application members separately",
+    "page": "/settings/members",
+    "priority": "P10",
+    "core": false,
+    "dependent_on": ["settings-001", "onboarding-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-007",
+    "category": "settings",
+    "description": "Issue Labels settings — Workspace-scoped label management. Table: Name, Description ('Add label description...'), Rules, Issues count, Last applied date, Created date. 'New group' and 'New label' buttons in header. Labels are colored and editable inline",
+    "page": "/settings/issue-labels",
+    "priority": "P9",
+    "core": false,
+    "dependent_on": ["settings-001", "infra-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-008",
+    "category": "settings",
+    "description": "Workspace Security settings — Workspace access: Invite links toggle with generated URL + Copy button. Approved email domains for auto-join. Auth methods: Google authentication toggle, Email & passkey toggle, SAML & SCIM link. Workspace management: New user invitations, Team creation, Manage labels, Manage templates, API key creation, Modify agent guidance — each with permission level. Restrict file uploads toggle. AI section: Improve AI toggle, Enable web search toggle. Compliance: HIPAA toggle",
+    "page": "/settings/security",
+    "priority": "P10",
+    "core": false,
+    "dependent_on": ["settings-001", "auth-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-009",
+    "category": "settings",
+    "description": "API & Webhooks admin page — Description text with docs link. OAuth Applications section: list with 'New OAuth application' button. Webhooks section: list with 'New webhook' button (HTTP POST on entity create/update/delete). Member API keys section: API key creation permission setting, list of existing keys showing name, access level, creator avatar, created/last used dates",
+    "page": "/settings/api",
+    "priority": "P10",
+    "core": false,
+    "dependent_on": ["settings-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-010",
+    "category": "settings",
+    "description": "Team settings hub page — List of settings sub-pages as cards: General (name, identifier, timezone, estimates), Members (count), Slack notifications (channel). Issues section: Issue labels (count), Templates, Recurring issues. Workflow section: Issue statuses (count), Workflows & automations, Triage (enabled/disabled), Cycles (on/off). AI section: Agents, Discussion summaries. Team hierarchy: Parent team selector. Danger zone: Leave/Retire/Delete team",
+    "page": "/settings/teams/{key}",
+    "priority": "P9",
+    "core": false,
+    "dependent_on": ["settings-001", "infra-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-011",
+    "category": "settings",
+    "description": "Team General settings — Icon & Name (editable), Identifier (used in issue IDs like ENG-123, editable). Timezone section: combobox with full timezone list (GMT offset + city). Estimates section: Issue estimation toggle (not in use / linear / exponential / T-shirt). Create issues by email: toggle with team email address. Other: Enable detailed issue history toggle",
+    "page": "/settings/teams/{key}/general",
+    "priority": "P9",
+    "core": false,
+    "dependent_on": ["settings-010"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "settings-012",
+    "category": "settings",
+    "description": "Team Issue Statuses settings — Visual list of all workflow statuses grouped by category (Triage, Backlog, Unstarted, Started, Completed, Canceled). Each status shows: name, issue count, description. Backlog has 'Default' badge on first item. 16 statuses total. Duplicate issue status selector at bottom. Statuses are reorderable and editable within each category",
+    "page": "/settings/teams/{key}/statuses",
+    "priority": "P9",
+    "core": false,
+    "dependent_on": ["settings-010", "infra-001"],
+    "build_pass": false,
+    "qa_pass": false
   }
 ]

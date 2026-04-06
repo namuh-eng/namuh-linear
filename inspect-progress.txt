@@ -143,3 +143,39 @@
 ### What remains:
 - Iteration 8: Settings pages deep dive + finalize build-spec.md
 - Final: Reorder prd.json and mark INSPECT_COMPLETE
+
+## Iteration 8 — Settings Pages Deep Dive (2026-04-07)
+
+### What was done:
+- Deep dive into ALL settings pages across Account, Administration, and Team sections
+- Account Preferences: Default home view, display names, first day of week, emoticons, comment shortcut, theme (System/Light/Dark with preview cards), font size, pointer cursors, sidebar customization, desktop app toggle, coding tools
+- Account Profile: Avatar upload (256x256), email (read-only), full name, username fields, Update button, Leave workspace danger action
+- Account Notifications: 4 channels (Desktop/Mobile/Email/Slack) as clickable cards, changelog/marketing/other toggles
+- Workspace Admin: Logo upload (initials fallback), name, URL slug, fiscal year month, region (read-only), welcome message config, delete workspace danger zone
+- Members Admin: Table with Name/Email/Status/Teams/Joined/Last seen columns, Export CSV + Invite buttons, Active/Application member counts
+- Issue Labels: Workspace-scoped table with Name/Description/Rules/Issues/Last applied/Created columns, New group + New label buttons, 7 labels observed
+- Workspace Security: Invite links toggle with generated URL, approved email domains, Google/Email & passkey/SAML auth toggles, permission settings for team creation/label management/API keys/agent guidance, file upload restrictions, AI toggles, HIPAA compliance
+- API Settings: GraphQL API description, OAuth applications management, webhooks (HTTP POST on CRUD), member API keys with permission control and usage tracking
+- Team Settings Hub: Card-style links to 12+ sub-pages with descriptions and counts, organized in sections
+- Team General: Icon/name/identifier editing, timezone selection (GMT offset + city), estimates (not in use/linear/exponential/t-shirt), email issue creation, detailed history toggle
+- Team Issue Statuses: Full 16-status workflow across 6 categories (Triage/Backlog/Unstarted/Started/Completed/Canceled), with issue counts, descriptions, default badges, duplicate status selector
+- Added 12 new PRD entries (settings-001 through settings-012) covering all settings pages
+- Updated build-spec.md with comprehensive Settings Architecture section (expanded from 15 lines to 100+ lines of detail)
+- Updated build order to reference new settings PRD entries
+
+### Screenshots captured:
+- ralph/screenshots/inspect/settings-preferences.jpg
+- ralph/screenshots/inspect/settings-preferences-full.jpg
+- ralph/screenshots/inspect/settings-profile.jpg
+- ralph/screenshots/inspect/settings-workspace.jpg
+- ralph/screenshots/inspect/settings-members.jpg
+- ralph/screenshots/inspect/settings-labels.jpg
+- ralph/screenshots/inspect/settings-team-eng.jpg
+- ralph/screenshots/inspect/settings-team-statuses.jpg
+- ralph/screenshots/inspect/settings-team-general.jpg
+- ralph/screenshots/inspect/settings-api.jpg
+- ralph/screenshots/inspect/settings-notifications.jpg
+- ralph/screenshots/inspect/settings-security.jpg
+
+### What remains:
+- Final iteration: Finalize build-spec.md, add dependent_on to all PRD entries, reorder prd.json, mark INSPECT_COMPLETE
