@@ -127,7 +127,19 @@
 - ralph/screenshots/inspect/initiatives-detail.jpg
 - ralph/screenshots/inspect/triage-detail.jpg
 
+## Iteration 7 — Custom Views, Search, Command Palette (2026-04-07)
+
+### What was done:
+- Views page (/views/issues): Tabs — Issues, Projects. Name + Owner columns. Personal views section. "All issues" default view. Create button (+)
+- Command palette (Cmd+K): Search input "Type a command or search...". "Ask Linear" tab for AI. Grouped commands — Views (Create view), Issues (Create new issue C, fullscreen V, label), Projects (update N+U, create N+P), Documents (create), Filter (search workspace, find view Cmd+F), Templates (issue/document/project), Navigation (last issue, desktop app)
+- Search: Typing in command palette shows "Quick results for {query}" with matching issues by title. Shows issue status icon, identifier, title. Bottom bar: Open (Enter), Advanced search (Cmd+/), More actions, Quick look
+- Added 2 PRD entries: command palette (P3), custom views (P6)
+
+### Screenshots captured:
+- ralph/screenshots/inspect/views-detail.jpg
+- ralph/screenshots/inspect/command-palette.jpg
+- ralph/screenshots/inspect/command-palette-search.jpg
+
 ### What remains:
-- Iteration 7: Custom views + Search + Command palette
-- Iteration 8: Settings pages (team settings, workspace settings)
-- Final: Complete build-spec.md and reorder prd.json
+- Iteration 8: Settings pages deep dive + finalize build-spec.md
+- Final: Reorder prd.json and mark INSPECT_COMPLETE

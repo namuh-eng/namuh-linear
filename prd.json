@@ -295,5 +295,27 @@
     "dependent_on": ["feature-001", "infra-001"],
     "build_pass": false,
     "qa_pass": false
+  },
+  {
+    "id": "feature-040",
+    "category": "interaction",
+    "description": "Command palette (Cmd+K) — search input with 'Type a command or search...' placeholder. Grouped commands: Views (Create view), Issues (Create new issue C, Create in fullscreen V, Create label), Projects (New project update N+U, Create project N+P), Documents (Create document), Filter (Search workspace, Find view Cmd+F), Templates (issue/document/project templates), Navigation (Open last issue, Open in desktop). Search shows 'Quick results for {query}' with matching issues. Bottom bar: Open (Enter), Advanced search (Cmd+/), More actions, Quick look",
+    "page": "Global overlay",
+    "priority": "P3",
+    "core": true,
+    "dependent_on": ["layout-001", "feature-001"],
+    "build_pass": false,
+    "qa_pass": false
+  },
+  {
+    "id": "feature-041",
+    "category": "crud",
+    "description": "Custom Views page — Tabs: Issues, Projects. List of views with Name and Owner columns. Personal views section ('Only visible to you'). Create view button (+). Each view is a saved filter/display configuration that renders as a filtered issue list or project list",
+    "page": "/views/issues",
+    "priority": "P6",
+    "core": false,
+    "dependent_on": ["feature-001", "feature-006"],
+    "build_pass": false,
+    "qa_pass": false
   }
 ]
