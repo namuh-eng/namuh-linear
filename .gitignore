@@ -1,0 +1,30 @@
+node_modules/
+.next/
+dist/
+.env
+*.log
+.omc/
+.omx/
+coverage/
+test-results/
+playwright-report/
+drizzle/
+packages/sdk/dist/
+target-docs/
+.current-feature.json
+tsconfig.tsbuildinfo
+ralph-config.json
+
+# Planning docs — internal, not source files
+ONBOARDING-PLAN.md
+
+# Runtime state — generated during execution, not source files
+*.lock
+build-progress.txt
+.onboard-answers.tmp
+inspect-progress.txt
+qa-hints.json
+qa-report.json
+test-a.txt
+test-b.txt
+test.txt
