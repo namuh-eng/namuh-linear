@@ -1,6 +1,6 @@
 # Build Spec — Linear Clone (namuh-linear)
 
-> **Status**: PARTIAL — docs extracted, UI inspection pending
+> **Status**: PARTIAL — docs extracted, site mapped, issues list + detail inspected
 
 ## Product Overview
 
@@ -59,17 +59,68 @@ Key differentiators: Command palette (Cmd+K), extensive keyboard shortcuts, real
 - **Settings**: Workspace, Team, Account settings
 - **Command Palette**: Cmd+K for everything
 
-## Design System (PENDING — needs UI inspection)
+## Design System (PARTIAL — updated from UI inspection)
 
-### Known from docs + screenshots:
-- Dark mode default (background: #090909 sidebar, #0f0f11 content area)
-- Light mode available (#f5f5f5 sidebar, #fcfcfd content)
-- Font: Inter Variable
-- Compact, dense UI — lots of information in small space
-- Sidebar width: 244px default
-- Border radius: 4px (controls), 12px (main content area)
-- Border color: dark #1c1e21, light #e0e0e0
-- Accent color: #7180ff (blue-purple)
+### Colors
+- **Dark mode** (default):
+  - Sidebar background: #090909
+  - Content area background: #0f0f11
+  - Border color: #1c1e21
+  - Text primary: #ffffff
+  - Text secondary: #6b6f76
+- **Light mode**:
+  - Sidebar background: #f5f5f5
+  - Content area background: #fcfcfd
+  - Border color: #e0e0e0
+  - Text primary: #23252a
+  - Text secondary: #b0b5c0
+- **Accent**: #7180ff (blue-purple) — links, selections, active states
+
+### Typography
+- Font: Inter Variable (preloaded woff2)
+- Dense, compact text — small font sizes throughout
+- Issue titles: ~14px, semibold
+- Secondary text (dates, labels): ~12px
+- Sidebar items: ~13px
+
+### Layout
+- Sidebar: 244px fixed width, collapsible
+- Content area: Fills remaining space, 12px border-radius container
+- 8px margin around content area (between sidebar and window edge)
+- Board columns: Equal-width, scrollable individually
+- Issue list rows: Compact, ~40px height
+
+### Components (observed from UI)
+- **Issue card** (board view): White/dark card with title, identifier, priority icon, labels as colored dots, assignee avatar, project chip
+- **Issue row** (list view): Single-line with identifier, title, assignee avatar, priority icon, labels, project, dates
+- **Priority icons**: Urgent (red !), High (orange ↑), Medium (yellow =), Low (blue ↓), None (gray —)
+- **Status indicators**: Circle icons — empty (backlog), half (in progress), checkmark (done), X (canceled)
+- **Labels**: Colored dots with text, inline in cards/rows
+- **Avatars**: Small circular (20px), with initials fallback
+- **Buttons**: Minimal, icon-heavy, subtle borders
+- **Modals**: Centered, with backdrop, clean header with close button
+- **Sidebar items**: Icon + text, hover highlight, active indicator
+
+### Issue Creation Modal
+- Team selector (top-left, shows team key like "ENG")
+- Title field (contenteditable, large text)
+- Description field (contenteditable, rich text editor)
+- Bottom toolbar: Status, Priority, Assignee, Project, Labels buttons (all combobox dropdowns)
+- "More actions" overflow button
+- File attachment button
+- "Create more" checkbox toggle
+- "Create issue" submit button
+- Expand button (to make modal fullscreen)
+
+### Display Options Panel (sidebar panel)
+- **Layout toggle**: List / Board tabs
+- **Columns**: Dropdown (e.g., Status)
+- **Rows**: Dropdown (e.g., No grouping)
+- **Ordering**: Dropdown (e.g., Priority)
+- **Toggles**: Order completed by recency, Show sub-issues, Show triage issues, Show empty columns
+- **Completed issues**: Dropdown (All / Recent / None)
+- **Display properties**: Toggle chips — ID, Status, Assignee, Priority, Project, Due date, Milestone, Labels, Links, Time in status, Created, Updated, Pull requests
+- Reset and "Set default for everyone" buttons
 
 ## Data Models (PARTIAL — from docs)
 

@@ -55,6 +55,35 @@
 - ralph/screenshots/inspect/initiatives.jpg
 - ralph/screenshots/inspect/settings.jpg
 
+## Iteration 3 — Team Issues Deep Dive (2026-04-07)
+
+### What was done:
+- Deep dive into team issues list page (/team/ENG/all)
+- Observed issue list structure: grouped by workflow state (Backlog, Spec Needed, Research Needed, In Progress, etc.)
+- Each issue row shows: identifier (ENG-123), title, assignee avatar, priority icon, labels, project, created date
+- Tested filter bar: inline "Add filter" button
+- Tested display options (Shift+V): List/Board toggle, Columns, Rows grouping, Ordering, display property toggles
+- Display properties available: ID, Status, Assignee, Priority, Project, Due date, Milestone, Labels, Links, Time in status, Created, Updated, Pull requests
+- Navigated to issue detail page (ENG-45): full-width view with title, rich text description, properties sidebar (Status, Priority, Assignee, Labels, Project), activity feed, comments, sub-issues section
+- Properties sidebar: Status (Research Needed), Priority (Medium), Assignee (avatar + name), Labels (colored dots), Project (add to project)
+- Activity shows creation event with avatar and timestamp
+- Comment composer at bottom with reaction and attachment buttons
+- Tested create issue modal: Team selector, title field, description field, bottom toolbar with Status/Priority/Assignee/Project/Labels comboboxes, "Create more" toggle, "Create issue" button
+- Board view: Kanban columns by status (Backlog, Spec Needed, Research Needed, In Progress), each with issue cards showing title, priority, labels, assignee
+- Updated build-spec.md with detailed design system (colors, typography, layout, components, modal structure, display options)
+
+### Screenshots captured:
+- ralph/screenshots/inspect/team-issues-all.jpg
+- ralph/screenshots/inspect/team-issues-filter-bar.jpg
+- ralph/screenshots/inspect/display-options-panel.jpg
+- ralph/screenshots/inspect/issue-detail.jpg
+- ralph/screenshots/inspect/create-issue-modal.jpg
+
 ### What remains:
-- Iteration 3+: Deep dive each page/feature (issue detail, creation modal, board interactions, project detail, cycle detail, etc.)
+- Iteration 4: Projects page deep dive
+- Iteration 5: Inbox + Notifications
+- Iteration 6: Cycles page deep dive
+- Iteration 7: Initiatives page
+- Iteration 8: Settings pages
+- Iteration 9+: Custom views, search, command palette
 - Final: Complete build-spec.md and reorder prd.json
