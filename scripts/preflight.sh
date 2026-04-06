@@ -1,11 +1,11 @@
 #!/bin/bash
-# Pre-flight: provision AWS infrastructure (team tier — ECS Fargate + RDS private VPC + ElastiCache Redis)
+# Pre-flight: provision AWS infrastructure (team tier - ECS Fargate + RDS private VPC + ElastiCache Redis)
 set -euo pipefail
 
 REGION="${AWS_REGION:-us-east-1}"
 APP_NAME="namuh-linear"
 
-echo "=== Pre-flight Infrastructure Setup (AWS — team tier) ==="
+echo "=== Pre-flight Infrastructure Setup (AWS - team tier) ==="
 echo "Region: $REGION"
 
 # 1. VPC and subnets
@@ -101,7 +101,7 @@ DB_SG=$(aws ec2 describe-security-groups \
   --query 'SecurityGroups[0].GroupId' --output text --region $REGION 2>/dev/null)
 if [ "$DB_SG" = "None" ] || [ -z "$DB_SG" ]; then
   DB_SG=$(aws ec2 create-security-group --group-name "${APP_NAME}-db-sg" \
-    --description "RDS — allow Fargate tasks only" --vpc-id $VPC_ID \
+    --description "RDS - allow Fargate tasks only" --vpc-id $VPC_ID \
     --query 'GroupId' --output text --region $REGION)
 fi
 
@@ -110,7 +110,7 @@ REDIS_SG=$(aws ec2 describe-security-groups \
   --query 'SecurityGroups[0].GroupId' --output text --region $REGION 2>/dev/null)
 if [ "$REDIS_SG" = "None" ] || [ -z "$REDIS_SG" ]; then
   REDIS_SG=$(aws ec2 create-security-group --group-name "${APP_NAME}-redis-sg" \
-    --description "ElastiCache — allow Fargate tasks only" --vpc-id $VPC_ID \
+    --description "ElastiCache - allow Fargate tasks only" --vpc-id $VPC_ID \
     --query 'GroupId' --output text --region $REGION)
 fi
 
@@ -130,7 +130,7 @@ ALB_SG=$(aws ec2 describe-security-groups \
   --query 'SecurityGroups[0].GroupId' --output text --region $REGION 2>/dev/null)
 if [ "$ALB_SG" = "None" ] || [ -z "$ALB_SG" ]; then
   ALB_SG=$(aws ec2 create-security-group --group-name "${APP_NAME}-alb-sg" \
-    --description "ALB — allow public HTTP/HTTPS" --vpc-id $VPC_ID \
+    --description "ALB - allow public HTTP/HTTPS" --vpc-id $VPC_ID \
     --query 'GroupId' --output text --region $REGION)
   aws ec2 authorize-security-group-ingress --group-id $ALB_SG \
     --protocol tcp --port 80 --cidr 0.0.0.0/0 --region $REGION 2>/dev/null || true
@@ -304,7 +304,7 @@ grep -q '^ALB_DNS=' .env || echo "ALB_DNS=$ALB_DNS" >> .env
 grep -q '^ALB_ARN=' .env || echo "ALB_ARN=$ALB_ARN" >> .env
 grep -q '^TG_ARN=' .env || echo "TG_ARN=$TG_ARN" >> .env
 
-# 9. SES (email — magic links, notifications)
+# 9. SES (email - magic links, notifications)
 echo ""
 echo "--- SES Sender Identity ---"
 SES_IDENTITY="${SES_IDENTITY:-${SENDER_EMAIL:-}}"
@@ -314,10 +314,10 @@ if [ -n "$SES_IDENTITY" ]; then
     echo "Using existing SES identity: $SES_IDENTITY ($STATUS)"
   else
     aws sesv2 create-email-identity --email-identity "$SES_IDENTITY" --region $REGION 2>/dev/null || true
-    echo "Created SES identity: $SES_IDENTITY — check your email to verify."
+    echo "Created SES identity: $SES_IDENTITY - check your email to verify."
   fi
 else
-  echo "No SES_IDENTITY set — skipping email setup. Set SENDER_EMAIL in .env to enable."
+  echo "No SES_IDENTITY set - skipping email setup. Set SENDER_EMAIL in .env to enable."
 fi
 
 echo ""
