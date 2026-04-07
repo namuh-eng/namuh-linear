@@ -156,4 +156,17 @@ describe("TeamBoardPage", () => {
       }),
     );
   });
+
+  it("updates board cards when display properties are toggled", async () => {
+    render(<TeamBoardPage />);
+
+    expect(await screen.findByText("ENG-1")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: /display options/i }));
+    fireEvent.click(screen.getByTestId("property-id"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("ENG-1")).toBeNull();
+    });
+  });
 });

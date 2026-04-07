@@ -30,6 +30,8 @@ interface IssueData {
   labels: { name: string; color: string }[];
   labelIds: string[];
   projectId: string | null;
+  projectName?: string | null;
+  dueDate?: string | null;
   createdAt: string;
 }
 
@@ -446,7 +448,10 @@ export default function TeamBoardPage() {
                 assigneeName={iss.assignee?.name}
                 assigneeImage={iss.assignee?.image ?? undefined}
                 labels={iss.labels}
+                projectName={iss.projectName}
+                dueDate={iss.dueDate}
                 createdAt={iss.createdAt}
+                displayProperties={options.displayProperties}
                 draggable
                 isDragging={draggedIssue?.issueId === iss.id}
                 onDragStart={handleIssueDragStart(iss.id, group.state.id)}

@@ -715,5 +715,38 @@
       }
     ],
     "fix_description": "Rebuilt the create-issue modal around contenteditable editors plus real toolbar menus, added a team-scoped create-issue options API, extended issue creation to persist labels and normalized rich descriptions, wired global `C`/command-palette opening plus live issue-list refresh events, and implemented attachment persistence by posting uploaded files to the issue comment attachment route after creation."
+  },
+  {
+    "feature_id": "feature-005",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 598 unit tests passed after the display-options fixes.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; smoke still passed on `http://localhost:3015`.",
+      "Ran `make check`; typecheck plus Biome lint/format both passed after the shared panel and metadata rendering changes.",
+      "Ran full `make test-e2e` because the fixes touched shared UI (`DisplayOptionsPanel`, issue rows, and issue cards); smoke still passed and the only failing specs were the pre-existing unrelated `tests/e2e/command-palette.spec.ts` cases where the command palette never opens on `Meta+K`.",
+      "Used the live Ever session on `/team/ONB/all` to open the display-options panel, confirmed outside-click dismissal now closes it, and saved updated UI evidence to `ralph/screenshots/qa/feature-005-attempt-1-panel-after-fix.jpg`.",
+      "Verified list-view property toggles update rows immediately: disabling `ID` removed the `ONB-*` identifiers from visible rows, and `Reset` restored the default row metadata.",
+      "Saved a modified team default through the panel, queried the real Postgres `team.settings->displayOptions` row for team `ONB`, and confirmed the updated display options persisted in the database.",
+      "Reloaded `/team/ONB/all` and confirmed the saved defaults reloaded on mount: identifiers stayed hidden until the team default was reset and saved back to the original list defaults.",
+      "Opened `/team/ONB/board` and verified board cards now respect the same display properties: when `ID` was disabled the `ONB-*` identifiers disappeared from cards, `Reset` restored them, and the List tab in the panel navigated back to `/team/ONB/all`."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "The display-options panel did not dismiss when clicking elsewhere in the UI.",
+        "expected": "Like Linear's panel, clicking outside the display-options popover should close it so it does not linger while users interact with the page.",
+        "actual": "Before the fix, clicking another control such as the `Active` tab left the display-options panel open.",
+        "reproduction": "1. Open `/team/ONB/all`.\n2. Click `Display` to open the panel.\n3. Click another control outside the panel, such as `Active`.\n4. Observe that the pre-fix panel remains open."
+      },
+      {
+        "severity": "major",
+        "description": "Board cards ignored display-property toggles.",
+        "expected": "Display-property changes should affect the active layout, including board cards after switching to Board view.",
+        "actual": "Before the fix, disabling `ID` or other supported properties in Board view did not change the rendered cards at all because `IssueCard` did not consume the display-options state.",
+        "reproduction": "1. Open `/team/ONB/board`.\n2. Open `Display`.\n3. Disable `ID`.\n4. Observe that the pre-fix cards still show identifiers like `ONB-2` and `ONB-6`."
+      }
+    ],
+    "fix_description": "Centralized the display-options popover state so outside clicks and overlapping inline selectors behave correctly, wired board cards to the shared display-properties state, added due-date rendering support for issue rows/cards where data exists, and added regression coverage for outside-close behavior plus board-card property toggling."
   }
 ]

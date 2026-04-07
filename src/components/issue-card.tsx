@@ -1,5 +1,7 @@
 import { Avatar } from "@/components/avatar";
+import type { DisplayProperties } from "@/components/display-options-panel";
 import { PriorityIcon } from "@/components/icons/priority-icon";
+import { StatusIcon } from "@/components/icons/status-icon";
 import { LabelChip } from "@/components/label-chip";
 
 type StatusCategory =
@@ -20,8 +22,11 @@ interface IssueCardProps {
   assigneeName?: string;
   assigneeImage?: string;
   labels?: { name: string; color: string }[];
+  projectName?: string | null;
+  dueDate?: string | null;
   createdAt: string;
   href?: string;
+  displayProperties?: DisplayProperties;
   draggable?: boolean;
   isDragging?: boolean;
   onDragStart?: React.DragEventHandler<HTMLDivElement>;
@@ -52,15 +57,23 @@ export function IssueCard({
   identifier,
   title,
   priority,
+  statusCategory,
+  statusColor,
   assigneeName,
   assigneeImage,
   labels,
+  projectName,
+  dueDate,
   createdAt,
+  displayProperties,
   draggable = false,
   isDragging = false,
   onDragStart,
   onDragEnd,
 }: IssueCardProps) {
+  const showProp = (key: keyof DisplayProperties) =>
+    !displayProperties || displayProperties[key];
+
   return (
     <div
       data-testid="issue-card"
@@ -78,16 +91,36 @@ export function IssueCard({
         {title}
       </p>
 
+      {(showProp("project") && projectName) ||
+      (showProp("dueDate") && dueDate) ? (
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--color-text-secondary)]">
+          {showProp("project") && projectName ? (
+            <span className="truncate">{projectName}</span>
+          ) : null}
+          {showProp("dueDate") && dueDate ? (
+            <span>Due {formatDate(dueDate)}</span>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Bottom row: identifier, priority, labels, assignee */}
       <div className="flex items-center gap-2">
-        <span className="text-[12px] text-[var(--color-text-secondary)]">
-          {identifier}
-        </span>
+        {showProp("status") ? (
+          <StatusIcon category={statusCategory} color={statusColor} size={14} />
+        ) : null}
 
-        <PriorityIcon priority={priority} size={14} />
+        {showProp("id") ? (
+          <span className="text-[12px] text-[var(--color-text-secondary)]">
+            {identifier}
+          </span>
+        ) : null}
+
+        {showProp("priority") ? (
+          <PriorityIcon priority={priority} size={14} />
+        ) : null}
 
         {/* Labels */}
-        {labels && labels.length > 0 && (
+        {showProp("labels") && labels && labels.length > 0 && (
           <div className="flex items-center gap-1">
             {labels.map((l) => (
               <LabelChip key={l.name} name={l.name} color={l.color} />
@@ -98,16 +131,18 @@ export function IssueCard({
         <div className="flex-1" />
 
         {/* Date */}
-        <span className="text-[11px] text-[var(--color-text-tertiary)]">
-          {formatDate(createdAt)}
-        </span>
+        {showProp("created") ? (
+          <span className="text-[11px] text-[var(--color-text-tertiary)]">
+            {formatDate(createdAt)}
+          </span>
+        ) : null}
 
         {/* Assignee */}
-        {assigneeName && (
+        {showProp("assignee") && assigneeName ? (
           <div data-testid="card-assignee">
             <Avatar name={assigneeName} src={assigneeImage} size="sm" />
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

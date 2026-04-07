@@ -189,6 +189,27 @@ describe("DisplayOptionsPanel", () => {
     fireEvent.click(screen.getByText("Set default for everyone"));
     expect(onSaveAsDefault).toHaveBeenCalled();
   });
+
+  it("calls onClose when clicking outside the panel", () => {
+    const onClose = vi.fn();
+    render(<DisplayOptionsPanel {...defaultProps} onClose={onClose} />);
+
+    fireEvent.mouseDown(document.body);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps only one inline menu open at a time", () => {
+    render(<DisplayOptionsPanel {...defaultProps} />);
+
+    fireEvent.click(screen.getByTestId("grouping-select"));
+    expect(screen.getByTestId("grouping-select-menu")).toBeDefined();
+
+    fireEvent.click(screen.getByTestId("subgroup-select"));
+
+    expect(screen.queryByTestId("grouping-select-menu")).toBeNull();
+    expect(screen.getByTestId("subgroup-select-menu")).toBeDefined();
+  });
 });
 
 describe("defaultDisplayProperties", () => {

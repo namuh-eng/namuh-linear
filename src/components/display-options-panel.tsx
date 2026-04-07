@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface DisplayProperties {
   id: boolean;
@@ -149,31 +149,25 @@ function InlineSelect<T extends string>({
   options,
   labels,
   onChange,
+  isOpen,
+  onToggle,
   testId,
 }: {
   value: T;
   options: T[];
   labels: Record<T, string>;
   onChange: (value: T) => void;
+  isOpen: boolean;
+  onToggle: () => void;
   testId: string;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const handleSelect = useCallback(
-    (opt: T) => {
-      onChange(opt);
-      setIsOpen(false);
-    },
-    [onChange],
-  );
-
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative">
       <button
         type="button"
         data-testid={testId}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={onToggle}
+        aria-expanded={isOpen}
         className="rounded-md border border-[var(--color-border)] px-2 py-0.5 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
       >
         {labels[value]}
@@ -187,7 +181,7 @@ function InlineSelect<T extends string>({
             <button
               key={opt}
               type="button"
-              onClick={() => handleSelect(opt)}
+              onClick={() => onChange(opt)}
               className={`flex w-full px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[var(--color-surface-hover)] ${
                 opt === value
                   ? "text-[var(--color-accent)]"
@@ -225,10 +219,57 @@ export function DisplayOptionsPanel({
   onReset,
   onSaveAsDefault,
 }: DisplayOptionsPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [openSelect, setOpenSelect] = useState<
+    "grouping" | "subgroup" | "ordering" | null
+  >(null);
+
+  useEffect(() => {
+    if (!open) {
+      setOpenSelect(null);
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        panelRef.current &&
+        event.target instanceof Node &&
+        !panelRef.current.contains(event.target)
+      ) {
+        setOpenSelect(null);
+        onClose();
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenSelect(null);
+        onClose();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, onClose]);
+
+  function handleSelectChange<T extends string>(onChange: (value: T) => void) {
+    return (value: T) => {
+      onChange(value);
+      setOpenSelect(null);
+    };
+  }
+
   if (!open) return null;
 
   return (
-    <div className="absolute top-8 right-0 z-40 w-[320px] rounded-lg border border-[var(--color-border)] bg-[var(--color-content-bg)] shadow-xl">
+    <div
+      ref={panelRef}
+      className="absolute top-8 right-0 z-40 w-[320px] rounded-lg border border-[var(--color-border)] bg-[var(--color-content-bg)] shadow-xl"
+    >
       <div className="p-3">
         {/* Layout toggle */}
         <div className="mb-3 flex rounded-md border border-[var(--color-border)]">
@@ -296,7 +337,13 @@ export function DisplayOptionsPanel({
               "none",
             ]}
             labels={groupByLabels}
-            onChange={onGroupByChange}
+            onChange={handleSelectChange(onGroupByChange)}
+            isOpen={openSelect === "grouping"}
+            onToggle={() =>
+              setOpenSelect((current) =>
+                current === "grouping" ? null : "grouping",
+              )
+            }
             testId="grouping-select"
           />
         </OptionRow>
@@ -307,7 +354,13 @@ export function DisplayOptionsPanel({
             value={subGroupBy}
             options={["none", "status", "priority", "assignee"]}
             labels={groupByLabels}
-            onChange={onSubGroupByChange}
+            onChange={handleSelectChange(onSubGroupByChange)}
+            isOpen={openSelect === "subgroup"}
+            onToggle={() =>
+              setOpenSelect((current) =>
+                current === "subgroup" ? null : "subgroup",
+              )
+            }
             testId="subgroup-select"
           />
         </OptionRow>
@@ -318,7 +371,13 @@ export function DisplayOptionsPanel({
             value={orderBy}
             options={["priority", "created", "updated", "manual"]}
             labels={orderByLabels}
-            onChange={onOrderByChange}
+            onChange={handleSelectChange(onOrderByChange)}
+            isOpen={openSelect === "ordering"}
+            onToggle={() =>
+              setOpenSelect((current) =>
+                current === "ordering" ? null : "ordering",
+              )
+            }
             testId="ordering-select"
           />
         </OptionRow>

@@ -23,6 +23,7 @@ interface IssueRowProps {
   assigneeImage?: string;
   labels?: { name: string; color: string }[];
   projectName?: string;
+  dueDate?: string | null;
   createdAt: string;
   href?: string;
   displayProperties?: DisplayProperties;
@@ -67,6 +68,7 @@ export function IssueRow({
   assigneeImage,
   labels,
   projectName,
+  dueDate,
   createdAt,
   href,
   displayProperties,
@@ -109,6 +111,13 @@ export function IssueRow({
       {showProp("project") && projectName && (
         <span className="max-w-[160px] shrink-0 truncate text-[12px] text-[var(--color-text-secondary)]">
           {projectName}
+        </span>
+      )}
+
+      {/* Due date */}
+      {showProp("dueDate") && dueDate && (
+        <span className="shrink-0 text-[12px] text-[var(--color-text-secondary)]">
+          Due {formatDate(dueDate)}
         </span>
       )}
 

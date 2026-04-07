@@ -355,6 +355,7 @@ export default function TeamIssuesPage() {
                 assigneeImage={iss.assignee?.image ?? undefined}
                 labels={iss.labels}
                 projectName={iss.projectName ?? undefined}
+                dueDate={iss.dueDate}
                 createdAt={iss.createdAt}
                 href={`/team/${data.team.key}/issue/${iss.id}`}
                 displayProperties={options.displayProperties}

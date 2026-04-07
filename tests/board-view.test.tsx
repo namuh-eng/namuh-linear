@@ -1,4 +1,5 @@
 import { BoardColumn } from "@/components/board-column";
+import { defaultDisplayProperties } from "@/components/display-options-panel";
 import { IssueCard } from "@/components/issue-card";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -64,6 +65,41 @@ describe("IssueCard", () => {
   it("does not render assignee when not provided", () => {
     const { container } = render(<IssueCard {...defaultProps} />);
     expect(container.querySelector("[data-testid='card-assignee']")).toBeNull();
+  });
+
+  it("hides toggled-off metadata", () => {
+    render(
+      <IssueCard
+        {...defaultProps}
+        assigneeName="Jaeyun Ha"
+        displayProperties={{
+          ...defaultDisplayProperties,
+          id: false,
+          priority: false,
+          created: false,
+          assignee: false,
+        }}
+      />,
+    );
+
+    expect(screen.queryByText("ENG-116")).toBeNull();
+    expect(screen.queryByText("Feb 27")).toBeNull();
+    expect(screen.queryByText("JH")).toBeNull();
+    expect(screen.queryByRole("img", { name: /medium/i })).toBeNull();
+  });
+
+  it("renders project and due date when enabled", () => {
+    render(
+      <IssueCard
+        {...defaultProps}
+        projectName="Platform"
+        dueDate="2026-03-01T00:00:00.000Z"
+        displayProperties={{ ...defaultDisplayProperties }}
+      />,
+    );
+
+    expect(screen.getByText("Platform")).toBeDefined();
+    expect(screen.getByText("Due Mar 1")).toBeDefined();
   });
 });
 
