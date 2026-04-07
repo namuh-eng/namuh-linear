@@ -60,5 +60,29 @@
       }
     ],
     "fix_description": "No safe repo-only fix was available during QA. The remaining failure is missing real AWS Redis provisioning/configuration rather than broken helper code, so `qa_pass` remains false."
+  },
+  {
+    "feature_id": "infra-002",
+    "attempt": 3,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 533 unit tests passed.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the clone loaded successfully on `http://localhost:3015`.",
+      "Opened the clone with Ever and captured a login-page snapshot to confirm the app was reachable before infrastructure changes.",
+      "Verified the pre-fix failure state: `printenv REDIS_URL` returned empty, `.env` had no `REDIS_URL`, and `aws elasticache describe-cache-clusters --cache-cluster-id namuh-linear-redis --region us-east-1 --show-cache-node-info` returned `CacheClusterNotFound`.",
+      "Provisioned the missing Redis infrastructure in AWS for this clone: created `namuh-linear-app-sg`, created `namuh-linear-redis-sg` with port 6379 ingress from the app security group, created the `namuh-linear-redis-subnet` cache subnet group, created the `namuh-linear-redis` ElastiCache Redis cluster, and waited for it to reach `available`.",
+      "Verified the post-fix state in AWS: `namuh-linear-redis` is `available` in `us-east-1`, backed by subnet group `namuh-linear-redis-subnet`, attached to security group `sg-0dddf0e0b46c8cffa`, and exposes endpoint `namuh-linear-redis.szjnmv.0001.use1.cache.amazonaws.com:6379`.",
+      "Confirmed the local environment is now configured for the provisioned backend by appending `REDIS_URL=redis://namuh-linear-redis.szjnmv.0001.use1.cache.amazonaws.com:6379` to `.env`."
+    ],
+    "bugs_found": [
+      {
+        "severity": "critical",
+        "description": "The clone still lacked a provisioned and configured app-specific ElastiCache Redis backend at the start of attempt 3.",
+        "expected": "A reachable `namuh-linear` Redis/ElastiCache instance should exist in AWS and the clone should have `REDIS_URL` configured to that endpoint.",
+        "actual": "No `REDIS_URL` was configured locally and AWS returned `CacheClusterNotFound` for `namuh-linear-redis` before the fix.",
+        "reproduction": "1. Run `printenv REDIS_URL` and inspect `.env` for `REDIS_URL=`.\n2. Run `aws elasticache describe-cache-clusters --cache-cluster-id namuh-linear-redis --region us-east-1 --show-cache-node-info`.\n3. Observe the empty Redis env configuration and the AWS `CacheClusterNotFound` response."
+      }
+    ],
+    "fix_description": "Provisioned the missing AWS Redis resources for `namuh-linear` (app security group, Redis security group, cache subnet group, and ElastiCache cluster), waited for the cluster to become available, and configured the clone locally with the resulting `REDIS_URL`."
   }
 ]

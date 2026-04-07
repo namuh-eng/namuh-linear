@@ -19,7 +19,7 @@
     "core": true,
     "dependent_on": ["infra-001"],
     "build_pass": true,
-    "qa_pass": false
+    "qa_pass": true
   },
   {
     "id": "infra-003",
