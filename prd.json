@@ -283,7 +283,7 @@
     "core": false,
     "dependent_on": ["feature-010", "infra-001"],
     "build_pass": true,
-    "qa_pass": false
+    "qa_pass": true
   },
   {
     "id": "feature-032",

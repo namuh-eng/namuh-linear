@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member, team, workspace } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppShell } from "./app-shell";
 
@@ -17,7 +17,9 @@ export default async function AppLayout({
     redirect("/login");
   }
 
-  // Get user's workspace
+  const cookieStore = await cookies();
+  const preferredWorkspaceId = cookieStore.get("activeWorkspaceId")?.value;
+
   const memberships = await db
     .select({
       workspaceId: member.workspaceId,
@@ -28,13 +30,16 @@ export default async function AppLayout({
     .innerJoin(workspace, eq(member.workspaceId, workspace.id))
     .where(eq(member.userId, session.user.id))
     .orderBy(desc(member.createdAt))
-    .limit(1);
+    .limit(50);
 
   if (memberships.length === 0) {
     redirect("/create-workspace");
   }
 
-  const ws = memberships[0];
+  const ws =
+    memberships.find(
+      (membership) => membership.workspaceId === preferredWorkspaceId,
+    ) ?? memberships[0];
 
   // Get first team
   const teams = await db
@@ -48,6 +53,7 @@ export default async function AppLayout({
 
   return (
     <AppShell
+      workspaceId={ws.workspaceId}
       workspaceName={ws.workspaceName}
       workspaceInitials={ws.workspaceName.substring(0, 2).toUpperCase()}
       teamName={firstTeam.name}

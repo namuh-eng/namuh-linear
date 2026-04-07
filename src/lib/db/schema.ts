@@ -534,6 +534,7 @@ export const initiative = pgTable(
     name: varchar("name", { length: 255 }).notNull(),
     description: text("description"),
     status: initiativeStatus("status").notNull().default("planned"),
+    settings: jsonb("settings").default({}),
     workspaceId: uuid("workspace_id")
       .notNull()
       .references(() => workspace.id, { onDelete: "cascade" }),

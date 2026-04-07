@@ -2,7 +2,7 @@
 
 import { EmptyState } from "@/components/empty-state";
 import { InitiativeRow } from "@/components/initiative-row";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface InitiativeData {
   id: string;
@@ -25,6 +25,11 @@ export default function InitiativesPage() {
     "active" | "planned" | "completed"
   >("active");
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const shortcutRef = useRef<{ key: string; timestamp: number } | null>(null);
+
+  const openCreateForm = useCallback(() => {
+    setShowCreateForm(true);
+  }, []);
 
   const fetchInitiatives = useCallback(async () => {
     try {
@@ -62,6 +67,73 @@ export default function InitiativesPage() {
     },
     [activeTab, fetchInitiatives],
   );
+
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null) {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      const tagName = target.tagName.toLowerCase();
+      return (
+        target.isContentEditable ||
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select"
+      );
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.shiftKey ||
+        isTypingTarget(event.target)
+      ) {
+        shortcutRef.current = null;
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      const now = Date.now();
+      if (
+        key === "i" &&
+        shortcutRef.current?.key === "n" &&
+        now - shortcutRef.current.timestamp < 1250
+      ) {
+        event.preventDefault();
+        shortcutRef.current = null;
+        openCreateForm();
+        return;
+      }
+
+      shortcutRef.current = key === "n" ? { key, timestamp: now } : null;
+    }
+
+    function handleOpenCreateInitiative() {
+      openCreateForm();
+    }
+
+    if (sessionStorage.getItem("open-create-initiative") === "1") {
+      sessionStorage.removeItem("open-create-initiative");
+      openCreateForm();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener(
+      "open-create-initiative",
+      handleOpenCreateInitiative,
+    );
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener(
+        "open-create-initiative",
+        handleOpenCreateInitiative,
+      );
+    };
+  }, [openCreateForm]);
 
   if (loading) {
     return (
@@ -107,10 +179,15 @@ export default function InitiativesPage() {
         <div className="flex-1" />
         <button
           type="button"
-          onClick={() => setShowCreateForm(true)}
-          className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:opacity-90"
+          onClick={openCreateForm}
+          className="inline-flex items-center gap-2 rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:opacity-90"
         >
-          New initiative
+          <span>New initiative</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-1.5 py-0.5 text-[11px] font-normal">
+            <kbd className="font-medium not-italic">N</kbd>
+            <span>then</span>
+            <kbd className="font-medium not-italic">I</kbd>
+          </span>
         </button>
       </div>
 
@@ -185,7 +262,7 @@ export default function InitiativesPage() {
             }
             action={{
               label: "Create initiative",
-              onClick: () => setShowCreateForm(true),
+              onClick: openCreateForm,
             }}
           />
         ) : (

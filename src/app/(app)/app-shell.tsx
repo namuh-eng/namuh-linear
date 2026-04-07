@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 
 interface AppShellProps {
   children: React.ReactNode;
+  workspaceId?: string;
   workspaceName: string;
   workspaceInitials: string;
   teamName: string;
@@ -17,6 +18,7 @@ interface AppShellProps {
 }
 
 interface ShellContext {
+  workspaceId: string;
   workspaceName: string;
   workspaceInitials: string;
   teamName: string;
@@ -55,6 +57,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 export function AppShell({
   children,
+  workspaceId = "",
   workspaceName,
   workspaceInitials,
   teamName,
@@ -66,6 +69,7 @@ export function AppShell({
   const [showCreateIssue, setShowCreateIssue] = useState(false);
   const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
   const [shellContext, setShellContext] = useState<ShellContext>({
+    workspaceId,
     workspaceName,
     workspaceInitials,
     teamName,
@@ -79,6 +83,7 @@ export function AppShell({
 
   useEffect(() => {
     const fallbackContext = {
+      workspaceId,
       workspaceName,
       workspaceInitials,
       teamName,
@@ -126,9 +131,14 @@ export function AppShell({
     teamKey,
     teamName,
     teams,
+    workspaceId,
     workspaceInitials,
     workspaceName,
   ]);
+
+  useEffect(() => {
+    document.cookie = `activeWorkspaceId=${shellContext.workspaceId}; path=/; samesite=lax`;
+  }, [shellContext.workspaceId]);
 
   useEffect(() => {
     let cancelled = false;

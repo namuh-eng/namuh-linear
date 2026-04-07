@@ -3,14 +3,35 @@ import { db } from "@/lib/db";
 import {
   initiative,
   initiativeProject,
-  issue,
   member,
   project,
-  workflowState,
 } from "@/lib/db/schema";
-import { and, count, eq, sql } from "drizzle-orm";
-import { headers } from "next/headers";
+import { desc, eq } from "drizzle-orm";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+async function resolveWorkspaceId(userId: string) {
+  const cookieStore = await cookies();
+  const preferredWorkspaceId = cookieStore.get("activeWorkspaceId")?.value;
+
+  const members = await db
+    .select({ workspaceId: member.workspaceId })
+    .from(member)
+    .where(eq(member.userId, userId))
+    .orderBy(desc(member.createdAt))
+    .limit(50);
+
+  if (
+    preferredWorkspaceId &&
+    members.some(
+      (membership) => membership.workspaceId === preferredWorkspaceId,
+    )
+  ) {
+    return preferredWorkspaceId;
+  }
+
+  return members[0]?.workspaceId ?? null;
+}
 
 export async function GET(_request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -18,18 +39,10 @@ export async function GET(_request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get user's workspace
-  const members = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .limit(1);
-
-  if (members.length === 0) {
+  const workspaceId = await resolveWorkspaceId(session.user.id);
+  if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
-
-  const workspaceId = members[0].workspaceId;
 
   const initiatives = await db
     .select()
@@ -76,25 +89,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const members = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .limit(1);
-
-  if (members.length === 0) {
+  const workspaceId = await resolveWorkspaceId(session.user.id);
+  if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
 
   const body = await request.json();
+  const name = `${body.name ?? ""}`.trim();
+  const description =
+    typeof body.description === "string" && body.description.trim()
+      ? body.description.trim()
+      : null;
+
+  if (!name) {
+    return NextResponse.json(
+      { error: "Initiative name is required" },
+      { status: 400 },
+    );
+  }
 
   const newInitiative = await db
     .insert(initiative)
     .values({
-      name: body.name,
-      description: body.description ?? null,
+      name,
+      description,
       status: body.status ?? "planned",
-      workspaceId: members[0].workspaceId,
+      workspaceId,
     })
     .returning();
 

@@ -15,6 +15,7 @@ function makeInitiative(overrides: Record<string, unknown> = {}) {
         name: "API Rewrite",
         status: "started",
         icon: "🔧",
+        slug: "api-rewrite",
         completedIssueCount: 5,
         issueCount: 12,
       },
@@ -23,6 +24,7 @@ function makeInitiative(overrides: Record<string, unknown> = {}) {
         name: "Auth Migration",
         status: "completed",
         icon: "🔐",
+        slug: "auth-migration",
         completedIssueCount: 8,
         issueCount: 8,
       },
@@ -125,6 +127,7 @@ describe("InitiativeProjectList", () => {
         name: "API Rewrite",
         status: "started",
         icon: "🔧",
+        slug: "api-rewrite",
         completedIssueCount: 5,
         issueCount: 12,
       },
@@ -133,6 +136,7 @@ describe("InitiativeProjectList", () => {
         name: "Auth Migration",
         status: "completed",
         icon: "🔐",
+        slug: "auth-migration",
         completedIssueCount: 8,
         issueCount: 8,
       },
@@ -160,11 +164,35 @@ describe("InitiativeProjectList", () => {
         name: "Test Project",
         status: "started",
         icon: "📦",
+        slug: "test-project",
         completedIssueCount: 3,
         issueCount: 6,
       },
     ];
     render(<InitiativeProjectList projects={projects} />);
     expect(screen.getByText("50%")).toBeTruthy();
+  });
+
+  it("links to the project slug", async () => {
+    const { InitiativeProjectList } = await import(
+      "@/components/initiative-project-list"
+    );
+    const projects = [
+      {
+        id: "p1",
+        name: "Slugged Project",
+        status: "started",
+        icon: "📦",
+        slug: "slugged-project",
+        completedIssueCount: 1,
+        issueCount: 2,
+      },
+    ];
+    render(<InitiativeProjectList projects={projects} />);
+    expect(
+      screen
+        .getByRole("link", { name: /Slugged Project/i })
+        .getAttribute("href"),
+    ).toBe("/project/slugged-project");
   });
 });

@@ -967,5 +967,52 @@
       }
     ],
     "fix_description": "Added the missing team settings API, wired real cycle cadence controls and saving into team general settings, fixed local/team-date handling for cycle defaults and section categorization, validated cycle date formats/ranges/overlaps in the API, surfaced create errors in the UI, and re-verified create/update/delete/detail flows plus issue unlinking against the real database."
+  },
+  {
+    "feature_id": "feature-031",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 633 unit tests passed after the initiative fixes.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; Playwright auth setup plus smoke both passed on `http://localhost:3015`.",
+      "Ran `make db-push`; the updated initiative schema, including persisted initiative settings for status updates, was applied to the local Postgres database.",
+      "Verified the initiatives page against real workspace data in Ever while signed in with Google: the empty-state copy rendered for `QA Fix 20260407 1644`, the `N then I` shortcut opened the create form, and real initiative creation populated the Active, Planned, and Completed tabs with correctly filtered records.",
+      "Verified the workspace-scoping fix end to end: after navigating from `/team/QAX2/all` into `/initiatives`, real initiative creates landed in the `QA Fix 20260407 1644` workspace instead of the previously wrong `Onboarding QA Team` workspace.",
+      "Verified initiative detail behavior on a real initiative: linked `Issues List QA Project` and `QA Progress 100 Project`, confirmed project progress rolled up from real issue counts (including a 100% completed linked project), changed the initiative status to `Completed`, and confirmed the UI and API persisted the transition.",
+      "Verified status updates with the real API by posting an `At risk` update and reloading the detail page; the update rendered with the health badge, author, timestamp, and body text.",
+      "Verified unlinking and deletion against the real database: removed one linked project from the initiative, then deleted the initiative entirely and confirmed the remaining `initiative_project` rows for that initiative dropped to `0` while the other QA initiatives remained.",
+      "Saved QA evidence screenshots to `ralph/screenshots/qa/feature-031-attempt-1-completed-list.png` and `ralph/screenshots/qa/feature-031-attempt-1-planned-list.png`, and compared the workspace-level initiatives layout against `ralph/screenshots/inspect/initiatives.jpg`."
+    ],
+    "bugs_found": [
+      {
+        "severity": "critical",
+        "description": "The initiatives APIs ignored the active workspace context, so list/create/detail requests could read and write initiatives in the wrong workspace.",
+        "expected": "When the UI shows a workspace such as `QA Fix 20260407 1644`, initiative CRUD should operate in that same workspace.",
+        "actual": "Before the fix, creating an initiative from the `QA Fix 20260407 1644` shell wrote the record into `Onboarding QA Team` because the routes just grabbed the first membership instead of the active workspace.",
+        "reproduction": "1. Sign in as a user who belongs to multiple workspaces.\n2. Navigate to `/team/QAX2/all` so the shell shows `QA Fix 20260407 1644`, then open `/initiatives`.\n3. Create an initiative before the fix.\n4. Query Postgres for the new initiative's `workspace_id` and observe that it belongs to a different workspace."
+      },
+      {
+        "severity": "major",
+        "description": "The initiative detail page did not provide the required management flows for project linking, status updates, or deletion.",
+        "expected": "Initiative detail should let users link and unlink projects, post initiative updates, change status, and delete an initiative while keeping the list/detail views in sync.",
+        "actual": "Before the fix, detail was effectively read-only aside from a bare API route; there were no visible controls for linking projects, posting updates, or deleting the initiative.",
+        "reproduction": "1. Open any initiative detail page before the fix.\n2. Look for controls to link a project, remove a project, post an update, or delete the initiative.\n3. Observe that those flows are missing from the UI."
+      },
+      {
+        "severity": "major",
+        "description": "Linked project navigation was broken because initiative detail linked projects by raw project id instead of the slug-based project route.",
+        "expected": "Clicking a linked project from initiative detail should open `/project/{slug}` for that project.",
+        "actual": "The row href used `/project/{id}`, which does not match the app's project detail route and led to broken navigation.",
+        "reproduction": "1. Link a project to an initiative before the fix.\n2. Inspect the linked project anchor on the initiative detail page.\n3. Observe that it points to `/project/<project-id>` instead of `/project/<project-slug>`."
+      },
+      {
+        "severity": "major",
+        "description": "The `N then I` initiative shortcut was not implemented.",
+        "expected": "Pressing `N` then `I` on the initiatives page should open the create initiative form.",
+        "actual": "Before the fix, the shortcut did nothing and users had to rely on the button only.",
+        "reproduction": "1. Open `/initiatives`.\n2. Press `N`, then `I`.\n3. Observe that no create form opens before the fix."
+      }
+    ],
+    "fix_description": "Added active-workspace resolution for initiatives via the app-shell workspace cookie, expanded initiative detail with real status, link/unlink, update, and delete flows, persisted initiative updates in the database-backed settings payload, fixed linked-project routing to use slugs, added the `N then I` shortcut plus targeted regression tests, and re-verified the feature against live Postgres data."
   }
 ]

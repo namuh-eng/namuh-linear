@@ -1,18 +1,25 @@
+"use client";
+
 interface LinkedProject {
   id: string;
   name: string;
   status: string;
   icon: string | null;
+  slug: string;
   completedIssueCount: number;
   issueCount: number;
 }
 
 interface InitiativeProjectListProps {
   projects: LinkedProject[];
+  onUnlink?: (projectId: string) => void;
+  unlinkingProjectId?: string | null;
 }
 
 export function InitiativeProjectList({
   projects,
+  onUnlink,
+  unlinkingProjectId,
 }: InitiativeProjectListProps) {
   if (projects.length === 0) {
     return (
@@ -41,27 +48,41 @@ export function InitiativeProjectList({
             : 0;
 
         return (
-          <a
+          <div
             key={project.id}
-            href={`/project/${project.id}`}
-            className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2.5 transition-colors hover:bg-[var(--color-surface-hover)]"
+            className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2.5"
           >
-            <span className="text-[14px]">{project.icon ?? "📦"}</span>
-            <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-text-primary)]">
-              {project.name}
-            </span>
-            <div className="flex shrink-0 items-center gap-2">
-              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--color-border)]">
-                <div
-                  className="h-full rounded-full bg-[var(--color-accent)] transition-all"
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
-              <span className="text-[12px] text-[var(--color-text-secondary)]">
-                {percent}%
+            <a
+              href={`/project/${project.slug}`}
+              className="flex min-w-0 flex-1 items-center gap-3 transition-colors hover:text-[var(--color-text-primary)]"
+            >
+              <span className="text-[14px]">{project.icon ?? "📦"}</span>
+              <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-text-primary)]">
+                {project.name}
               </span>
-            </div>
-          </a>
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--color-border)]">
+                  <div
+                    className="h-full rounded-full bg-[var(--color-accent)] transition-all"
+                    style={{ width: `${percent}%` }}
+                  />
+                </div>
+                <span className="text-[12px] text-[var(--color-text-secondary)]">
+                  {percent}%
+                </span>
+              </div>
+            </a>
+            {onUnlink ? (
+              <button
+                type="button"
+                onClick={() => onUnlink(project.id)}
+                disabled={unlinkingProjectId === project.id}
+                className="rounded-md px-2 py-1 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {unlinkingProjectId === project.id ? "Removing..." : "Remove"}
+              </button>
+            ) : null}
+          </div>
         );
       })}
     </div>
