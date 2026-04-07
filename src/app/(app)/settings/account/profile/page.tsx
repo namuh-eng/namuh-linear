@@ -1,7 +1,8 @@
 "use client";
 
 import { Avatar } from "@/components/avatar";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 
 interface ProfileData {
   name: string;
@@ -10,45 +11,138 @@ interface ProfileData {
   image: string | null;
 }
 
+interface WorkspaceAccess {
+  currentWorkspaceId: string | null;
+  currentWorkspaceName: string | null;
+}
+
 export default function ProfilePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<ProfileData>({
     name: "",
     email: "",
     username: "",
     image: null,
   });
+  const [workspaceAccess, setWorkspaceAccess] = useState<WorkspaceAccess>({
+    currentWorkspaceId: null,
+    currentWorkspaceName: null,
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [leavingWorkspace, setLeavingWorkspace] = useState(false);
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedPhotoName, setSelectedPhotoName] = useState<string | null>(
+    null,
+  );
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/get-session")
+    fetch("/api/account/profile")
       .then((res) => res.json())
       .then((data) => {
-        if (data?.user) {
+        if (data?.profile) {
           setProfile({
-            name: data.user.name ?? "",
-            email: data.user.email ?? "",
-            username: data.user.username ?? "",
-            image: data.user.image ?? null,
+            name: data.profile.name ?? "",
+            email: data.profile.email ?? "",
+            username: data.profile.username ?? "",
+            image: data.profile.image ?? null,
+          });
+          setWorkspaceAccess({
+            currentWorkspaceId:
+              data.workspaceAccess?.currentWorkspaceId ?? null,
+            currentWorkspaceName:
+              data.workspaceAccess?.currentWorkspaceName ?? null,
           });
         }
       })
       .finally(() => setLoading(false));
   }, []);
 
+  const handlePhotoSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setStatusMessage(null);
+    setErrorMessage(null);
+    setSelectedPhotoName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProfile((currentProfile) => ({
+        ...currentProfile,
+        image: typeof reader.result === "string" ? reader.result : null,
+      }));
+    };
+    reader.onerror = () => {
+      setSelectedPhotoName(null);
+      setErrorMessage("Unable to read that image. Try another file.");
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleUpdate = async () => {
+    setStatusMessage(null);
+    setErrorMessage(null);
     setSaving(true);
+
     try {
-      await fetch("/api/auth/update-user", {
-        method: "POST",
+      const response = await fetch("/api/account/profile", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: profile.name,
           username: profile.username,
+          image: profile.image,
         }),
       });
+
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        profile?: ProfileData;
+      } | null;
+
+      if (!response.ok || !data?.profile) {
+        setErrorMessage(data?.error ?? "Unable to update your profile.");
+        return;
+      }
+
+      setProfile(data.profile);
+      setSelectedPhotoName(null);
+      setStatusMessage("Profile updated.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLeaveWorkspace = async () => {
+    setErrorMessage(null);
+    setStatusMessage(null);
+    setLeavingWorkspace(true);
+
+    try {
+      const response = await fetch("/api/account/profile/workspace", {
+        method: "DELETE",
+      });
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        redirectTo?: string;
+      } | null;
+
+      if (!response.ok || !data?.redirectTo) {
+        setErrorMessage(data?.error ?? "Unable to leave the workspace.");
+        return;
+      }
+
+      setLeaveDialogOpen(false);
+      router.push(data.redirectTo);
+      router.refresh();
+    } finally {
+      setLeavingWorkspace(false);
     }
   };
 
@@ -78,8 +172,17 @@ export default function ProfilePage() {
             size="lg"
           />
           <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              className="hidden"
+              onChange={handlePhotoSelection}
+              aria-label="Upload profile picture"
+            />
             <button
               type="button"
+              onClick={() => fileInputRef.current?.click()}
               className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[12px] text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
             >
               Upload photo
@@ -87,6 +190,11 @@ export default function ProfilePage() {
             <p className="mt-1 text-[11px] text-[var(--color-text-tertiary)]">
               Recommended size: 256x256px
             </p>
+            {selectedPhotoName ? (
+              <p className="mt-1 text-[11px] text-[var(--color-text-secondary)]">
+                Selected: {selectedPhotoName}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
@@ -155,19 +263,75 @@ export default function ProfilePage() {
       >
         {saving ? "Updating..." : "Update"}
       </button>
+      {statusMessage ? (
+        <p className="mt-3 text-[12px] text-[var(--color-text-secondary)]">
+          {statusMessage}
+        </p>
+      ) : null}
+      {errorMessage ? (
+        <p className="mt-3 text-[12px] text-red-400">{errorMessage}</p>
+      ) : null}
 
       {/* Workspace access */}
       <div className="mt-10 border-t border-[var(--color-border)] pt-6">
         <h3 className="mb-2 text-[13px] font-medium text-[var(--color-text-primary)]">
           Workspace access
         </h3>
+        <p className="mb-3 text-[12px] text-[var(--color-text-tertiary)]">
+          {workspaceAccess.currentWorkspaceName
+            ? `Remove yourself from ${workspaceAccess.currentWorkspaceName}.`
+            : "Remove yourself from the active workspace."}
+        </p>
         <button
           type="button"
+          onClick={() => setLeaveDialogOpen(true)}
+          disabled={!workspaceAccess.currentWorkspaceId || leavingWorkspace}
           className="rounded-md border border-red-500/30 px-3 py-1.5 text-[12px] text-red-400 transition-colors hover:bg-red-500/10"
         >
           Leave workspace
         </button>
       </div>
+
+      {leaveDialogOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <dialog
+            aria-modal="true"
+            aria-labelledby="leave-workspace-title"
+            open
+            className="w-full max-w-[420px] rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] p-5 shadow-2xl"
+          >
+            <h2
+              id="leave-workspace-title"
+              className="text-[16px] font-semibold text-[var(--color-text-primary)]"
+            >
+              Leave workspace?
+            </h2>
+            <p className="mt-2 text-[13px] text-[var(--color-text-secondary)]">
+              {workspaceAccess.currentWorkspaceName
+                ? `You will lose access to ${workspaceAccess.currentWorkspaceName} until someone invites you back.`
+                : "You will lose access to this workspace until someone invites you back."}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setLeaveDialogOpen(false)}
+                disabled={leavingWorkspace}
+                className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[12px] text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLeaveWorkspace}
+                disabled={leavingWorkspace}
+                className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[12px] text-red-400 transition-colors hover:bg-red-500/15 disabled:opacity-50"
+              >
+                {leavingWorkspace ? "Leaving..." : "Leave workspace"}
+              </button>
+            </div>
+          </dialog>
+        </div>
+      ) : null}
     </div>
   );
 }

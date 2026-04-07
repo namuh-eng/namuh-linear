@@ -9,8 +9,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import ProfilePage from "@/app/(app)/settings/account/profile/page";
 
+const pushMock = vi.fn();
+const refreshMock = vi.fn();
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({
+    push: pushMock,
+    replace: vi.fn(),
+    back: vi.fn(),
+    refresh: refreshMock,
+  }),
   usePathname: () => "/settings/account/profile",
   useParams: () => ({}),
   useSearchParams: () => new URLSearchParams(),
@@ -23,11 +31,15 @@ function mockSession() {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: async () => ({
-      user: {
+      profile: {
         name: "John Doe",
         email: "john@example.com",
         username: "johnd",
         image: null,
+      },
+      workspaceAccess: {
+        currentWorkspaceId: "workspace-1",
+        currentWorkspaceName: "Onboarding QA Team",
       },
     }),
   });
@@ -120,7 +132,17 @@ describe("Account Profile Page", () => {
 
   it("calls update API when Update is clicked", async () => {
     mockSession();
-    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        profile: {
+          name: "John Doe",
+          email: "john@example.com",
+          username: "johnd",
+          image: null,
+        },
+      }),
+    });
 
     render(<ProfilePage />);
     await waitForLoaded();
@@ -129,9 +151,48 @@ describe("Account Profile Page", () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        "/api/auth/update-user",
-        expect.objectContaining({ method: "POST" }),
+        "/api/account/profile",
+        expect.objectContaining({ method: "PATCH" }),
       );
     });
+  });
+
+  it("opens a leave-workspace confirmation dialog", async () => {
+    mockSession();
+    render(<ProfilePage />);
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave workspace" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Leave workspace?")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Leave workspace" }),
+    ).toHaveLength(2);
+  });
+
+  it("calls the leave-workspace API after confirmation", async () => {
+    mockSession();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ redirectTo: "/" }),
+    });
+
+    render(<ProfilePage />);
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave workspace" }));
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Leave workspace" })[1],
+    );
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/account/profile/workspace",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+    expect(pushMock).toHaveBeenCalledWith("/");
+    expect(refreshMock).toHaveBeenCalled();
   });
 });

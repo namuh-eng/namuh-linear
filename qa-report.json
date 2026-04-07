@@ -1216,5 +1216,50 @@
       }
     ],
     "fix_description": "Added a real authenticated account-preferences API backed by `user.settings`, wired the preferences page to load/save through that API, applied theme/font/pointer settings live, made `Default home view` drive `/` redirects, added the sidebar customization dialog plus sidebar visibility/badge persistence, and added the coding tools destination page and navigation."
+  },
+  {
+    "feature_id": "settings-003",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test` before edits; the full Vitest suite passed (`652` unit tests passed).",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts` before edits; the smoke suite passed (`2` Playwright tests including auth setup).",
+      "Verified the pre-fix profile page in Ever at `/settings/account/profile` and saved evidence to `ralph/screenshots/qa/settings-003-attempt-1-pre-fix.jpg`.",
+      "Confirmed session-backed data loading on the live page: email and full name loaded from the authenticated Better Auth session, but username was blank because it was never persisted anywhere real.",
+      "Confirmed the pre-fix upload control was inert by clicking `Upload photo` and verifying there was no file input or upload flow in the DOM.",
+      "Confirmed the pre-fix leave-workspace action was inert by clicking `Leave workspace` and verifying no dialog opened and no navigation or membership change happened.",
+      "After the fix, uploaded a real image through the profile page and verified the authenticated `user.image` field persisted in Postgres as a data URL.",
+      "After the fix, updated the live profile to `Jaeyun Ha` / `jaeyunha`, then queried Postgres and confirmed both `user.name` and `user.settings.accountProfile.username` persisted.",
+      "Started a fresh Ever session on `/settings/account/profile` after the save and verified the page reloaded with the persisted name, username, and avatar preview. Saved evidence to `ralph/screenshots/qa/settings-003-attempt-1-profile-fixed.jpg`.",
+      "Opened the real leave-workspace confirmation dialog in Ever, confirmed the destructive copy referenced the active workspace, then completed the action.",
+      "Queried Postgres after confirming the leave action and verified the active `Onboarding QA Team` membership row was deleted for the signed-in user.",
+      "Verified the browser redirected to `/my-issues/assigned` after leaving, and confirmed the `activeWorkspaceId` cookie was updated to the next available workspace instead of the removed one.",
+      "Ran `make check && make test` after the fixes; typecheck, Biome, and the full Vitest suite all passed (`658` unit tests passed).",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts` after the fixes; the smoke suite passed again (`2` Playwright tests including auth setup)."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "Username edits were not persisted anywhere real.",
+        "expected": "The profile page should load and save the username through a real authenticated backend path so the value survives reloads and new sessions.",
+        "actual": "Before the fix, the page posted only to Better Auth's generic update endpoint, which updated `name` but ignored `username`, so the field always came back blank on reload.",
+        "reproduction": "1. Sign in and open `/settings/account/profile`.\n2. Enter any username and click `Update`.\n3. Reload the page or start a fresh browser session.\n4. Observe that the username field is empty again."
+      },
+      {
+        "severity": "major",
+        "description": "Profile-picture upload was a dead UI control.",
+        "expected": "The profile picture section should expose a working upload path that lets the user choose an image and persist it as their avatar.",
+        "actual": "Before the fix, `Upload photo` was only a styled button with no file input, no preview state, and no backend persistence path.",
+        "reproduction": "1. Sign in and open `/settings/account/profile`.\n2. Click `Upload photo`.\n3. Inspect the page state.\n4. Observe that no file picker, preview, or saved avatar change occurs."
+      },
+      {
+        "severity": "major",
+        "description": "Leave workspace was an inert danger action.",
+        "expected": "The page should open a confirmation dialog and remove the user from the active workspace when the action is confirmed.",
+        "actual": "Before the fix, clicking `Leave workspace` did nothing: no dialog opened, no API call ran, and the membership remained intact.",
+        "reproduction": "1. Sign in and open `/settings/account/profile`.\n2. Click `Leave workspace`.\n3. Observe that no confirmation dialog appears and the user remains in the workspace."
+      }
+    ],
+    "fix_description": "Added a real authenticated account-profile API backed by `user.settings`, persisted username and avatar state through that API, wired the profile page to load/save through it, exposed a real file input with preview-backed avatar upload, and implemented a confirmed leave-workspace flow that removes the active membership, updates the active-workspace cookie, and redirects safely."
   }
 ]
