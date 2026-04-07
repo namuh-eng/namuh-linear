@@ -108,6 +108,8 @@ export async function GET(
         identifier: i.identifier,
         title: i.title,
         priority: i.priority,
+        stateId: i.stateId,
+        assigneeId: i.assigneeId,
         assignee: i.assigneeName
           ? {
               name: i.assigneeName,
@@ -115,13 +117,58 @@ export async function GET(
             }
           : null,
         labels: labelsMap[i.id] ?? [],
+        labelIds: (labelsMap[i.id] ?? []).map((l) => l.name),
+        projectId: i.projectId,
         dueDate: i.dueDate,
         createdAt: i.createdAt,
       })),
   }));
 
+  // Build unique assignees and labels for filter options
+  const uniqueAssignees: { id: string; name: string; image: string | null }[] =
+    [];
+  const seenAssignees = new Set<string>();
+  for (const i of issues) {
+    if (i.assigneeId && i.assigneeName && !seenAssignees.has(i.assigneeId)) {
+      seenAssignees.add(i.assigneeId);
+      uniqueAssignees.push({
+        id: i.assigneeId,
+        name: i.assigneeName,
+        image: i.assigneeImage,
+      });
+    }
+  }
+
+  const uniqueLabels: { id: string; name: string; color: string }[] = [];
+  const seenLabels = new Set<string>();
+  for (const labelList of Object.values(labelsMap)) {
+    for (const l of labelList) {
+      if (!seenLabels.has(l.name)) {
+        seenLabels.add(l.name);
+        uniqueLabels.push({ id: l.name, name: l.name, color: l.color });
+      }
+    }
+  }
+
   return NextResponse.json({
     team: { id: teamRecord.id, name: teamRecord.name, key: teamRecord.key },
     groups: grouped,
+    filterOptions: {
+      statuses: states.map((s) => ({
+        id: s.id,
+        name: s.name,
+        category: s.category,
+        color: s.color,
+      })),
+      assignees: uniqueAssignees,
+      labels: uniqueLabels,
+      priorities: [
+        { value: "urgent", label: "Urgent" },
+        { value: "high", label: "High" },
+        { value: "medium", label: "Medium" },
+        { value: "low", label: "Low" },
+        { value: "none", label: "No priority" },
+      ],
+    },
   });
 }

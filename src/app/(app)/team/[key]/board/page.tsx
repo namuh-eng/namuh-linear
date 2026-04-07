@@ -6,19 +6,29 @@ import {
   type DisplayProperties,
 } from "@/components/display-options-panel";
 import { EmptyState } from "@/components/empty-state";
+import {
+  FilterBar,
+  type FilterCondition,
+  applyFilters,
+} from "@/components/filter-bar";
 import { IssueCard } from "@/components/issue-card";
 import { priorityMap } from "@/components/issue-row";
 import { useDisplayOptions } from "@/hooks/use-display-options";
+import { useFilters } from "@/hooks/use-filters";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface IssueData {
   id: string;
   identifier: string;
   title: string;
   priority: string;
+  stateId: string;
+  assigneeId: string | null;
   assignee: { name: string; image?: string } | null;
   labels: { name: string; color: string }[];
+  labelIds: string[];
+  projectId: string | null;
   createdAt: string;
 }
 
@@ -32,9 +42,17 @@ interface StateGroup {
   issues: IssueData[];
 }
 
+interface FilterOptions {
+  statuses: { id: string; name: string; category: string; color: string }[];
+  assignees: { id: string; name: string; image?: string | null }[];
+  labels: { id: string; name: string; color: string }[];
+  priorities: { value: string; label: string }[];
+}
+
 interface IssuesResponse {
   team: { id: string; name: string; key: string };
   groups: StateGroup[];
+  filterOptions: FilterOptions;
 }
 
 type StatusCategory =
@@ -56,6 +74,7 @@ export default function TeamBoardPage() {
     params.key,
     "board",
   );
+  const { filters, updateFilters } = useFilters();
 
   useEffect(() => {
     async function fetchIssues() {
@@ -132,21 +151,46 @@ export default function TeamBoardPage() {
     );
   }
 
-  // Filter out empty columns for completed/canceled unless showEmptyColumns is on
-  const visibleGroups = data.groups.filter(
-    (g) =>
-      g.issues.length > 0 ||
-      options.showEmptyColumns ||
-      (g.state.category !== "completed" && g.state.category !== "canceled"),
-  );
+  // Apply filters and filter out empty columns for completed/canceled unless showEmptyColumns is on
+  const visibleGroups = useMemo(() => {
+    return data.groups
+      .map((g) => ({
+        ...g,
+        issues: applyFilters(g.issues, filters),
+      }))
+      .filter(
+        (g) =>
+          g.issues.length > 0 ||
+          options.showEmptyColumns ||
+          (g.state.category !== "completed" && g.state.category !== "canceled"),
+      );
+  }, [data.groups, filters, options.showEmptyColumns]);
 
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center border-b border-[var(--color-border)] px-4 py-2">
-        <h1 className="text-[15px] font-medium text-[var(--color-text-primary)]">
+        <h1 className="mr-4 text-[15px] font-medium text-[var(--color-text-primary)]">
           {data.team.name}
         </h1>
+        <div className="ml-2">
+          <FilterBar
+            filters={filters}
+            onFiltersChange={updateFilters}
+            availableStatuses={data.filterOptions?.statuses ?? []}
+            availableLabels={data.filterOptions?.labels ?? []}
+            availableAssignees={data.filterOptions?.assignees ?? []}
+            availablePriorities={
+              data.filterOptions?.priorities ?? [
+                { value: "urgent", label: "Urgent" },
+                { value: "high", label: "High" },
+                { value: "medium", label: "Medium" },
+                { value: "low", label: "Low" },
+                { value: "none", label: "No priority" },
+              ]
+            }
+          />
+        </div>
         <div className="flex-1" />
         <span className="mr-2 text-[12px] text-[var(--color-text-secondary)]">
           {totalIssues} issues

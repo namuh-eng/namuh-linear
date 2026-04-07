@@ -498,3 +498,49 @@ Date: 2026-04-07
 - InlineSelect component uses data-testid for dropdown menus to allow scoped testing
 - IssueRow conditionally renders elements based on displayProperties; defaults to showing all if no prop passed (backwards compatible)
 - useDisplayOptions hook loads saved options from API on mount, overrides layout with current page's layout
+
+## Iteration 15 — feature-006: Filter Bar
+Date: 2026-04-07
+
+### What was built
+- FilterBar component (`src/components/filter-bar.tsx`) with:
+  - "Filter" button that opens a dropdown of filter types (Status, Priority, Assignee, Label, Project, Creator, Due date)
+  - Each filter type opens a value picker with checkboxes
+  - Active filters shown as removable chips with resolved value labels
+  - Clear all button to remove all active filters
+  - Multiple values per filter type (OR within, AND across filters)
+  - `isNot` operator support for negation
+  - Icons for each filter type
+- `applyFilters` utility function for client-side issue filtering
+  - Filters by status, priority, assignee, label, project
+  - AND logic across different filter types, OR within same type
+  - isNot operator inverts match
+- `useFilters` hook (`src/hooks/use-filters.ts`) for filter state management
+- Updated issues API to return `stateId`, `assigneeId`, `labelIds`, `projectId` per issue and `filterOptions` (statuses, assignees, labels, priorities)
+- Integrated FilterBar into both Team Issues list and Team Board pages
+- Filters apply client-side to issue groups using `useMemo`
+
+### Test results
+- 23 unit tests passing (tests/filter-bar.test.tsx)
+  - 15 FilterBar component tests (render, menus, add/remove filters, chips, clear)
+  - 8 applyFilters utility tests (all filter types, AND/OR logic, isNot)
+- 274 total tests passing (excluding pre-existing onboard-validation failures)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/components/filter-bar.tsx — new FilterBar component + applyFilters utility
+- src/hooks/use-filters.ts — new useFilters hook
+- src/app/api/teams/[key]/issues/route.ts — added stateId/assigneeId/labelIds/projectId to response, added filterOptions
+- src/app/(app)/team/[key]/all/page.tsx — integrated FilterBar with client-side filtering
+- src/app/(app)/team/[key]/board/page.tsx — integrated FilterBar with client-side filtering
+- tests/filter-bar.test.tsx — new unit test file (23 tests)
+- prd.json — marked feature-006 build_pass: true
+- qa-hints.json — added feature-006 QA hints
+
+### Decisions
+- Client-side filtering using applyFilters utility (no server-side filter query params needed for current scale)
+- Filter options extracted from API response (unique assignees/labels from current issues)
+- Filters use AND logic across types, OR within same type (matching Linear behavior)
+- FilterBar is a controlled component — parent manages filter state via useFilters hook
+- SVG icons use aria-hidden with title elements to satisfy Biome accessibility rules

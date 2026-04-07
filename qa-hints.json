@@ -295,5 +295,40 @@
       "Panel dismiss on outside click",
       "Multiple dropdown selectors don't interfere with each other"
     ]
+  },
+  {
+    "feature_id": "feature-006",
+    "tests_written": [
+      "FilterBar renders Add Filter button",
+      "Shows filter type menu (Status, Priority, Assignee, Label) on click",
+      "Shows status options when Status selected",
+      "Adds status filter when status option clicked",
+      "Shows priority options when Priority selected",
+      "Adds priority filter when priority option clicked",
+      "Shows assignee options when Assignee selected",
+      "Shows label options when Label selected",
+      "Renders active filter chips with resolved value labels",
+      "Removes filter when chip X clicked",
+      "Clear all button removes all filters",
+      "No Clear button when no filters active",
+      "Adds multiple values to same filter type (OR within filter)",
+      "Supports label filter with color dots",
+      "applyFilters returns all issues when no filters",
+      "applyFilters filters by status, priority, assignee, label",
+      "applyFilters applies AND logic across multiple filters",
+      "applyFilters supports isNot operator",
+      "applyFilters filters by multiple values (OR within filter)"
+    ],
+    "needs_deeper_qa": [
+      "E2E: open filter bar, add status filter, verify issue list updates",
+      "E2E: add multiple filters and verify AND logic",
+      "Filter persistence across page navigation",
+      "Filter interaction with tab filtering (All/Active/Backlog)",
+      "Filter interaction with display options panel",
+      "Visual comparison with Linear's actual filter bar",
+      "Performance with many filters on large issue lists",
+      "Cycle, Due date, Creator, Estimate filters — not yet implemented as options",
+      "Filter bar on board view — verify columns update correctly"
+    ]
   }
 ]

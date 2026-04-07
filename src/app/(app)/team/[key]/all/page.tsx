@@ -5,11 +5,17 @@ import {
   type DisplayProperties,
 } from "@/components/display-options-panel";
 import { EmptyState } from "@/components/empty-state";
+import {
+  FilterBar,
+  type FilterCondition,
+  applyFilters,
+} from "@/components/filter-bar";
 import { IssueRow, priorityMap } from "@/components/issue-row";
 import { IssuesGroupHeader } from "@/components/issues-group-header";
 import { useDisplayOptions } from "@/hooks/use-display-options";
+import { useFilters } from "@/hooks/use-filters";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface IssueData {
   id: string;
@@ -17,8 +23,12 @@ interface IssueData {
   identifier: string;
   title: string;
   priority: string;
+  stateId: string;
+  assigneeId: string | null;
   assignee: { name: string; image?: string } | null;
   labels: { name: string; color: string }[];
+  labelIds: string[];
+  projectId: string | null;
   dueDate: string | null;
   createdAt: string;
 }
@@ -34,9 +44,17 @@ interface StateGroup {
   issues: IssueData[];
 }
 
+interface FilterOptions {
+  statuses: { id: string; name: string; category: string; color: string }[];
+  assignees: { id: string; name: string; image?: string | null }[];
+  labels: { id: string; name: string; color: string }[];
+  priorities: { value: string; label: string }[];
+}
+
 interface IssuesResponse {
   team: { id: string; name: string; key: string };
   groups: StateGroup[];
+  filterOptions: FilterOptions;
 }
 
 type StatusCategory =
@@ -59,6 +77,7 @@ export default function TeamIssuesPage() {
     params.key,
     "list",
   );
+  const { filters, updateFilters } = useFilters();
 
   useEffect(() => {
     async function fetchIssues() {
@@ -135,14 +154,23 @@ export default function TeamIssuesPage() {
     );
   }
 
-  // Filter groups based on active tab
-  const filteredGroups = data.groups.filter((g) => {
-    if (activeTab === "all") return true;
-    if (activeTab === "active")
-      return g.state.category === "started" || g.state.category === "unstarted";
-    if (activeTab === "backlog") return g.state.category === "backlog";
-    return true;
-  });
+  // Filter groups based on active tab and active filters
+  const filteredGroups = useMemo(() => {
+    return data.groups
+      .filter((g) => {
+        if (activeTab === "all") return true;
+        if (activeTab === "active")
+          return (
+            g.state.category === "started" || g.state.category === "unstarted"
+          );
+        if (activeTab === "backlog") return g.state.category === "backlog";
+        return true;
+      })
+      .map((g) => ({
+        ...g,
+        issues: applyFilters(g.issues, filters),
+      }));
+  }, [data.groups, activeTab, filters]);
 
   const tabs = [
     { id: "all", label: "All issues" },
@@ -173,6 +201,24 @@ export default function TeamIssuesPage() {
               {tab.label}
             </button>
           ))}
+        </div>
+        <div className="ml-2">
+          <FilterBar
+            filters={filters}
+            onFiltersChange={updateFilters}
+            availableStatuses={data.filterOptions?.statuses ?? []}
+            availableLabels={data.filterOptions?.labels ?? []}
+            availableAssignees={data.filterOptions?.assignees ?? []}
+            availablePriorities={
+              data.filterOptions?.priorities ?? [
+                { value: "urgent", label: "Urgent" },
+                { value: "high", label: "High" },
+                { value: "medium", label: "Medium" },
+                { value: "low", label: "Low" },
+                { value: "none", label: "No priority" },
+              ]
+            }
+          />
         </div>
         <div className="flex-1" />
         <span className="mr-2 text-[12px] text-[var(--color-text-secondary)]">
