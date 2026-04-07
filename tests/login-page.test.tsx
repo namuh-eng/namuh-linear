@@ -52,7 +52,7 @@ describe("Login page", () => {
     fireEvent.click(screen.getByText("Continue with Google"));
     expect(signIn.social).toHaveBeenCalledWith({
       provider: "google",
-      callbackURL: "/",
+      callbackURL: "http://localhost:3000/",
     });
   });
 
@@ -62,7 +62,7 @@ describe("Login page", () => {
     fireEvent.click(screen.getByText("Continue with Google"));
     expect(signIn.social).toHaveBeenCalledWith({
       provider: "google",
-      callbackURL: "/team/ABC/board",
+      callbackURL: "http://localhost:3000/team/ABC/board",
     });
   });
 
@@ -104,8 +104,8 @@ describe("Login page", () => {
 
     expect(signIn.magicLink).toHaveBeenCalledWith({
       email: "test@example.com",
-      callbackURL: "/",
-      errorCallbackURL: "/login",
+      callbackURL: "http://localhost:3000/",
+      errorCallbackURL: "http://localhost:3000/login",
     });
   });
 
@@ -121,8 +121,29 @@ describe("Login page", () => {
     await vi.waitFor(() => {
       expect(signIn.magicLink).toHaveBeenCalledWith({
         email: "test@example.com",
-        callbackURL: "/team/ABC/board",
-        errorCallbackURL: "/login?callbackUrl=%2Fteam%2FABC%2Fboard",
+        callbackURL: "http://localhost:3000/team/ABC/board",
+        errorCallbackURL:
+          "http://localhost:3000/login?callbackUrl=%2Fteam%2FABC%2Fboard",
+      });
+    });
+  });
+
+  it("preserves callbackUrl query params when requesting a magic link", async () => {
+    mockLocation.search =
+      "?callbackUrl=%2Faccept-invite%3Ftoken%3Dsigned-token";
+    render(<LoginPage />);
+    fireEvent.click(screen.getByText("Continue with Email"));
+
+    const input = screen.getByPlaceholderText("Enter your email address...");
+    fireEvent.change(input, { target: { value: "invitee@example.com" } });
+    fireEvent.submit(input.closest("form") as HTMLFormElement);
+
+    await vi.waitFor(() => {
+      expect(signIn.magicLink).toHaveBeenCalledWith({
+        email: "invitee@example.com",
+        callbackURL: "http://localhost:3000/accept-invite?token=signed-token",
+        errorCallbackURL:
+          "http://localhost:3000/login?callbackUrl=%2Faccept-invite%3Ftoken%3Dsigned-token",
       });
     });
   });
@@ -203,7 +224,7 @@ describe("Login page", () => {
     fireEvent.submit(codeInput.closest("form") as HTMLFormElement);
 
     expect(assignMock).toHaveBeenCalledWith(
-      "http://localhost:3000/api/auth/magic-link/verify?token=123456&callbackURL=%2F&errorCallbackURL=%2Flogin",
+      "http://localhost:3000/api/auth/magic-link/verify?token=123456&callbackURL=http%3A%2F%2Flocalhost%3A3000%2F&errorCallbackURL=http%3A%2F%2Flocalhost%3A3000%2Flogin",
     );
   });
 
@@ -227,7 +248,32 @@ describe("Login page", () => {
     fireEvent.submit(codeInput.closest("form") as HTMLFormElement);
 
     expect(assignMock).toHaveBeenCalledWith(
-      "http://localhost:3000/api/auth/magic-link/verify?token=123456&callbackURL=%2Fteam%2FABC%2Fboard&errorCallbackURL=%2Flogin%3FcallbackUrl%3D%252Fteam%252FABC%252Fboard",
+      "http://localhost:3000/api/auth/magic-link/verify?token=123456&callbackURL=http%3A%2F%2Flocalhost%3A3000%2Fteam%2FABC%2Fboard&errorCallbackURL=http%3A%2F%2Flocalhost%3A3000%2Flogin%3FcallbackUrl%3D%252Fteam%252FABC%252Fboard",
+    );
+  });
+
+  it("preserves callbackUrl query params when verifying a valid code", async () => {
+    mockLocation.search =
+      "?callbackUrl=%2Faccept-invite%3Ftoken%3Dsigned-token";
+    render(<LoginPage />);
+    fireEvent.click(screen.getByText("Continue with Email"));
+
+    const emailInput = screen.getByPlaceholderText(
+      "Enter your email address...",
+    );
+    fireEvent.change(emailInput, { target: { value: "invitee@example.com" } });
+    fireEvent.submit(emailInput.closest("form") as HTMLFormElement);
+
+    await vi.waitFor(() => {
+      expect(screen.getByPlaceholderText("Enter 6-digit code")).toBeDefined();
+    });
+
+    const codeInput = screen.getByPlaceholderText("Enter 6-digit code");
+    fireEvent.change(codeInput, { target: { value: "123456" } });
+    fireEvent.submit(codeInput.closest("form") as HTMLFormElement);
+
+    expect(assignMock).toHaveBeenCalledWith(
+      "http://localhost:3000/api/auth/magic-link/verify?token=123456&callbackURL=http%3A%2F%2Flocalhost%3A3000%2Faccept-invite%3Ftoken%3Dsigned-token&errorCallbackURL=http%3A%2F%2Flocalhost%3A3000%2Flogin%3FcallbackUrl%3D%252Faccept-invite%253Ftoken%253Dsigned-token",
     );
   });
 

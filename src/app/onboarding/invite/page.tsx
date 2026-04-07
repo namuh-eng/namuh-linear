@@ -184,7 +184,7 @@ export default function InviteTeamPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} noValidate className="space-y-3">
           {invites.map((invite, index) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: invite rows have no stable ID
             <div key={`invite-${index}`} className="flex items-center gap-2">

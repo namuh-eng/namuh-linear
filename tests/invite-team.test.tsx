@@ -40,6 +40,11 @@ describe("Invite Team page", () => {
     expect(screen.getByText(/Invite teammates to collaborate/)).toBeDefined();
   });
 
+  it("disables native browser validation so mixed invite rows can reach the API", () => {
+    const { container } = render(<InviteTeamPage />);
+    expect(container.querySelector("form")).toHaveProperty("noValidate", true);
+  });
+
   it("renders one email input row by default", () => {
     render(<InviteTeamPage />);
     const emailInputs = screen.getAllByPlaceholderText("teammate@company.com");

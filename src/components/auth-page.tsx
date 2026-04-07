@@ -15,7 +15,7 @@ const authErrorMessages: Record<string, string> = {
     "That sign-in code has already been used. Request a new email to continue.",
 };
 
-function getSafeCallbackUrl(): string {
+function getSafeCallbackPath(): string {
   if (typeof window === "undefined") {
     return "/";
   }
@@ -35,14 +35,16 @@ function getSafeCallbackUrl(): string {
   return callbackUrl;
 }
 
-function getErrorCallbackUrl(callbackUrl: string): string {
-  if (callbackUrl === "/") {
-    return "/login";
-  }
+function getAbsoluteCallbackUrl(callbackPath: string): string {
+  return new URL(callbackPath, window.location.origin).toString();
+}
 
+function getErrorCallbackUrl(callbackPath: string): string {
   const errorCallbackUrl = new URL("/login", window.location.origin);
-  errorCallbackUrl.searchParams.set("callbackUrl", callbackUrl);
-  return `${errorCallbackUrl.pathname}${errorCallbackUrl.search}`;
+  if (callbackPath !== "/") {
+    errorCallbackUrl.searchParams.set("callbackUrl", callbackPath);
+  }
+  return errorCallbackUrl.toString();
 }
 
 function LinearLogo() {
@@ -155,9 +157,10 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
   async function handleGoogleLogin() {
     setLoading(true);
     setError("");
+    const callbackPath = getSafeCallbackPath();
     await signIn.social({
       provider: "google",
-      callbackURL: getSafeCallbackUrl(),
+      callbackURL: getAbsoluteCallbackUrl(callbackPath),
     });
   }
 
@@ -169,11 +172,11 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     setError("");
 
     try {
-      const callbackUrl = getSafeCallbackUrl();
+      const callbackPath = getSafeCallbackPath();
       await signIn.magicLink({
         email,
-        callbackURL: callbackUrl,
-        errorCallbackURL: getErrorCallbackUrl(callbackUrl),
+        callbackURL: getAbsoluteCallbackUrl(callbackPath),
+        errorCallbackURL: getErrorCallbackUrl(callbackPath),
       });
       setCode("");
       setStep("email-code");
@@ -197,12 +200,15 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
       "/api/auth/magic-link/verify",
       window.location.origin,
     );
-    const callbackUrl = getSafeCallbackUrl();
+    const callbackPath = getSafeCallbackPath();
     verifyUrl.searchParams.set("token", normalizedCode);
-    verifyUrl.searchParams.set("callbackURL", callbackUrl);
+    verifyUrl.searchParams.set(
+      "callbackURL",
+      getAbsoluteCallbackUrl(callbackPath),
+    );
     verifyUrl.searchParams.set(
       "errorCallbackURL",
-      getErrorCallbackUrl(callbackUrl),
+      getErrorCallbackUrl(callbackPath),
     );
     window.location.assign(verifyUrl.toString());
   }
