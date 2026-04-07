@@ -836,5 +836,24 @@
       }
     ],
     "fix_description": "Added real `/projects/all` and `/project/[slug]/overview` routes, moved the projects and project-detail UI into shared client components, wired the workspace Projects navigation to the spec path, added status filter plus sort controls with regression tests, and aligned the projects list/detail APIs with the shell's active workspace ordering so the page reads the correct workspace data."
+  },
+  {
+    "feature_id": "feature-011",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 611 unit tests passed before manual QA.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; smoke passed on `http://localhost:3015`.",
+      "Reused the authenticated Ever session, navigated from the workspace Projects list to `QA Progress 25 Project`, and verified row navigation resolves to `/project/qa-progress-25-project/overview` with the project detail page rendered.",
+      "Verified the Overview, Activity, and Issues tabs against real backend data. The issues tab grouped live issues under `In Progress` and `Done`, and the milestone/progress cards matched the seeded data: `25%` overall progress with `Phase 1 = 50% of 2` and `Phase 2 = 0% of 2`.",
+      "Exercised the `Write first/another project update` CTA path on the live page, posted a new update, and confirmed the app switched to the Activity tab showing the new entry immediately.",
+      "Exercised the Resources section on the live page by adding a new link resource and verifying it appeared in Overview and in the Activity feed with the expected URL.",
+      "Exercised properties editing on the live page by adding a member, a team, a Slack channel, and a label, then verified the sidebar summary updated and the Activity feed recorded the properties change.",
+      "Queried the real Postgres data for `qa-progress-25-project` and confirmed the persisted settings now include the new activity entries, link resource, Slack channel, project member, project team, and label selection.",
+      "Captured QA evidence screenshots to `ralph/screenshots/qa/feature-011-attempt-1-overview.jpg` and `ralph/screenshots/qa/feature-011-attempt-1-activity.jpg`, and compared the overall structure against `ralph/screenshots/inspect/project-detail.jpg`.",
+      "Ran `make check` and `make test` after QA updates; both passed. The only incidental fix needed was regenerating stale Next route types and formatting `.current-feature.json` so repo checks would run cleanly."
+    ],
+    "bugs_found": [],
+    "fix_description": "No feature bug fix was needed. The project detail page worked end to end against real seeded data; I only regenerated stale Next route types and formatted `.current-feature.json` so `make check` could complete."
   }
 ]
