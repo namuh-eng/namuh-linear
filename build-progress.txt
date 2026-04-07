@@ -1139,3 +1139,34 @@ Date: 2026-04-07
 - Relative time for "Last applied" using updatedAt as proxy when issueCount > 0
 - Inline description uses controlled input with blur/enter save and escape cancel
 - Color picker shows 12 predefined colors matching Linear's palette
+
+## Iteration 37 — settings-008: Workspace Security Settings
+Date: 2026-04-07
+
+### What was built
+- Security settings page (`/settings/security`) with all sections from the PRD:
+  - **Workspace access**: Invite links toggle with generated URL + Copy button
+  - **Workspace login and restrictions**: Approved email domains section with "Add domain" button, Docs link
+  - **Authentication methods**: Google authentication toggle, Email & passkey toggle, SAML & SCIM link, admin/guest note
+  - **Workspace management**: Permission selectors for 6 settings (New user invitations, Team creation, Manage labels, Manage templates, API key creation, Modify agent guidance)
+  - **Restrict file uploads** toggle
+  - **AI**: Improve AI and Enable web search toggles
+  - **Compliance**: HIPAA compliance toggle
+- Reusable Toggle, PermissionSelect, SectionHeader, SettingRow components
+
+### Test results
+- 17 unit tests passing (tests/settings-security.test.tsx)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/app/(app)/settings/security/page.tsx — new Security settings page
+- tests/settings-security.test.tsx — new unit test file (17 tests)
+- prd.json — marked settings-008 build_pass: true
+- qa-hints.json — added settings-008 QA hints
+
+### Decisions
+- Toggles are client-side state only (no API persistence yet — UI-first approach matching other settings pages)
+- Permission selectors use select dropdowns with admins/members/anyone options
+- Invite URL generated client-side with random hex string
+- Used button elements instead of anchor href="#" to satisfy a11y lint rules

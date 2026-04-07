@@ -701,5 +701,35 @@
       "New group button functionality (not yet implemented)",
       "Sort by Name column"
     ]
+  },
+  {
+    "feature_id": "settings-008",
+    "tests_written": [
+      "renders page title 'Security'",
+      "renders 'Workspace access' section header",
+      "renders invite links with description",
+      "renders 'Enable invite links' toggle",
+      "renders invite URL with Copy button",
+      "renders 'Workspace login and restrictions' section",
+      "renders approved email domains with 'Add domain' button",
+      "renders 'Authentication methods' section",
+      "renders admin/guest auth note",
+      "renders Google authentication toggle",
+      "renders Email & passkey authentication toggle",
+      "renders 'Workspace management' section with permission selectors",
+      "renders AI section with Improve AI and web search toggles",
+      "renders Compliance section with HIPAA toggle",
+      "renders Restrict file uploads toggle",
+      "toggles invite links on/off"
+    ],
+    "needs_deeper_qa": [
+      "Invite link generation and copy to clipboard",
+      "Toggle state persistence via API",
+      "Permission selector saves to backend",
+      "Add domain modal/flow",
+      "SAML & SCIM link behavior",
+      "Visual comparison with Linear screenshot",
+      "Responsive layout at different widths"
+    ]
   }
 ]
