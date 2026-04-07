@@ -1067,3 +1067,18 @@ Date: 2026-04-07
 - src/app/(app)/settings/account/notifications/page.tsx — full notifications page
 - tests/settings-notifications.test.tsx — 6 tests
 - prd.json, qa-hints.json
+
+## Iteration 34 — settings-005: Workspace Admin Page
+Date: 2026-04-07
+
+### What was built
+- Workspace settings page with logo upload, name, URL slug (linear.app/ prefix)
+- Time & region section with fiscal year month and read-only region
+- Welcome message configure button
+- Danger zone with delete workspace button
+- 7 unit tests passing, typecheck clean, lint clean
+
+### Files changed
+- src/app/(app)/settings/workspace/page.tsx — full workspace admin page
+- tests/settings-workspace.test.tsx — 7 tests
+- prd.json, qa-hints.json

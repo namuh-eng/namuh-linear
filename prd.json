@@ -370,7 +370,7 @@
     "priority": "P10",
     "core": false,
     "dependent_on": ["settings-001", "onboarding-001"],
-    "build_pass": false,
+    "build_pass": true,
     "qa_pass": false
   },
   {

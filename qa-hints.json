@@ -637,5 +637,23 @@
       "Toggle persistence to API",
       "Per-event notification configuration"
     ]
+  },
+  {
+    "feature_id": "settings-005",
+    "tests_written": [
+      "Renders Workspace heading",
+      "Renders logo upload section",
+      "Renders editable workspace name",
+      "Renders URL slug with linear.app/ prefix",
+      "Renders Time & region section",
+      "Renders Welcome message configure button",
+      "Renders Danger zone with delete button"
+    ],
+    "needs_deeper_qa": [
+      "Logo upload functionality",
+      "Workspace name/URL persistence to API",
+      "Delete workspace confirmation and flow",
+      "Region display from workspace creation"
+    ]
   }
 ]
