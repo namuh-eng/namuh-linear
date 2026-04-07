@@ -84,5 +84,29 @@
       }
     ],
     "fix_description": "Provisioned the missing AWS Redis resources for `namuh-linear` (app security group, Redis security group, cache subnet group, and ElastiCache cluster), waited for the cluster to become available, and configured the clone locally with the resulting `REDIS_URL`."
+  },
+  {
+    "feature_id": "infra-003",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 533 unit tests passed.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the clone loaded successfully on `http://localhost:3015`.",
+      "Opened the clone with Ever, captured a login-page snapshot, and saved a screenshot to `ralph/screenshots/qa/infra-003-attempt-1-login.jpg` to confirm the app was reachable during infrastructure QA.",
+      "Verified the pre-fix failure state: the local environment had no `S3_BUCKET` configured, `aws s3api head-bucket --bucket namuh-linear-assets-us-east-1 --region us-east-1` returned `404`, and `aws s3api get-bucket-cors --bucket namuh-linear-assets-us-east-1 --region us-east-1` returned `NoSuchBucket`.",
+      "Provisioned the missing S3 bucket in AWS and applied the expected CORS policy allowing `GET`, `PUT`, and `POST` from any origin with exposed `ETag`.",
+      "Configured the local runtime with `AWS_REGION=us-east-1` and `S3_BUCKET=namuh-linear-assets-us-east-1` in `.env`.",
+      "Ran a live Node-based S3 probe through `src/lib/s3.ts`: `uploadFile` uploaded an avatar object, `getUploadUrl` generated a presigned `PUT` URL for an attachment object, both `getDownloadUrl` fetches returned `200`, and the downloaded bodies matched the uploaded content before cleanup."
+    ],
+    "bugs_found": [
+      {
+        "severity": "critical",
+        "description": "The clone was missing the provisioned S3 bucket and local runtime configuration required for real avatar and attachment storage.",
+        "expected": "A reachable `namuh-linear` S3 bucket should exist in AWS with the expected CORS policy, and the clone should have `S3_BUCKET` and `AWS_REGION` configured so `src/lib/s3.ts` can generate working presigned URLs and uploads.",
+        "actual": "The expected bucket did not exist in AWS, `head-bucket` returned `404`, `get-bucket-cors` returned `NoSuchBucket`, and the local `.env` lacked `S3_BUCKET` and `AWS_REGION`.",
+        "reproduction": "1. Run `aws s3api head-bucket --bucket namuh-linear-assets-us-east-1 --region us-east-1`.\n2. Run `aws s3api get-bucket-cors --bucket namuh-linear-assets-us-east-1 --region us-east-1`.\n3. Inspect `.env` for missing `S3_BUCKET` and `AWS_REGION`.\n4. Observe that real S3-backed upload/download cannot work until the bucket is provisioned and configured."
+      }
+    ],
+    "fix_description": "Provisioned the missing S3 bucket in AWS, applied the required CORS policy, configured the local runtime with `AWS_REGION` and `S3_BUCKET`, and verified the real helper with successful live avatar upload plus presigned attachment upload/download."
   }
 ]
