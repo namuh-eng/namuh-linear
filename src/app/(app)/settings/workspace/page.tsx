@@ -1,13 +1,16 @@
 "use client";
 
 import { Avatar } from "@/components/avatar";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 
 interface WorkspaceData {
+  id: string | null;
   name: string;
   urlSlug: string;
   logo: string | null;
   region: string;
+  fiscalMonth: string;
 }
 
 function SectionHeader({ title }: { title: string }) {
@@ -19,30 +22,155 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 export default function WorkspaceSettingsPage() {
+  const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceData>({
+    id: null,
     name: "",
     urlSlug: "",
     logo: null,
     region: "United States",
+    fiscalMonth: "january",
   });
   const [loading, setLoading] = useState(true);
-  const [fiscalMonth, setFiscalMonth] = useState("january");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedLogoName, setSelectedLogoName] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetch("/api/workspaces/current")
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error("Failed to load workspace");
+        }
+
+        return (await res.json()) as {
+          workspace?: Partial<WorkspaceData>;
+        };
+      })
       .then((data) => {
         if (data?.workspace) {
           setWorkspace({
+            id: data.workspace.id ?? null,
             name: data.workspace.name ?? "",
             urlSlug: data.workspace.urlSlug ?? "",
             logo: data.workspace.logo ?? null,
             region: data.workspace.region ?? "United States",
+            fiscalMonth: data.workspace.fiscalMonth ?? "january",
           });
         }
       })
+      .catch(() => {
+        setErrorMessage("Unable to load workspace settings.");
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  const saveWorkspace = async (nextWorkspace: WorkspaceData) => {
+    setSaving(true);
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch("/api/workspaces/current", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nextWorkspace.name,
+          urlSlug: nextWorkspace.urlSlug,
+          logo: nextWorkspace.logo,
+          fiscalMonth: nextWorkspace.fiscalMonth,
+        }),
+      });
+
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        workspace?: Partial<WorkspaceData>;
+      } | null;
+
+      if (!response.ok || !data?.workspace) {
+        setErrorMessage(data?.error ?? "Unable to update workspace.");
+        return;
+      }
+
+      setWorkspace((currentWorkspace) => ({
+        ...currentWorkspace,
+        id: data.workspace?.id ?? currentWorkspace.id,
+        name: data.workspace?.name ?? currentWorkspace.name,
+        urlSlug: data.workspace?.urlSlug ?? currentWorkspace.urlSlug,
+        logo:
+          data.workspace?.logo === undefined
+            ? currentWorkspace.logo
+            : data.workspace.logo,
+        region: data.workspace?.region ?? currentWorkspace.region,
+        fiscalMonth:
+          data.workspace?.fiscalMonth ?? currentWorkspace.fiscalMonth,
+      }));
+      setStatusMessage("Workspace updated.");
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFieldBlur = () => {
+    void saveWorkspace(workspace);
+  };
+
+  const handleLogoSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setSelectedLogoName(file.name);
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const logo = typeof reader.result === "string" ? reader.result : null;
+      const nextWorkspace = { ...workspace, logo };
+      setWorkspace(nextWorkspace);
+      void saveWorkspace(nextWorkspace);
+    };
+    reader.onerror = () => {
+      setSelectedLogoName(null);
+      setErrorMessage("Unable to read that image. Try another file.");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDeleteWorkspace = async () => {
+    setDeleting(true);
+    setStatusMessage(null);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch("/api/workspaces/current", {
+        method: "DELETE",
+      });
+      const data = (await response.json().catch(() => null)) as {
+        error?: string;
+        redirectTo?: string;
+      } | null;
+
+      if (!response.ok || !data?.redirectTo) {
+        setErrorMessage(data?.error ?? "Unable to delete workspace.");
+        return;
+      }
+
+      setDeleteDialogOpen(false);
+      router.push(data.redirectTo);
+      router.refresh();
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -70,8 +198,17 @@ export default function WorkspaceSettingsPage() {
             size="lg"
           />
           <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              className="hidden"
+              onChange={handleLogoSelection}
+              aria-label="Upload workspace logo"
+            />
             <button
               type="button"
+              onClick={() => fileInputRef.current?.click()}
               className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[12px] text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
             >
               Upload logo
@@ -79,6 +216,11 @@ export default function WorkspaceSettingsPage() {
             <p className="mt-1 text-[11px] text-[var(--color-text-tertiary)]">
               Recommended size: 256x256px
             </p>
+            {selectedLogoName ? (
+              <p className="mt-1 text-[11px] text-[var(--color-text-secondary)]">
+                Selected: {selectedLogoName}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
@@ -96,6 +238,7 @@ export default function WorkspaceSettingsPage() {
           type="text"
           value={workspace.name}
           onChange={(e) => setWorkspace({ ...workspace, name: e.target.value })}
+          onBlur={handleFieldBlur}
           className="w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
           aria-label="Workspace name"
         />
@@ -120,6 +263,7 @@ export default function WorkspaceSettingsPage() {
             onChange={(e) =>
               setWorkspace({ ...workspace, urlSlug: e.target.value })
             }
+            onBlur={handleFieldBlur}
             className="w-full rounded-r-md border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
             aria-label="Workspace URL slug"
           />
@@ -134,8 +278,15 @@ export default function WorkspaceSettingsPage() {
           First month of fiscal year
         </span>
         <select
-          value={fiscalMonth}
-          onChange={(e) => setFiscalMonth(e.target.value)}
+          value={workspace.fiscalMonth}
+          onChange={(e) => {
+            const nextWorkspace = {
+              ...workspace,
+              fiscalMonth: e.target.value,
+            };
+            setWorkspace(nextWorkspace);
+            void saveWorkspace(nextWorkspace);
+          }}
           className="rounded-md border border-[var(--color-border)] bg-transparent px-2.5 py-1 text-[12px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
           aria-label="First month of fiscal year"
         >
@@ -168,6 +319,20 @@ export default function WorkspaceSettingsPage() {
         </button>
       </div>
 
+      {statusMessage ? (
+        <p className="mt-4 text-[12px] text-[var(--color-text-secondary)]">
+          {saving ? "Saving workspace changes..." : statusMessage}
+        </p>
+      ) : null}
+      {saving && !statusMessage ? (
+        <p className="mt-4 text-[12px] text-[var(--color-text-secondary)]">
+          Saving workspace changes...
+        </p>
+      ) : null}
+      {errorMessage ? (
+        <p className="mt-4 text-[12px] text-red-400">{errorMessage}</p>
+      ) : null}
+
       {/* Danger zone */}
       <SectionHeader title="Danger zone" />
       <div className="py-2">
@@ -177,11 +342,71 @@ export default function WorkspaceSettingsPage() {
         </p>
         <button
           type="button"
+          onClick={() => setDeleteDialogOpen(true)}
           className="rounded-md border border-red-500/30 px-3 py-1.5 text-[12px] text-red-400 transition-colors hover:bg-red-500/10"
         >
           Delete workspace
         </button>
       </div>
+
+      {deleteDialogOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <dialog
+            aria-modal="true"
+            aria-labelledby="delete-workspace-title"
+            open
+            className="w-full max-w-[420px] rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] p-5 shadow-2xl"
+          >
+            <h2
+              id="delete-workspace-title"
+              className="text-[16px] font-semibold text-[var(--color-text-primary)]"
+            >
+              Delete workspace?
+            </h2>
+            <p className="mt-2 text-[13px] text-[var(--color-text-secondary)]">
+              Type <strong>{workspace.name}</strong> to confirm. This
+              permanently removes the workspace and all of its data.
+            </p>
+            <label
+              htmlFor="delete-workspace-confirmation"
+              className="mt-4 block text-[12px] text-[var(--color-text-secondary)]"
+            >
+              Confirm workspace name
+            </label>
+            <input
+              id="delete-workspace-confirmation"
+              type="text"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-red-400"
+              aria-label="Confirm workspace name"
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteDialogOpen(false);
+                  setDeleteConfirmation("");
+                }}
+                disabled={deleting}
+                className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[12px] text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteWorkspace}
+                disabled={
+                  deleting || deleteConfirmation.trim() !== workspace.name
+                }
+                className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[12px] text-red-400 transition-colors hover:bg-red-500/15 disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete workspace"}
+              </button>
+            </div>
+          </dialog>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1304,5 +1304,47 @@
       }
     ],
     "fix_description": "Added a real account-notifications settings model in `user.settings`, implemented authenticated `GET/PATCH /api/account/notifications`, replaced the static cards with linked channel pages, and wired both the overview toggles and the per-channel event toggles to save and reload persisted values."
+  },
+  {
+    "feature_id": "settings-005",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; the full Vitest suite passed after the workspace-settings fixes (`668` unit tests passed).",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the smoke suite passed (`2` Playwright tests including auth setup).",
+      "Logged into the clone with Google OAuth in Ever, opened `/settings/workspace`, and confirmed the pre-fix failure: the page rendered empty name/slug values because `GET /api/workspaces/current` did not exist and the settings controls were local-only.",
+      "Compared the clone against Linear's real `/settings/workspace` page to confirm the expected live behavior: populated workspace name/slug, logo upload, fiscal-month control, read-only region, and a confirmed delete flow.",
+      "Implemented authenticated `GET/PATCH/DELETE /api/workspaces/current`, defaulted workspace creation to persist region plus fiscal month, and added regression tests for the route and page behavior.",
+      "Re-ran `make check && make test`; typecheck, Biome, and the full Vitest suite passed.",
+      "Re-tested the fixed page in Ever on a disposable workspace by loading real workspace data, renaming the workspace to `QA Delete Workspace 20260408`, changing the slug to `qa-delete-workspace-20260408`, changing fiscal month to `April`, uploading `ralph/screenshots/inspect/settings-workspace.jpg` as the logo, and refreshing the page to confirm all values persisted.",
+      "Queried the live authenticated API in-browser with `fetch('/api/workspaces/current', { credentials: 'include' })` and confirmed it returned the persisted name, slug, non-null logo data URL, `region: \"United States\"`, and `fiscalMonth: \"april\"`.",
+      "Opened the delete-workspace dialog, verified the destructive action stayed disabled until the exact workspace name was entered, confirmed deletion, and verified the app redirected back to another workspace instead of leaving the session broken.",
+      "Queried the live authenticated workspace list in-browser with `fetch('/api/workspaces', { credentials: 'include' })` and confirmed the deleted workspace ID `3810eb86-0911-497d-8844-e3f9f6fafb87` was no longer present.",
+      "Saved QA evidence screenshots to `ralph/screenshots/qa/settings-005-attempt-1-before-delete.jpg`, `ralph/screenshots/qa/settings-005-attempt-1-persisted.jpg`, and `ralph/screenshots/qa/settings-005-attempt-1-after-delete.jpg`."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "Workspace settings loaded no real workspace data.",
+        "expected": "The page should load the active workspace name, slug, logo, region, and fiscal month through an authenticated API.",
+        "actual": "Before the fix, the page fetched `/api/workspaces/current`, but that route did not exist, so the name and slug fields rendered empty and the page had no real persistence source.",
+        "reproduction": "1. Sign in and open `/settings/workspace`.\n2. Observe the empty `Name` and `URL` inputs.\n3. Request `/api/workspaces/current` in the browser.\n4. Observe that the route is missing and the page has no live workspace payload."
+      },
+      {
+        "severity": "major",
+        "description": "Workspace name, slug, fiscal month, and logo edits were dead UI state.",
+        "expected": "Editing the workspace fields or uploading a logo should persist through the backend and survive a page refresh.",
+        "actual": "Before the fix, the controls only updated local React state; there was no file input, no save path, and all edits reset on reload.",
+        "reproduction": "1. Sign in and open `/settings/workspace`.\n2. Change the workspace name or slug, or click `Upload logo`.\n3. Reload the page.\n4. Observe that edits do not persist and no real upload path exists."
+      },
+      {
+        "severity": "major",
+        "description": "Delete workspace was an inert danger action and the only existing delete route removed a membership instead of deleting the workspace.",
+        "expected": "The page should require confirmation and then delete the active workspace, update the active workspace cookie, and redirect cleanly.",
+        "actual": "Before the fix, clicking `Delete workspace` did nothing in the UI, and the only related backend route under `/api/account/profile/workspace` removed the current user's membership rather than deleting the workspace.",
+        "reproduction": "1. Sign in and open `/settings/workspace`.\n2. Click `Delete workspace`.\n3. Observe that no confirmation dialog appears and the workspace remains intact."
+      }
+    ],
+    "fix_description": "Added a real current-workspace API with load/update/delete behavior, wired the settings page to persist name/slug/fiscal month/logo changes, defaulted new workspaces to store region plus fiscal month, and implemented a confirmed workspace-deletion flow that removes the workspace and switches the session to the next remaining membership."
   }
 ]

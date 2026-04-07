@@ -1,25 +1,53 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import WorkspaceSettingsPage from "@/app/(app)/settings/workspace/page";
 
+const routerPushMock = vi.fn();
+const routerRefreshMock = vi.fn();
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({
+    push: routerPushMock,
+    refresh: routerRefreshMock,
+    replace: vi.fn(),
+    back: vi.fn(),
+  }),
   usePathname: () => "/settings/workspace",
 }));
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+class MockFileReader {
+  result: string | null = "data:image/png;base64,uploaded-logo";
+  onload: null | (() => void) = null;
+  onerror: null | (() => void) = null;
+
+  readAsDataURL() {
+    this.onload?.();
+  }
+}
+
+vi.stubGlobal("FileReader", MockFileReader);
+
 function mockWorkspace() {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: async () => ({
       workspace: {
+        id: "workspace-1",
         name: "Acme Corp",
         urlSlug: "acme",
         logo: null,
         region: "United States",
+        fiscalMonth: "january",
       },
     }),
   });
@@ -38,6 +66,8 @@ describe("Workspace Settings Page", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    routerPushMock.mockReset();
+    routerRefreshMock.mockReset();
   });
 
   it("renders Workspace heading", async () => {
@@ -90,6 +120,90 @@ describe("Workspace Settings Page", () => {
     expect(screen.getByText("United States")).toBeInTheDocument();
   });
 
+  it("persists workspace name and url slug changes on blur", async () => {
+    mockWorkspace();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        workspace: {
+          id: "workspace-1",
+          name: "Acme QA",
+          urlSlug: "acme-qa",
+          logo: null,
+          region: "United States",
+          fiscalMonth: "january",
+        },
+      }),
+    });
+
+    render(<WorkspaceSettingsPage />);
+    await waitForLoaded();
+
+    const nameInput = screen.getByLabelText("Workspace name");
+    const slugInput = screen.getByLabelText("Workspace URL slug");
+
+    fireEvent.change(nameInput, { target: { value: "Acme QA" } });
+    fireEvent.change(slugInput, { target: { value: "acme-qa" } });
+    fireEvent.blur(slugInput);
+
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/current", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Acme QA",
+          urlSlug: "acme-qa",
+          logo: null,
+          fiscalMonth: "january",
+        }),
+      }),
+    );
+
+    expect(screen.getByText("Workspace updated.")).toBeInTheDocument();
+  });
+
+  it("uploads and persists a workspace logo", async () => {
+    mockWorkspace();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        workspace: {
+          id: "workspace-1",
+          name: "Acme Corp",
+          urlSlug: "acme",
+          logo: "data:image/png;base64,uploaded-logo",
+          region: "United States",
+          fiscalMonth: "january",
+        },
+      }),
+    });
+
+    render(<WorkspaceSettingsPage />);
+    await waitForLoaded();
+
+    const fileInput = screen.getByLabelText("Upload workspace logo");
+    fireEvent.change(fileInput, {
+      target: {
+        files: [new File(["logo"], "logo.png", { type: "image/png" })],
+      },
+    });
+
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/current", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Acme Corp",
+          urlSlug: "acme",
+          logo: "data:image/png;base64,uploaded-logo",
+          fiscalMonth: "january",
+        }),
+      }),
+    );
+
+    expect(screen.getByText("Selected: logo.png")).toBeInTheDocument();
+  });
+
   it("renders Welcome message configure button", async () => {
     mockWorkspace();
     render(<WorkspaceSettingsPage />);
@@ -108,5 +222,43 @@ describe("Workspace Settings Page", () => {
     expect(
       screen.getByRole("button", { name: "Delete workspace" }),
     ).toBeInTheDocument();
+  });
+
+  it("requires confirmation before deleting the workspace", async () => {
+    mockWorkspace();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        redirectTo: "/create-workspace",
+      }),
+    });
+
+    render(<WorkspaceSettingsPage />);
+    await waitForLoaded();
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Delete workspace" })[0],
+    );
+    expect(screen.getByText("Delete workspace?")).toBeInTheDocument();
+
+    const confirmButton = screen.getAllByRole("button", {
+      name: "Delete workspace",
+    })[1];
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Confirm workspace name"), {
+      target: { value: "Acme Corp" },
+    });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/current", {
+        method: "DELETE",
+      }),
+    );
+
+    expect(routerPushMock).toHaveBeenCalledWith("/create-workspace");
+    expect(routerRefreshMock).toHaveBeenCalled();
   });
 });

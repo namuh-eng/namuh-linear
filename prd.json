@@ -371,7 +371,7 @@
     "core": false,
     "dependent_on": ["settings-001", "onboarding-001"],
     "build_pass": true,
-    "qa_pass": false
+    "qa_pass": true
   },
   {
     "id": "settings-006",

@@ -62,7 +62,14 @@ export async function POST(request: Request) {
   const result = await db.transaction(async (tx) => {
     const [newWorkspace] = await tx
       .insert(workspace)
-      .values({ name: name.trim(), urlSlug: slug })
+      .values({
+        name: name.trim(),
+        urlSlug: slug,
+        settings: {
+          region: "United States",
+          fiscalMonth: "january",
+        },
+      })
       .returning();
 
     // Add creator as owner
