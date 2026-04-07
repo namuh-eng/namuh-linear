@@ -602,5 +602,24 @@
       "Combobox keyboard interaction",
       "Toggle state persistence across page loads"
     ]
+  },
+  {
+    "feature_id": "settings-003",
+    "tests_written": [
+      "Renders Profile heading",
+      "Renders profile picture section with upload button",
+      "Renders email as read-only",
+      "Renders editable Full name input",
+      "Renders editable Username input with placeholder",
+      "Renders Update button",
+      "Renders Leave workspace button in danger zone",
+      "Calls update API when Update is clicked"
+    ],
+    "needs_deeper_qa": [
+      "Profile picture upload functionality",
+      "Profile update API persistence",
+      "Leave workspace confirmation dialog",
+      "Session data loading from auth"
+    ]
   }
 ]

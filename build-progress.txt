@@ -1033,3 +1033,21 @@ Date: 2026-04-07
 - Theme cards use gradient preview for System, solid colors for Light/Dark
 - Reusable SettingRow component for consistent layout across settings pages
 - Toggle component uses role="switch" for accessibility
+
+## Iteration 32 — settings-003: Account Profile Page
+Date: 2026-04-07
+
+### What was built
+- Account Profile page with profile picture upload area, email (read-only), editable full name and username fields, Update button, Leave workspace danger action
+- Fetches session data from /api/auth/get-session
+- Posts updates to /api/auth/update-user
+
+### Test results
+- 8 unit tests passing (tests/settings-profile.test.tsx)
+- TypeScript typecheck: clean, Biome lint/format: clean
+
+### Files changed
+- src/app/(app)/settings/account/profile/page.tsx — full profile page
+- tests/settings-profile.test.tsx — 8 tests
+- prd.json — marked settings-003 build_pass: true
+- qa-hints.json — added settings-003 QA hints
