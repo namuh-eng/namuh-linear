@@ -1,4 +1,9 @@
 import { Avatar } from "@/components/avatar";
+import {
+  differenceInDays,
+  differenceInHours,
+  differenceInMinutes,
+} from "date-fns";
 
 interface TriageIssue {
   id: string;
@@ -34,6 +39,27 @@ const MONTHS = [
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
+  const now = new Date();
+  const minuteDiff = differenceInMinutes(now, date);
+
+  if (minuteDiff < 1) {
+    return "just now";
+  }
+
+  if (minuteDiff < 60) {
+    return `${minuteDiff}m ago`;
+  }
+
+  const hourDiff = differenceInHours(now, date);
+  if (hourDiff < 24) {
+    return `${hourDiff}h ago`;
+  }
+
+  const dayDiff = differenceInDays(now, date);
+  if (dayDiff < 30) {
+    return `${dayDiff}d ago`;
+  }
+
   return `${MONTHS[date.getMonth()]} ${date.getDate()}`;
 }
 

@@ -8,7 +8,7 @@ import {
   user,
   workflowState,
 } from "@/lib/db/schema";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -37,7 +37,11 @@ export async function GET(
 
   // Find triage workflow states
   const triageStates = await db
-    .select({ id: workflowState.id, name: workflowState.name })
+    .select({
+      id: workflowState.id,
+      name: workflowState.name,
+      color: workflowState.color,
+    })
     .from(workflowState)
     .where(
       and(
@@ -67,37 +71,40 @@ export async function GET(
       title: issue.title,
       priority: issue.priority,
       stateId: issue.stateId,
+      stateName: workflowState.name,
+      stateColor: workflowState.color,
       creatorId: issue.creatorId,
       creatorName: user.name,
       creatorImage: user.image,
       createdAt: issue.createdAt,
     })
     .from(issue)
+    .innerJoin(workflowState, eq(issue.stateId, workflowState.id))
     .leftJoin(user, eq(issue.creatorId, user.id))
     .where(
       and(
         eq(issue.teamId, teamRecord.id),
-        // Filter for triage state issues
-        triageStateIds.length === 1
-          ? eq(issue.stateId, triageStateIds[0])
-          : eq(issue.stateId, triageStateIds[0]), // Simplified for single triage state
+        inArray(issue.stateId, triageStateIds),
       ),
     )
     .orderBy(desc(issue.createdAt));
 
   // Get labels for issues
   const issueIds = issues.map((i) => i.id);
-  let labelsMap: Record<string, { name: string; color: string }[]> = {};
+  let labelsMap: Record<string, { id: string; name: string; color: string }[]> =
+    {};
 
   if (issueIds.length > 0) {
     const issueLabelRows = await db
       .select({
         issueId: issueLabel.issueId,
+        labelId: label.id,
         labelName: label.name,
         labelColor: label.color,
       })
       .from(issueLabel)
-      .innerJoin(label, eq(issueLabel.labelId, label.id));
+      .innerJoin(label, eq(issueLabel.labelId, label.id))
+      .where(inArray(issueLabel.issueId, issueIds));
 
     labelsMap = {};
     for (const row of issueLabelRows) {
@@ -105,6 +112,7 @@ export async function GET(
         labelsMap[row.issueId] = [];
       }
       labelsMap[row.issueId].push({
+        id: row.labelId,
         name: row.labelName,
         color: row.labelColor,
       });
@@ -116,10 +124,17 @@ export async function GET(
     identifier: i.identifier,
     title: i.title,
     priority: i.priority,
+    stateId: i.stateId,
+    stateName: i.stateName,
+    stateColor: i.stateColor,
+    creatorId: i.creatorId,
     creatorName: i.creatorName ?? "Unknown",
     creatorImage: i.creatorImage,
     createdAt: i.createdAt,
+    labelIds: (labelsMap[i.id] ?? []).map((currentLabel) => currentLabel.id),
     labels: labelsMap[i.id] ?? [],
+    assigneeId: null,
+    projectId: null,
   }));
 
   return NextResponse.json({

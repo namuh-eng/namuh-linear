@@ -1014,5 +1014,45 @@
       }
     ],
     "fix_description": "Added active-workspace resolution for initiatives via the app-shell workspace cookie, expanded initiative detail with real status, link/unlink, update, and delete flows, persisted initiative updates in the database-backed settings payload, fixed linked-project routing to use slugs, added the `N then I` shortcut plus targeted regression tests, and re-verified the feature against live Postgres data."
+  },
+  {
+    "feature_id": "feature-032",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 637 unit tests passed after the triage fixes.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; Playwright auth setup plus smoke both passed on `http://localhost:3015`.",
+      "Logged in through the real Google OAuth flow in Ever and opened `/team/ONB/triage` under the `Onboarding QA Team` workspace.",
+      "Compared the live triage UI against `ralph/screenshots/inspect/triage.jpg`, and captured before/after evidence to `ralph/screenshots/qa/feature-032-attempt-1-triage-before.jpg` and `ralph/screenshots/qa/feature-032-attempt-1-triage-after.jpg`.",
+      "Reproduced the multi-state regression against the real database by inserting a second triage workflow state (`Needs Review`) plus issue `ONB-8`, then confirmed `GET /api/teams/ONB/triage` returned only `ONB-7` before the fix even though both `ONB-7` and `ONB-8` were stored in triage-category states.",
+      "Verified the fixed triage API and UI now show issues from both triage workflow states, render relative timestamps (`8m ago`, `9m ago`), and expose in-page filter, sort, and `Create triage issue` controls on the populated queue.",
+      "Verified the real accept flow by accepting `ONB-2`; the app issued `PATCH /api/teams/ONB/triage/6c3e1ba3-5a9f-42ad-849b-e718a3f73d3c`, the issue moved to the Backlog state in Postgres, and the queue refreshed to the empty state.",
+      "Verified the real decline flow after the fix by declining `ONB-8`; the app issued `PATCH /api/teams/ONB/triage/a43cd520-1060-46ef-8235-de1ca986785f`, the issue moved to the Canceled state in Postgres, and the queue refreshed to show only the remaining triage issue.",
+      "Ran `make check` and `make test` after the fixes; both passed (`TypeCheck passed`, `Lint & Format passed`, `637` unit tests passed)."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "The triage API only returned issues from the first triage workflow state, so additional triage-category states were invisible in the queue.",
+        "expected": "The triage queue should include every issue whose workflow state category is `triage`, even when a team has multiple triage states such as `Triage` and `Needs Review`.",
+        "actual": "Before the fix, `GET /api/teams/ONB/triage` matched only the first triage state id and omitted `ONB-8` even though the database stored both `ONB-7` and `ONB-8` in triage-category states.",
+        "reproduction": "1. Insert a second triage workflow state for team `ONB` and assign issue `ONB-8` to it.\n2. Keep `ONB-7` in the default `Triage` state.\n3. Call `GET /api/teams/ONB/triage` before the fix.\n4. Observe that only `ONB-7` is returned even though both issues are in triage-category states."
+      },
+      {
+        "severity": "major",
+        "description": "The populated triage view was missing the in-page `Create triage issue`, filter, and sort controls required by the feature spec and visible in the Linear reference layout.",
+        "expected": "A populated triage queue should still show a `Create triage issue` action plus filter and sort controls so users can manage incoming work without emptying the list first.",
+        "actual": "Before the fix, the populated queue only rendered rows and a footer count; the create action existed only in the empty state, and there were no filter or sort controls in the page chrome.",
+        "reproduction": "1. Ensure `/team/ONB/triage` contains at least one triage issue.\n2. Open the page before the fix.\n3. Observe that the populated queue has no in-page create/filter/sort controls."
+      },
+      {
+        "severity": "major",
+        "description": "Triage rows rendered calendar dates instead of the required relative timestamps.",
+        "expected": "Each triage row should show a relative timestamp such as `13d ago`, matching the PRD and the reference screenshot.",
+        "actual": "Before the fix, rows rendered absolute month/day text like `Apr 7` and `Apr 8`.",
+        "reproduction": "1. Open `/team/ONB/triage` before the fix.\n2. Inspect any triage row timestamp.\n3. Observe the row shows `Apr <day>` instead of a relative value such as `9m ago`."
+      }
+    ],
+    "fix_description": "Updated the triage API to include all triage-category workflow states and scoped label loading to the returned issues, switched row timestamps to relative formatting, added regression coverage for multi-state triage and populated-queue controls, and rebuilt the triage page to expose create/filter/sort controls while keeping accept/decline refresh behavior wired to the real API."
   }
 ]
