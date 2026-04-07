@@ -179,7 +179,7 @@ export function Sidebar({
           }
         />
         <SidebarLink
-          href="/my-issues"
+          href="/my-issues/assigned"
           label="My Issues"
           active={pathname.startsWith("/my-issues")}
           icon={

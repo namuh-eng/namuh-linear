@@ -408,5 +408,32 @@
       "Real-time notification updates via WebSocket/polling",
       "Unread count badge in sidebar"
     ]
+  },
+  {
+    "feature_id": "feature-021",
+    "tests_written": [
+      "renders My Issues heading",
+      "renders all four tab buttons (Assigned, Created, Subscribed, Activity)",
+      "shows issue identifiers after loading",
+      "shows issue titles",
+      "shows workflow state group headers",
+      "shows issue count in footer",
+      "shows labels on issues",
+      "renders empty state when no issues",
+      "renders display options button",
+      "renders filter button",
+      "calls fetch with correct tab parameter",
+      "navigates to tab when clicking tab button",
+      "shows assignee avatars on issues"
+    ],
+    "needs_deeper_qa": [
+      "Subscribed tab — currently based on comments, may need dedicated subscription tracking",
+      "Activity tab — currently merges assigned + created, real Linear shows chronological activity",
+      "Cross-team issues — verify issues from multiple teams display correctly with correct identifiers",
+      "Hidden issues count accuracy when filters are active",
+      "Display property toggles — verify each property shows/hides correctly",
+      "URL routing — /my-issues redirects to /my-issues/assigned",
+      "Visual comparison with Linear's actual My Issues layout"
+    ]
   }
 ]

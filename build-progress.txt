@@ -669,3 +669,46 @@ Date: 2026-04-07
 - Notifications limited to 100 most recent for performance
 - Reused Avatar component from design system for actor avatars
 - Filter/sort buttons not yet implemented (noted in QA hints)
+
+## Iteration 19 — feature-021: My Issues Page
+Date: 2026-04-07
+
+### What was built
+- API route `GET /api/my-issues` — fetches issues for current user across all workspace teams
+  - Tab support: `assigned` (by assigneeId), `created` (by creatorId), `subscribed` (commented issues), `activity` (merged assigned + created)
+  - Returns issues grouped by workflow state with labels, assignees, and filter options
+- My Issues page (`src/app/(app)/my-issues/[tab]/page.tsx`) — full page with:
+  - 4 tabs: Assigned, Created, Subscribed, Activity (URL-driven via dynamic route)
+  - Issues grouped by workflow state with IssueRow and IssuesGroupHeader components
+  - FilterBar integration with client-side filtering
+  - Display options panel with toggleable display properties
+  - Hidden issues count when filters are active
+  - Empty state per tab with contextual message
+  - Footer with issue count
+- Base `/my-issues` page redirects to `/my-issues/assigned`
+- Updated sidebar link to `/my-issues/assigned`
+
+### Test results
+- 13 unit tests passing (tests/my-issues.test.tsx)
+  - Heading, 4 tabs, identifiers, titles, group headers, issue count, labels, empty state, display/filter buttons, fetch URL, tab navigation, assignee avatars
+- 14 empty-states tests passing (updated for new MyIssuesTabPage import)
+- 331 total tests passing (excluding pre-existing onboard-validation failures)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/app/api/my-issues/route.ts — new API route
+- src/app/(app)/my-issues/[tab]/page.tsx — new My Issues tab page
+- src/app/(app)/my-issues/page.tsx — rewritten as redirect to /my-issues/assigned
+- src/components/sidebar.tsx — updated My Issues link to /my-issues/assigned
+- tests/my-issues.test.tsx — new unit test file (13 tests)
+- tests/empty-states.test.tsx — updated import to MyIssuesTabPage
+- prd.json — marked feature-021 build_pass: true
+- qa-hints.json — added feature-021 QA hints
+
+### Decisions
+- Used dynamic route `/my-issues/[tab]` for clean tab URLs matching Linear's pattern
+- Subscribed tab uses commented issues as proxy (no dedicated subscription table)
+- Activity tab merges assigned + created issues (simplified from Linear's chronological activity)
+- Reused IssueRow, IssuesGroupHeader, FilterBar, and design system components
+- Display options are local state (not persisted to API like team display options)

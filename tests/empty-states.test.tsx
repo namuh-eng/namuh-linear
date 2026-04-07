@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import InboxPage from "@/app/(app)/inbox/page";
 import InitiativesPage from "@/app/(app)/initiatives/page";
-import MyIssuesPage from "@/app/(app)/my-issues/page";
+import MyIssuesTabPage from "@/app/(app)/my-issues/[tab]/page";
 import ProjectsPage from "@/app/(app)/projects/page";
 import TeamIssuesPage from "@/app/(app)/team/[key]/all/page";
 import TeamBoardPage from "@/app/(app)/team/[key]/board/page";
@@ -140,9 +140,25 @@ describe("Empty state pages", () => {
     ).toBeDefined();
   });
 
-  it("My Issues page shows 'No issues assigned'", () => {
-    render(<MyIssuesPage />);
-    expect(screen.getByText("No issues assigned")).toBeDefined();
+  it("My Issues page shows 'No issues assigned'", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          groups: [],
+          totalCount: 0,
+          filterOptions: {
+            statuses: [],
+            assignees: [],
+            labels: [],
+            priorities: [],
+          },
+        }),
+    }) as unknown as typeof fetch;
+    render(<MyIssuesTabPage />);
+    expect(
+      await screen.findByText("No issues assigned", {}, { timeout: 2000 }),
+    ).toBeDefined();
   });
 
   it("Initiatives page shows 'No initiatives'", () => {
