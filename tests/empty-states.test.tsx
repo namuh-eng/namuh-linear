@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import InboxPage from "@/app/(app)/inbox/page";
 import InitiativesPage from "@/app/(app)/initiatives/page";
@@ -10,6 +10,11 @@ import TeamBoardPage from "@/app/(app)/team/[key]/board/page";
 import TeamCyclesPage from "@/app/(app)/team/[key]/cycles/page";
 import TeamTriagePage from "@/app/(app)/team/[key]/triage/page";
 import { EmptyState } from "@/components/empty-state";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/team/ENG/all",
+  useParams: () => ({ key: "ENG" }),
+}));
 
 describe("EmptyState component", () => {
   afterEach(() => {
@@ -68,9 +73,19 @@ describe("Empty state pages", () => {
     cleanup();
   });
 
-  it("Team Issues page shows 'No issues' with create CTA", () => {
+  it("Team Issues page shows 'No issues' with create CTA", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          team: { id: "1", name: "Engineering", key: "ENG" },
+          groups: [],
+        }),
+    });
     render(<TeamIssuesPage />);
-    expect(screen.getByText("No issues")).toBeDefined();
+    expect(
+      await screen.findByText("No issues", {}, { timeout: 2000 }),
+    ).toBeDefined();
     expect(screen.getByText("Create issue")).toBeDefined();
   });
 

@@ -173,5 +173,29 @@
       "Icon rendering at various zoom levels / DPI",
       "Color contrast accessibility for all priority/status colors"
     ]
+  },
+  {
+    "feature_id": "feature-001",
+    "tests_written": [
+      "IssueRow renders identifier, title, priority icon, status icon",
+      "IssueRow renders assignee avatar when provided",
+      "IssueRow hides assignee when not provided",
+      "IssueRow renders labels when provided",
+      "IssueRow renders formatted creation date",
+      "IssueRow renders as clickable row",
+      "IssuesGroupHeader renders name, count, status icon",
+      "IssuesGroupHeader renders add issue button",
+      "Team Issues page shows empty state when no issues",
+      "API route GET /api/teams/[key]/issues returns grouped issues"
+    ],
+    "needs_deeper_qa": [
+      "E2E: navigate to team issues page and verify list renders with real data",
+      "Issue grouping by all workflow state categories (triage through canceled)",
+      "Tab filtering (All issues, Active, Backlog) with real data",
+      "Issue row click navigates to issue detail page",
+      "Add issue button in group header triggers create modal",
+      "Large number of issues — scroll performance",
+      "Visual comparison with Linear's actual issue list layout"
+    ]
   }
 ]

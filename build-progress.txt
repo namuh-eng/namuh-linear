@@ -304,3 +304,42 @@ Date: 2026-04-07
 - Priority icons use bar chart style (matching Linear screenshots) rather than arrow icons
 - Status icons match Linear's circle-based system: dashed/empty/half/filled/X
 - Avatar uses Tailwind size classes (h-4/h-5/h-8) for consistency with existing component patterns
+
+## Iteration 10 — feature-001: Issues List View
+Date: 2026-04-07
+
+### What was built
+- API route `GET /api/teams/[key]/issues` — fetches issues grouped by workflow state with assignee and label data
+- IssueRow component (`src/components/issue-row.tsx`) — renders issue identifier, title, priority icon, status icon, assignee avatar, labels, and formatted date
+- IssuesGroupHeader component (`src/components/issues-group-header.tsx`) — renders workflow state name, issue count, status icon, and add issue button
+- Team Issues page (`src/app/(app)/team/[key]/all/page.tsx`) — full issues list with:
+  - Tab filtering (All issues, Active, Backlog)
+  - Issues grouped by workflow state
+  - Empty state fallback when no issues exist
+  - Header with team name, tabs, and issue count
+  - Footer with total issue count
+- Updated empty states test to work with new page (mocked useParams and fetch)
+
+### Test results
+- 12 unit tests passing (tests/issues-list.test.tsx)
+  - 9 IssueRow tests (identifier, title, priority, status, assignee, labels, date, clickable)
+  - 3 IssuesGroupHeader tests (name+count, status icon, add button)
+- 198 total tests passing (excluding pre-existing onboard-validation failures)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/app/api/teams/[key]/issues/route.ts — new API route
+- src/components/issue-row.tsx — new IssueRow component
+- src/components/issues-group-header.tsx — new IssuesGroupHeader component
+- src/app/(app)/team/[key]/all/page.tsx — rewritten with full issues list
+- tests/issues-list.test.tsx — new unit test file (12 tests)
+- tests/empty-states.test.tsx — updated with useParams/fetch mocks for Team Issues page
+- prd.json — marked feature-001 build_pass: true
+- qa-hints.json — added feature-001 QA hints
+
+### Decisions
+- Used client-side fetch for issues data (will support real-time updates later)
+- Tab filtering is client-side (All/Active/Backlog filter by workflow state category)
+- Issue priority stored as enum string in DB, mapped to numeric for PriorityIcon component
+- Reused design system components (PriorityIcon, StatusIcon, Avatar, LabelChip) from design-001
