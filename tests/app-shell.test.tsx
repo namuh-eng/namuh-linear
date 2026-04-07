@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
 let mockPathname = "/inbox";
@@ -74,6 +74,11 @@ describe("Sidebar", () => {
     render(<Sidebar />);
     expect(screen.getByText("Inbox")).toBeDefined();
     expect(screen.getByText("My Issues")).toBeDefined();
+  });
+
+  it("shows the inbox unread badge when provided", () => {
+    render(<Sidebar inboxUnreadCount={3} />);
+    expect(screen.getByText("3")).toBeInTheDocument();
   });
 
   it("renders workspace section with Projects and Views", () => {
@@ -249,13 +254,28 @@ describe("Sidebar", () => {
 });
 
 describe("AppShell", () => {
+  beforeEach(() => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes("/api/notifications")) {
+        return {
+          ok: true,
+          json: async () => ({ unreadCount: 2, notifications: [] }),
+        } as Response;
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
+  });
+
   afterEach(() => {
     cleanup();
     mockPathname = "/inbox";
     vi.restoreAllMocks();
   });
 
-  it("renders sidebar and content area", () => {
+  it("renders sidebar and content area", async () => {
     render(
       <AppShell
         workspaceName="Test"
@@ -270,6 +290,9 @@ describe("AppShell", () => {
     );
     expect(screen.getByText("Test")).toBeDefined();
     expect(screen.getByText("Content")).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByText("2")).toBeInTheDocument();
+    });
   });
 
   it("renders children in the content area", () => {
@@ -307,20 +330,34 @@ describe("AppShell", () => {
 
   it("updates the shell context for the active team route", async () => {
     mockPathname = "/team/QAX2/all";
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        workspaceName: "QA Fix 20260407 1644",
-        workspaceInitials: "QA",
-        teamName: "QA Fix 20260407 1644",
-        teamId: "team-id-2",
-        teamKey: "QAX2",
-        teams: [
-          { id: "team-id-1", name: "Onboarding QA Team", key: "QAX" },
-          { id: "team-id-2", name: "QA Fix 20260407 1644", key: "QAX2" },
-        ],
-      }),
-    } as Response);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/api/notifications")) {
+        return {
+          ok: true,
+          json: async () => ({ unreadCount: 2, notifications: [] }),
+        } as Response;
+      }
+
+      if (url.includes("/api/teams/QAX2/context")) {
+        return {
+          ok: true,
+          json: async () => ({
+            workspaceName: "QA Fix 20260407 1644",
+            workspaceInitials: "QA",
+            teamName: "QA Fix 20260407 1644",
+            teamId: "team-id-2",
+            teamKey: "QAX2",
+            teams: [
+              { id: "team-id-1", name: "Onboarding QA Team", key: "QAX" },
+              { id: "team-id-2", name: "QA Fix 20260407 1644", key: "QAX2" },
+            ],
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unhandled fetch: ${url}`);
+    });
 
     render(
       <AppShell
@@ -345,6 +382,12 @@ describe("AppShell", () => {
   it("opens the global create issue modal on the C shortcut", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
+      if (url.includes("/api/notifications")) {
+        return {
+          ok: true,
+          json: async () => ({ unreadCount: 2, notifications: [] }),
+        } as Response;
+      }
       if (url.includes("/create-issue-options")) {
         return {
           ok: true,
@@ -378,6 +421,12 @@ describe("AppShell", () => {
   it("opens the global create issue modal when the command event fires", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
+      if (url.includes("/api/notifications")) {
+        return {
+          ok: true,
+          json: async () => ({ unreadCount: 2, notifications: [] }),
+        } as Response;
+      }
       if (url.includes("/create-issue-options")) {
         return {
           ok: true,

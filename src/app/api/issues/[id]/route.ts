@@ -13,6 +13,10 @@ import {
   workflowState,
 } from "@/lib/db/schema";
 import { normalizeIssueDescriptionHtml } from "@/lib/issue-description";
+import {
+  buildNotificationValues,
+  insertNotifications,
+} from "@/lib/notifications";
 import { getDownloadUrl } from "@/lib/s3";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -401,6 +405,21 @@ export async function PATCH(
       stateId: issue.stateId,
       sortOrder: issue.sortOrder,
     });
+
+  if (
+    body.stateId !== undefined &&
+    body.stateId !== existingIssue.stateId &&
+    updated[0]
+  ) {
+    await insertNotifications(
+      buildNotificationValues({
+        type: "status_change",
+        actorId: session.user.id,
+        issueId: existingIssue.id,
+        userIds: [existingIssue.assigneeId, existingIssue.creatorId],
+      }),
+    );
+  }
 
   return NextResponse.json(updated[0]);
 }

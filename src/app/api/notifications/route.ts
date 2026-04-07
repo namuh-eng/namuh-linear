@@ -27,6 +27,7 @@ export async function GET() {
       issueId: notification.issueId,
       issueIdentifier: issue.identifier,
       issueTitle: issue.title,
+      issuePriority: issue.priority,
     })
     .from(notification)
     .leftJoin(actor, eq(notification.actorId, actor.id))
@@ -50,6 +51,7 @@ export async function GET() {
       actorImage: n.actorImage ?? null,
       issueIdentifier: n.issueIdentifier ?? "",
       issueTitle: n.issueTitle ?? "",
+      issuePriority: n.issuePriority ?? "none",
       issueId: n.issueId,
       readAt: n.readAt?.toISOString() ?? null,
       createdAt: n.createdAt.toISOString(),

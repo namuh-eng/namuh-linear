@@ -279,6 +279,7 @@ export default function TeamBoardPage() {
         return;
       }
 
+      window.dispatchEvent(new CustomEvent("notifications:changed"));
       await fetchIssues();
     },
     [data, draggedIssue, fetchIssues],

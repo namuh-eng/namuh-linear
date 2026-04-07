@@ -1,0 +1,105 @@
+import { randomBytes } from "node:crypto";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { user } from "@/lib/db/schema";
+import { makeSignature } from "better-auth/crypto";
+import { eq } from "drizzle-orm";
+import { NextResponse } from "next/server";
+
+function randomToken(size: number) {
+  return randomBytes(size).toString("base64url");
+}
+
+function normalizeSameSite(value: string | undefined) {
+  const normalized = value?.toLowerCase();
+  if (normalized === "strict") {
+    return "strict" as const;
+  }
+
+  if (normalized === "none") {
+    return "none" as const;
+  }
+
+  return "lax" as const;
+}
+
+export async function POST(request: Request) {
+  if (
+    process.env.NODE_ENV !== "test" &&
+    process.env.PLAYWRIGHT_TEST !== "true"
+  ) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const body = (await request.json().catch(() => null)) as {
+    email?: string;
+    name?: string;
+  } | null;
+  const email = body?.email?.trim().toLowerCase();
+
+  if (!email) {
+    return NextResponse.json({ error: "Email is required" }, { status: 400 });
+  }
+
+  const existingUser = await db
+    .select({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      image: user.image,
+      emailVerified: user.emailVerified,
+    })
+    .from(user)
+    .where(eq(user.email, email))
+    .limit(1);
+
+  const resolvedUser =
+    existingUser[0] ??
+    (
+      await db
+        .insert(user)
+        .values({
+          id: randomToken(24),
+          email,
+          name:
+            body?.name?.trim() ||
+            email.split("@")[0]?.replaceAll(/[._-]+/g, " ") ||
+            "Playwright User",
+          emailVerified: true,
+        })
+        .returning({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+          emailVerified: user.emailVerified,
+        })
+    )[0];
+
+  const authContext = await auth.$context;
+  const createdSession = await authContext.internalAdapter.createSession(
+    resolvedUser.id,
+  );
+  const signedToken = `${createdSession.token}.${await makeSignature(
+    createdSession.token,
+    authContext.secret,
+  )}`;
+  const sessionCookie = authContext.authCookies.sessionToken;
+
+  const response = NextResponse.json({
+    success: true,
+    user: resolvedUser,
+    sessionToken: signedToken,
+    expiresAt: createdSession.expiresAt.toISOString(),
+  });
+
+  response.cookies.set(sessionCookie.name, signedToken, {
+    expires: createdSession.expiresAt,
+    httpOnly: sessionCookie.attributes.httpOnly ?? true,
+    path: sessionCookie.attributes.path ?? "/",
+    sameSite: normalizeSameSite(sessionCookie.attributes.sameSite),
+    secure: sessionCookie.attributes.secure ?? false,
+  });
+
+  return response;
+}

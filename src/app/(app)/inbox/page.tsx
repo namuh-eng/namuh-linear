@@ -2,7 +2,16 @@
 
 import { EmptyState } from "@/components/empty-state";
 import { NotificationRow } from "@/components/notification-row";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+
+const PRIORITY_SORT_ORDER: Record<string, number> = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+  none: 4,
+};
 
 interface Notification {
   id: string;
@@ -11,9 +20,18 @@ interface Notification {
   actorImage: string | null;
   issueIdentifier: string;
   issueTitle: string;
+  issuePriority: "urgent" | "high" | "medium" | "low" | "none";
   issueId: string | null;
   readAt: string | null;
   createdAt: string;
+}
+
+function emitNotificationChange(unreadCount: number) {
+  window.dispatchEvent(
+    new CustomEvent("notifications:changed", {
+      detail: { unreadCount },
+    }),
+  );
 }
 
 export default function InboxPage() {
@@ -21,36 +39,118 @@ export default function InboxPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [sortMode, setSortMode] = useState<"latest" | "priority">("latest");
 
   useEffect(() => {
-    fetch("/api/notifications")
-      .then((res) => res.json())
-      .then((data) => {
-        setNotifications(data.notifications ?? []);
-        setUnreadCount(data.unreadCount ?? 0);
-      })
-      .finally(() => setLoading(false));
+    let cancelled = false;
+
+    async function loadNotifications() {
+      try {
+        const response = await fetch("/api/notifications");
+        const data = await response.json();
+
+        if (cancelled) {
+          return;
+        }
+
+        const nextNotifications = data.notifications ?? [];
+        const nextUnreadCount = data.unreadCount ?? 0;
+
+        setNotifications(nextNotifications);
+        setUnreadCount(nextUnreadCount);
+        setSelectedId(nextNotifications[0]?.id ?? null);
+        emitNotificationChange(nextUnreadCount);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadNotifications();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleSelect = useCallback(
-    (id: string) => {
+    async (id: string) => {
       setSelectedId(id);
 
-      const notif = notifications.find((n) => n.id === id);
-      if (notif && !notif.readAt) {
-        fetch(`/api/notifications/${id}/read`, { method: "PATCH" });
-        setNotifications((prev) =>
-          prev.map((n) =>
-            n.id === id ? { ...n, readAt: new Date().toISOString() } : n,
-          ),
-        );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
+      const notification = notifications.find((item) => item.id === id);
+      if (!notification || notification.readAt) {
+        return;
+      }
+
+      const nextReadAt = new Date().toISOString();
+      const previousNotifications = notifications;
+      const previousUnreadCount = unreadCount;
+
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, readAt: nextReadAt } : item,
+        ),
+      );
+      const nextUnreadCount = Math.max(0, unreadCount - 1);
+      setUnreadCount(nextUnreadCount);
+      emitNotificationChange(nextUnreadCount);
+
+      try {
+        const response = await fetch(`/api/notifications/${id}/read`, {
+          method: "PATCH",
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to mark notification as read");
+        }
+      } catch {
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
+        emitNotificationChange(previousUnreadCount);
       }
     },
-    [notifications],
+    [notifications, unreadCount],
   );
 
-  const selected = notifications.find((n) => n.id === selectedId);
+  const visibleNotifications = [...notifications]
+    .filter((notification) => !showUnreadOnly || notification.readAt === null)
+    .sort((left, right) => {
+      if (sortMode === "priority") {
+        const priorityDiff =
+          PRIORITY_SORT_ORDER[left.issuePriority] -
+          PRIORITY_SORT_ORDER[right.issuePriority];
+
+        if (priorityDiff !== 0) {
+          return priorityDiff;
+        }
+      }
+
+      return (
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      );
+    });
+
+  useEffect(() => {
+    if (visibleNotifications.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+
+    if (
+      !visibleNotifications.some(
+        (notification) => notification.id === selectedId,
+      )
+    ) {
+      setSelectedId(visibleNotifications[0]?.id ?? null);
+    }
+  }, [selectedId, visibleNotifications]);
+
+  const selected =
+    visibleNotifications.find(
+      (notification) => notification.id === selectedId,
+    ) ?? null;
 
   if (loading) {
     return (
@@ -88,51 +188,89 @@ export default function InboxPage() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header */}
       <div className="flex items-center gap-3 border-b border-[#1c1e21] px-4 py-3">
-        <h1 className="text-[14px] font-semibold text-white">Inbox</h1>
+        <h1 className="text-[14px] font-semibold text-[var(--color-text-primary)]">
+          Inbox
+        </h1>
         {unreadCount > 0 && (
           <span className="text-[12px] text-[#6b6f76]">
             {unreadCount} unread
           </span>
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Filter inbox notifications"
+            onClick={() => setShowUnreadOnly((current) => !current)}
+            className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
+              showUnreadOnly
+                ? "border-[#5E6AD2] bg-[rgba(94,106,210,0.16)] text-white"
+                : "border-[#2a2d31] text-[#b0b5c0] hover:border-[#3a3e45] hover:text-white"
+            }`}
+          >
+            Filter: {showUnreadOnly ? "Unread" : "All"}
+          </button>
+          <button
+            type="button"
+            aria-label="Sort inbox notifications by priority"
+            onClick={() =>
+              setSortMode((current) =>
+                current === "latest" ? "priority" : "latest",
+              )
+            }
+            className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
+              sortMode === "priority"
+                ? "border-[#5E6AD2] bg-[rgba(94,106,210,0.16)] text-white"
+                : "border-[#2a2d31] text-[#b0b5c0] hover:border-[#3a3e45] hover:text-white"
+            }`}
+          >
+            Sort: {sortMode === "priority" ? "Priority" : "Latest"}
+          </button>
+        </div>
       </div>
 
-      {/* Content: list + detail panel */}
       <div className="flex min-h-0 flex-1">
-        {/* Notification list */}
         <div className="w-full min-w-0 overflow-y-auto border-r border-[#1c1e21] md:w-[400px] md:shrink-0">
-          <div className="flex flex-col gap-0.5 p-1.5">
-            {notifications.map((n) => (
-              <NotificationRow
-                key={n.id}
-                id={n.id}
-                type={n.type}
-                actorName={n.actorName}
-                actorImage={n.actorImage}
-                issueIdentifier={n.issueIdentifier}
-                issueTitle={n.issueTitle}
-                readAt={n.readAt}
-                createdAt={n.createdAt}
-                isSelected={n.id === selectedId}
-                onClick={handleSelect}
-              />
-            ))}
-          </div>
+          {visibleNotifications.length > 0 ? (
+            <div className="flex flex-col gap-0.5 p-1.5">
+              {visibleNotifications.map((notification) => (
+                <NotificationRow
+                  key={notification.id}
+                  id={notification.id}
+                  type={notification.type}
+                  actorName={notification.actorName}
+                  actorImage={notification.actorImage}
+                  issueIdentifier={notification.issueIdentifier}
+                  issueTitle={notification.issueTitle}
+                  readAt={notification.readAt}
+                  createdAt={notification.createdAt}
+                  isSelected={notification.id === selectedId}
+                  onClick={(notificationId) => {
+                    void handleSelect(notificationId);
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center px-6 text-center text-[13px] text-[#6b6f76]">
+              {showUnreadOnly
+                ? "No unread notifications match the current filter."
+                : "No notifications to display."}
+            </div>
+          )}
         </div>
 
-        {/* Detail panel */}
         <div className="hidden flex-1 overflow-y-auto p-6 md:block">
           {selected ? (
             <div>
               <div className="mb-2 text-[12px] text-[#6b6f76]">
                 {selected.issueIdentifier}
               </div>
-              <h2 className="mb-4 text-[16px] font-semibold text-white">
+              <h2 className="mb-4 text-[16px] font-semibold text-[var(--color-text-primary)]">
                 {selected.issueTitle}
               </h2>
               <p className="text-[13px] text-[#b0b5c0]">
-                <span className="font-medium text-white">
+                <span className="font-medium text-[var(--color-text-primary)]">
                   {selected.actorName}
                 </span>{" "}
                 {selected.type === "assigned" && "assigned this issue to you"}
@@ -143,6 +281,14 @@ export default function InboxPage() {
                 {selected.type === "duplicate" &&
                   "marked this issue as duplicate"}
               </p>
+              {selected.issueIdentifier && (
+                <Link
+                  href={`/issue/${selected.issueIdentifier}`}
+                  className="mt-4 inline-flex text-[12px] font-medium text-[#5E6AD2] hover:text-[#7a84dd]"
+                >
+                  Open issue
+                </Link>
+              )}
             </div>
           ) : (
             <div className="flex h-full items-center justify-center">

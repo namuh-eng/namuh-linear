@@ -1,6 +1,11 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { comment, commentAttachment, issue, team } from "@/lib/db/schema";
+import {
+  buildNotificationValues,
+  insertNotifications,
+  resolveMentionedUserIds,
+} from "@/lib/notifications";
 import { buildKey, deleteFile, getDownloadUrl, uploadFile } from "@/lib/s3";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -11,6 +16,8 @@ async function findIssueRecord(id: string) {
     .select({
       id: issue.id,
       workspaceId: team.workspaceId,
+      assigneeId: issue.assigneeId,
+      creatorId: issue.creatorId,
     })
     .from(issue)
     .innerJoin(team, eq(issue.teamId, team.id))
@@ -25,6 +32,8 @@ async function findIssueRecord(id: string) {
     .select({
       id: issue.id,
       workspaceId: team.workspaceId,
+      assigneeId: issue.assigneeId,
+      creatorId: issue.creatorId,
     })
     .from(issue)
     .innerJoin(team, eq(issue.teamId, team.id))
@@ -98,6 +107,10 @@ export async function POST(
 
   const commentId = crypto.randomUUID();
   const uploadedKeys: string[] = [];
+  const mentionedUserIds = await resolveMentionedUserIds({
+    workspaceId: currentIssue.workspaceId,
+    body: nextBody,
+  });
 
   try {
     const attachmentRows = await Promise.all(
@@ -159,6 +172,33 @@ export async function POST(
         downloadUrl: await getDownloadUrl(currentAttachment.storageKey),
       })),
     );
+
+    const mentionedSet = new Set(mentionedUserIds);
+    const genericRecipients = [
+      currentIssue.assigneeId,
+      currentIssue.creatorId,
+    ].filter((userId): userId is string => {
+      if (!userId) {
+        return false;
+      }
+
+      return !mentionedSet.has(userId);
+    });
+
+    await insertNotifications([
+      ...buildNotificationValues({
+        type: "mentioned",
+        actorId: session.user.id,
+        issueId: currentIssue.id,
+        userIds: mentionedUserIds,
+      }),
+      ...buildNotificationValues({
+        type: "comment",
+        actorId: session.user.id,
+        issueId: currentIssue.id,
+        userIds: genericRecipients,
+      }),
+    ]);
 
     return NextResponse.json({
       id: createdComments.id,

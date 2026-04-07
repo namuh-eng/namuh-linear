@@ -1,5 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
+const authFile = "tests/e2e/.auth/user.json";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30000,
@@ -9,9 +11,23 @@ export default defineConfig({
     headless: true,
     screenshot: "only-on-failure",
   },
+  projects: [
+    {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
+      name: "chromium",
+      dependencies: ["setup"],
+      testIgnore: /auth\.setup\.ts/,
+      use: {
+        storageState: authFile,
+      },
+    },
+  ],
   webServer: {
-    command: "npm run dev",
+    command: "PLAYWRIGHT_TEST=true npm run dev",
     port: 3015,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
   },
 });

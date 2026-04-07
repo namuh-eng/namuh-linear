@@ -416,6 +416,7 @@ export function IssueDetailView({ issueId }: { issueId: string }) {
       );
       setCommentBody("");
       setPendingAttachments([]);
+      window.dispatchEvent(new CustomEvent("notifications:changed"));
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";

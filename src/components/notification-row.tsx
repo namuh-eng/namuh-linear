@@ -57,10 +57,10 @@ export function NotificationRow({
       onClick={() => onClick(id)}
       className={`flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors ${
         isSelected
-          ? "bg-[#1f1f23]"
+          ? "bg-[var(--color-surface-active)]"
           : readAt
-            ? "hover:bg-[#141416]"
-            : "bg-[#14141a] hover:bg-[#1a1a20]"
+            ? "hover:bg-[var(--color-surface-hover)]"
+            : "bg-[color-mix(in_srgb,var(--color-accent)_10%,var(--color-surface))] hover:bg-[color-mix(in_srgb,var(--color-accent)_16%,var(--color-surface))]"
       }`}
     >
       {/* Unread dot */}
@@ -68,7 +68,7 @@ export function NotificationRow({
         {readAt === null ? (
           <span
             data-testid="unread-dot"
-            className="block h-2 w-2 rounded-full bg-[#5E6AD2]"
+            className="block h-2 w-2 rounded-full bg-[var(--color-accent)]"
           />
         ) : (
           <span className="block h-2 w-2" />
@@ -83,17 +83,25 @@ export function NotificationRow({
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-1.5 text-[13px]">
-          <span className="font-medium text-white">{actorName}</span>
-          <span className="text-[#6b6f76]">{ACTION_TEXT[type]}</span>
+          <span className="font-medium text-[var(--color-text-primary)]">
+            {actorName}
+          </span>
+          <span className="text-[var(--color-text-secondary)]">
+            {ACTION_TEXT[type]}
+          </span>
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-[13px]">
-          <span className="shrink-0 text-[#6b6f76]">{issueIdentifier}</span>
-          <span className="truncate text-[#b0b5c0]">{issueTitle}</span>
+          <span className="shrink-0 text-[var(--color-text-secondary)]">
+            {issueIdentifier}
+          </span>
+          <span className="truncate text-[var(--color-text-primary)]">
+            {issueTitle}
+          </span>
         </div>
       </div>
 
       {/* Timestamp */}
-      <span className="shrink-0 pt-0.5 text-[12px] text-[#6b6f76]">
+      <span className="shrink-0 pt-0.5 text-[12px] text-[var(--color-text-secondary)]">
         {formatRelativeTime(createdAt)}
       </span>
     </button>

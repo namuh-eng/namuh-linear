@@ -64,6 +64,7 @@ export function AppShell({
 }: AppShellProps) {
   const pathname = usePathname();
   const [showCreateIssue, setShowCreateIssue] = useState(false);
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
   const [shellContext, setShellContext] = useState<ShellContext>({
     workspaceName,
     workspaceInitials,
@@ -130,6 +131,62 @@ export function AppShell({
   ]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function syncInboxUnreadCount() {
+      try {
+        const response = await fetch("/api/notifications");
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as { unreadCount?: number };
+        if (!cancelled) {
+          setInboxUnreadCount(data.unreadCount ?? 0);
+        }
+      } catch {
+        if (!cancelled) {
+          setInboxUnreadCount(0);
+        }
+      }
+    }
+
+    function handleNotificationsChanged(event: Event) {
+      const customEvent = event as CustomEvent<{ unreadCount?: number }>;
+      if (typeof customEvent.detail?.unreadCount === "number") {
+        setInboxUnreadCount(customEvent.detail.unreadCount);
+        return;
+      }
+
+      void syncInboxUnreadCount();
+    }
+
+    void syncInboxUnreadCount();
+    const intervalId = window.setInterval(() => {
+      void syncInboxUnreadCount();
+    }, 15000);
+    const handleFocus = () => {
+      void syncInboxUnreadCount();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener(
+      "notifications:changed",
+      handleNotificationsChanged as EventListener,
+    );
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener(
+        "notifications:changed",
+        handleNotificationsChanged as EventListener,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
     function handleOpenCreateIssue() {
       setShowCreateIssue(true);
     }
@@ -167,6 +224,7 @@ export function AppShell({
         teamName={shellContext.teamName}
         teamKey={shellContext.teamKey}
         teams={shellContext.teams}
+        inboxUnreadCount={inboxUnreadCount}
         onCreateIssue={() => setShowCreateIssue(true)}
       />
       <main className="flex-1 overflow-hidden p-2 pl-0">

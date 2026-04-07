@@ -461,6 +461,7 @@ export function CreateIssueModal({
           detail: { teamId, teamKey, issueId: createdIssue.id },
         }),
       );
+      window.dispatchEvent(new CustomEvent("notifications:changed"));
       await onCreated?.();
 
       if (createMore) {

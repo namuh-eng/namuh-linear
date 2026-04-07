@@ -16,6 +16,7 @@ interface SidebarProps {
   teamName?: string;
   teamKey?: string;
   teams?: SidebarTeam[];
+  inboxUnreadCount?: number;
   onCreateIssue?: () => void;
 }
 
@@ -150,6 +151,7 @@ export function Sidebar({
   teamName = "Engineering",
   teamKey = "ENG",
   teams,
+  inboxUnreadCount = 0,
   onCreateIssue,
 }: SidebarProps) {
   const pathname = usePathname();
@@ -308,6 +310,7 @@ export function Sidebar({
         <SidebarLink
           href="/inbox"
           label="Inbox"
+          badge={inboxUnreadCount}
           active={pathname.startsWith("/inbox")}
           icon={
             <svg

@@ -2,6 +2,10 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { issue, issueLabel, team, workflowState } from "@/lib/db/schema";
 import { normalizeIssueDescriptionHtml } from "@/lib/issue-description";
+import {
+  buildNotificationValues,
+  insertNotifications,
+} from "@/lib/notifications";
 import { and, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -114,6 +118,17 @@ export async function POST(request: Request) {
 
     return createdIssue;
   });
+
+  if (newIssue.assigneeId) {
+    await insertNotifications(
+      buildNotificationValues({
+        type: "assigned",
+        actorId: session.user.id,
+        issueId: newIssue.id,
+        userIds: [newIssue.assigneeId],
+      }),
+    );
+  }
 
   return NextResponse.json(newIssue, { status: 201 });
 }
