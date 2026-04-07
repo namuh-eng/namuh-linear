@@ -1,0 +1,257 @@
+"use client";
+
+interface DisplayProperties {
+  id: boolean;
+  status: boolean;
+  assignee: boolean;
+  priority: boolean;
+  project: boolean;
+  dueDate: boolean;
+  milestone: boolean;
+  labels: boolean;
+  links: boolean;
+  timeInStatus: boolean;
+  created: boolean;
+  updated: boolean;
+  pullRequests: boolean;
+}
+
+interface DisplayOptionsPanelProps {
+  open: boolean;
+  onClose: () => void;
+  layout: "list" | "board";
+  onLayoutChange: (layout: "list" | "board") => void;
+  displayProperties: DisplayProperties;
+  onDisplayPropertyToggle: (key: keyof DisplayProperties) => void;
+  showSubIssues: boolean;
+  onShowSubIssuesToggle: () => void;
+  showTriageIssues: boolean;
+  onShowTriageIssuesToggle: () => void;
+  showEmptyColumns: boolean;
+  onShowEmptyColumnsToggle: () => void;
+}
+
+const propertyLabels: { key: keyof DisplayProperties; label: string }[] = [
+  { key: "id", label: "ID" },
+  { key: "status", label: "Status" },
+  { key: "assignee", label: "Assignee" },
+  { key: "priority", label: "Priority" },
+  { key: "project", label: "Project" },
+  { key: "dueDate", label: "Due date" },
+  { key: "milestone", label: "Milestone" },
+  { key: "labels", label: "Labels" },
+  { key: "links", label: "Links" },
+  { key: "timeInStatus", label: "Time in status" },
+  { key: "created", label: "Created" },
+  { key: "updated", label: "Updated" },
+  { key: "pullRequests", label: "Pull requests" },
+];
+
+function ToggleSwitch({
+  checked,
+  onToggle,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`relative h-4 w-7 rounded-full transition-colors ${
+        checked ? "bg-[var(--color-accent)]" : "bg-[var(--color-border)]"
+      }`}
+      role="switch"
+      aria-checked={checked}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white transition-transform ${
+          checked ? "translate-x-3" : ""
+        }`}
+      />
+    </button>
+  );
+}
+
+function OptionRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-[13px] text-[var(--color-text-primary)]">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+export function DisplayOptionsPanel({
+  open,
+  onClose,
+  layout,
+  onLayoutChange,
+  displayProperties,
+  onDisplayPropertyToggle,
+  showSubIssues,
+  onShowSubIssuesToggle,
+  showTriageIssues,
+  onShowTriageIssuesToggle,
+  showEmptyColumns,
+  onShowEmptyColumnsToggle,
+}: DisplayOptionsPanelProps) {
+  if (!open) return null;
+
+  return (
+    <div className="absolute top-8 right-0 z-40 w-[320px] rounded-lg border border-[var(--color-border)] bg-[var(--color-content-bg)] shadow-xl">
+      <div className="p-3">
+        {/* Layout toggle */}
+        <div className="mb-3 flex rounded-md border border-[var(--color-border)]">
+          <button
+            type="button"
+            onClick={() => onLayoutChange("list")}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-l-md py-1.5 text-[12px] transition-colors ${
+              layout === "list"
+                ? "bg-[var(--color-surface-active)] text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+            }`}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 6h18M3 12h18M3 18h18" />
+            </svg>
+            List
+          </button>
+          <button
+            type="button"
+            onClick={() => onLayoutChange("board")}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-r-md py-1.5 text-[12px] transition-colors ${
+              layout === "board"
+                ? "bg-[var(--color-surface-active)] text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+            }`}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect width="6" height="14" x="4" y="5" rx="1" />
+              <rect width="6" height="10" x="14" y="7" rx="1" />
+            </svg>
+            Board
+          </button>
+        </div>
+
+        {/* Columns */}
+        <OptionRow label="Columns">
+          <span className="rounded-md border border-[var(--color-border)] px-2 py-0.5 text-[12px] text-[var(--color-text-secondary)]">
+            Status
+          </span>
+        </OptionRow>
+
+        {/* Rows */}
+        <OptionRow label="Rows">
+          <span className="rounded-md border border-[var(--color-border)] px-2 py-0.5 text-[12px] text-[var(--color-text-secondary)]">
+            No grouping
+          </span>
+        </OptionRow>
+
+        {/* Ordering */}
+        <OptionRow label="Ordering">
+          <span className="rounded-md border border-[var(--color-border)] px-2 py-0.5 text-[12px] text-[var(--color-text-secondary)]">
+            Priority
+          </span>
+        </OptionRow>
+
+        <div className="my-2 border-t border-[var(--color-border)]" />
+
+        {/* Toggles */}
+        <OptionRow label="Show sub-issues">
+          <ToggleSwitch
+            checked={showSubIssues}
+            onToggle={onShowSubIssuesToggle}
+          />
+        </OptionRow>
+
+        <OptionRow label="Show triage issues">
+          <ToggleSwitch
+            checked={showTriageIssues}
+            onToggle={onShowTriageIssuesToggle}
+          />
+        </OptionRow>
+
+        <div className="my-2 border-t border-[var(--color-border)]" />
+
+        {/* Board options */}
+        <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
+          Board options
+        </p>
+        <OptionRow label="Show empty columns">
+          <ToggleSwitch
+            checked={showEmptyColumns}
+            onToggle={onShowEmptyColumnsToggle}
+          />
+        </OptionRow>
+
+        <div className="my-2 border-t border-[var(--color-border)]" />
+
+        {/* Display properties */}
+        <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
+          Display properties
+        </p>
+        <div className="flex flex-wrap gap-1">
+          {propertyLabels.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onDisplayPropertyToggle(key)}
+              className={`rounded-md border px-2 py-0.5 text-[12px] transition-colors ${
+                displayProperties[key]
+                  ? "border-[var(--color-accent)] bg-[var(--color-accent)] bg-opacity-10 text-[var(--color-text-primary)]"
+                  : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between border-t border-[var(--color-border)] px-3 py-2">
+        <button
+          type="button"
+          className="text-[12px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+        >
+          Reset
+        </button>
+        <button
+          type="button"
+          className="text-[12px] text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
+        >
+          Set default for everyone
+        </button>
+      </div>
+    </div>
+  );
+}
