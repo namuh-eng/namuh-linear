@@ -1051,3 +1051,19 @@ Date: 2026-04-07
 - tests/settings-profile.test.tsx — 8 tests
 - prd.json — marked settings-003 build_pass: true
 - qa-hints.json — added settings-003 QA hints
+
+## Iteration 33 — settings-004: Account Notifications Page
+Date: 2026-04-07
+
+### What was built
+- Notification channel cards (Desktop, Mobile enabled; Email, Slack disabled)
+- Updates from Linear section: Changelog sidebar toggle, Newsletter toggle, Marketing toggle
+- Other section: Invite accepted, Privacy/legal, DPA toggles
+
+### Test results
+- 6 unit tests passing, typecheck clean, lint clean
+
+### Files changed
+- src/app/(app)/settings/account/notifications/page.tsx — full notifications page
+- tests/settings-notifications.test.tsx — 6 tests
+- prd.json, qa-hints.json

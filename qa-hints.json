@@ -621,5 +621,21 @@
       "Leave workspace confirmation dialog",
       "Session data loading from auth"
     ]
+  },
+  {
+    "feature_id": "settings-004",
+    "tests_written": [
+      "Renders Notifications heading",
+      "Renders notification channel cards (Desktop, Mobile, Email, Slack)",
+      "Shows enabled/disabled status on channels",
+      "Renders Updates from Linear section with toggles",
+      "Renders Other section with toggles",
+      "Renders toggle switches (6+)"
+    ],
+    "needs_deeper_qa": [
+      "Channel card click navigation to sub-pages",
+      "Toggle persistence to API",
+      "Per-event notification configuration"
+    ]
   }
 ]
