@@ -1,3 +1,4 @@
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -6,7 +7,6 @@ import {
   team,
   teamMember,
   workflowState,
-  workspace,
 } from "@/lib/db/schema";
 import { and, count, eq, ne } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -32,6 +32,21 @@ function readTeamSettings(settings: unknown): TeamSettingsFlags {
 }
 
 async function findAccessibleTeam(key: string, userId: string) {
+  const workspaceId = await resolveActiveWorkspaceId(userId);
+  if (!workspaceId) {
+    return null;
+  }
+
+  const [workspaceMember] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.workspaceId, workspaceId), eq(member.userId, userId)))
+    .limit(1);
+
+  if (!workspaceMember) {
+    return null;
+  }
+
   const [teamRecord] = await db
     .select({
       id: team.id,
@@ -48,15 +63,20 @@ async function findAccessibleTeam(key: string, userId: string) {
       settings: team.settings,
     })
     .from(team)
-    .innerJoin(workspace, eq(team.workspaceId, workspace.id))
-    .innerJoin(
-      member,
-      and(eq(member.workspaceId, workspace.id), eq(member.userId, userId)),
-    )
-    .where(eq(team.key, key))
+    .where(and(eq(team.key, key), eq(team.workspaceId, workspaceId)))
     .limit(1);
 
   return teamRecord ?? null;
+}
+
+async function getTeamMembership(teamId: string, userId: string) {
+  const [membership] = await db
+    .select({ id: teamMember.id })
+    .from(teamMember)
+    .where(and(eq(teamMember.teamId, teamId), eq(teamMember.userId, userId)))
+    .limit(1);
+
+  return membership ?? null;
 }
 
 async function buildTeamResponse(
@@ -284,4 +304,98 @@ export async function PATCH(
   }
 
   return NextResponse.json({ team: await buildTeamResponse(updatedTeam) });
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ key: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { key } = await params;
+  const teamRecord = await findAccessibleTeam(key, session.user.id);
+
+  if (!teamRecord) {
+    return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+
+  const body = (await request.json().catch(() => null)) as {
+    action?: "leave" | "retire" | "delete";
+  } | null;
+
+  if (!body?.action) {
+    return NextResponse.json({ error: "Action is required" }, { status: 400 });
+  }
+
+  if (body.action === "leave") {
+    const membership = await getTeamMembership(teamRecord.id, session.user.id);
+    if (!membership) {
+      return NextResponse.json(
+        { error: "You are not a member of this team" },
+        { status: 400 },
+      );
+    }
+
+    await db.delete(teamMember).where(eq(teamMember.id, membership.id));
+
+    return NextResponse.json({
+      success: true,
+      redirectTo: "/settings",
+      message: `Left ${teamRecord.name}.`,
+    });
+  }
+
+  if (body.action === "retire") {
+    const currentSettings =
+      teamRecord.settings && typeof teamRecord.settings === "object"
+        ? (teamRecord.settings as Record<string, unknown>)
+        : {};
+
+    const [updatedTeam] = await db
+      .update(team)
+      .set({
+        settings: {
+          ...currentSettings,
+          retired: true,
+          retiredAt: new Date().toISOString(),
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(team.id, teamRecord.id))
+      .returning({
+        id: team.id,
+        workspaceId: team.workspaceId,
+        name: team.name,
+        key: team.key,
+        icon: team.icon,
+        timezone: team.timezone,
+        estimateType: team.estimateType,
+        triageEnabled: team.triageEnabled,
+        cyclesEnabled: team.cyclesEnabled,
+        cycleStartDay: team.cycleStartDay,
+        cycleDurationWeeks: team.cycleDurationWeeks,
+        settings: team.settings,
+      });
+
+    if (!updatedTeam) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `${updatedTeam.name} is now retired.`,
+      team: await buildTeamResponse(updatedTeam),
+    });
+  }
+
+  await db.delete(team).where(eq(team.id, teamRecord.id));
+
+  return NextResponse.json({
+    success: true,
+    redirectTo: "/settings",
+    message: `${teamRecord.name} was deleted.`,
+  });
 }

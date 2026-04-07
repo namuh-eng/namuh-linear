@@ -1496,5 +1496,44 @@
       }
     ],
     "fix_description": "Replaced the static API settings stub with a real workspace-backed page and route, added working docs links plus OAuth, webhook, and API-key creation flows, persisted the API-key permission setting through workspace security settings, and added regression tests plus a live browser QA pass."
+  },
+  {
+    "feature_id": "settings-010",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; the full Vitest suite passed before the feature-specific fixes.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the authenticated smoke flow passed before manual QA.",
+      "Reproduced the main product gaps from the implementation and browser surface: the hub cards were static containers instead of navigable links, the danger-zone buttons had no behavior, and `/api/teams/[key]/settings` resolved duplicate team keys across all accessible workspaces instead of the active workspace.",
+      "Verified the active-workspace scoping fix against the live API with a real session cookie and duplicate keys: `QAX` returned `QA Invite 20260407 1637` when `activeWorkspaceId=012ea99d-2f83-482b-8d51-43342e240f71`, then returned `QA Invite Workspace 20260407` when `activeWorkspaceId=8f7e4ab4-c49d-4de8-a12e-23e77d55d467`.",
+      "Ran an authenticated browser check against `/settings/teams/QAX2`, confirmed the hub renders inside the settings shell, the General card navigates to `/settings/teams/QAX2/general`, and the Leave team button opens a confirmation dialog.",
+      "Saved the post-fix browser evidence screenshot to `ralph/screenshots/qa/settings-010-attempt-1-hub.png` and visually compared it against `ralph/screenshots/inspect/settings-team-eng.jpg`; the overall information architecture and card layout now match the Linear reference closely, with the remaining difference being the clone's light theme/session styling.",
+      "Exercised the danger-zone actions against a disposable scratch workspace in the live database: `leave` removed the user's `team_member` row, `retire` persisted `settings.retired=true` plus `retiredAt`, and `delete` removed the target team row.",
+      "Ran `make check`, `make test`, and `make test-e2e` after the fixes; typecheck, Biome, the full Vitest suite (`657` tests), and Playwright E2E (`6` tests) all passed."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "The team settings hub cards were inert containers, so users could not navigate from the hub to the documented team sub-pages.",
+        "expected": "Each card should be a navigable entry point to the corresponding team settings sub-page.",
+        "actual": "Before the fix, the cards rendered as static `<div>` rows with no `href`, no click handler, and no route transition.",
+        "reproduction": "1. Sign in and open `/settings/teams/{key}`.\n2. Click `General`, `Members`, or `Issue statuses`.\n3. Observe that nothing happens and the URL does not change."
+      },
+      {
+        "severity": "major",
+        "description": "The team settings API ignored the active workspace when resolving a team by key, so duplicate team keys across multiple workspaces returned the wrong team's data.",
+        "expected": "`/api/teams/[key]/settings` should resolve the team from the current active workspace, matching the settings sidebar and app-shell workspace context.",
+        "actual": "Before the fix, the query matched the first accessible team with the requested key across every workspace membership, so users with duplicate keys like `QAX` or `INV` could see another workspace's team settings.",
+        "reproduction": "1. Use an account that belongs to multiple workspaces with the same team key.\n2. Set the active workspace cookie to workspace A and request `/api/teams/QAX/settings`.\n3. Switch the active workspace cookie to workspace B and request the same endpoint.\n4. Before the fix, both responses could resolve to the same first-matching team instead of respecting the active workspace."
+      },
+      {
+        "severity": "major",
+        "description": "The danger-zone controls were inert, so leave/retire/delete workflows could not be performed from the team settings hub.",
+        "expected": "The hub should expose working confirmation flows for leaving, retiring, and deleting a team.",
+        "actual": "Before the fix, the three controls were unbound buttons with no dialogs, no API requests, and no persistent state changes.",
+        "reproduction": "1. Sign in and open `/settings/teams/{key}`.\n2. Click `Leave team`, `Retire team`, or `Delete team`.\n3. Observe that no confirmation UI appears and no team state changes are made."
+      }
+    ],
+    "fix_description": "Scoped team-settings lookups to the active workspace, turned every hub card into a real navigation target with dedicated team-setting destinations, added confirmation-driven leave/retire/delete flows backed by the team settings API, and added regression coverage plus live API/browser verification."
   }
 ]
