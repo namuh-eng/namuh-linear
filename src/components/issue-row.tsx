@@ -3,6 +3,7 @@ import type { DisplayProperties } from "@/components/display-options-panel";
 import { PriorityIcon } from "@/components/icons/priority-icon";
 import { StatusIcon } from "@/components/icons/status-icon";
 import { LabelChip } from "@/components/label-chip";
+import Link from "next/link";
 
 type StatusCategory =
   | "triage"
@@ -21,6 +22,7 @@ interface IssueRowProps {
   assigneeName?: string;
   assigneeImage?: string;
   labels?: { name: string; color: string }[];
+  projectName?: string;
   createdAt: string;
   href?: string;
   displayProperties?: DisplayProperties;
@@ -64,6 +66,7 @@ export function IssueRow({
   assigneeName,
   assigneeImage,
   labels,
+  projectName,
   createdAt,
   href,
   displayProperties,
@@ -71,11 +74,8 @@ export function IssueRow({
   const showProp = (key: keyof DisplayProperties) =>
     !displayProperties || displayProperties[key];
 
-  return (
-    <div
-      data-testid="issue-row"
-      className="group flex h-[40px] items-center gap-2 border-b border-[var(--color-border)] px-4 text-[13px] transition-colors hover:bg-[var(--color-surface-hover)]"
-    >
+  const content = (
+    <>
       {/* Priority */}
       {showProp("priority") && <PriorityIcon priority={priority} size={14} />}
 
@@ -105,6 +105,13 @@ export function IssueRow({
         </div>
       )}
 
+      {/* Project */}
+      {showProp("project") && projectName && (
+        <span className="max-w-[160px] shrink-0 truncate text-[12px] text-[var(--color-text-secondary)]">
+          {projectName}
+        </span>
+      )}
+
       {/* Date */}
       {showProp("created") && (
         <span className="shrink-0 text-[12px] text-[var(--color-text-secondary)]">
@@ -121,6 +128,28 @@ export function IssueRow({
         ) : (
           <div className="h-4 w-4 shrink-0" />
         ))}
+    </>
+  );
+
+  const className =
+    "group flex h-[40px] items-center gap-2 border-b border-[var(--color-border)] px-4 text-[13px] transition-colors hover:bg-[var(--color-surface-hover)]";
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        data-testid="issue-row"
+        aria-label={`${identifier} ${title}`}
+        className={className}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div data-testid="issue-row" className={className}>
+      {content}
     </div>
   );
 }

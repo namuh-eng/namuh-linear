@@ -200,13 +200,13 @@ describe("defaultDisplayProperties", () => {
     expect(defaultDisplayProperties.project).toBe(true);
     expect(defaultDisplayProperties.labels).toBe(true);
     expect(defaultDisplayProperties.dueDate).toBe(true);
+    expect(defaultDisplayProperties.created).toBe(true);
   });
 
   it("has expected disabled properties", () => {
     expect(defaultDisplayProperties.timeInStatus).toBe(false);
     expect(defaultDisplayProperties.pullRequests).toBe(false);
     expect(defaultDisplayProperties.links).toBe(false);
-    expect(defaultDisplayProperties.created).toBe(false);
     expect(defaultDisplayProperties.updated).toBe(false);
     expect(defaultDisplayProperties.milestone).toBe(false);
   });

@@ -30,6 +30,7 @@ interface IssueData {
   labels: { name: string; color: string }[];
   labelIds: string[];
   projectId: string | null;
+  projectName: string | null;
   dueDate: string | null;
   createdAt: string;
 }
@@ -74,6 +75,10 @@ export default function TeamIssuesPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [showDisplayOptions, setShowDisplayOptions] = useState(false);
   const [showCreateIssue, setShowCreateIssue] = useState(false);
+  const [createIssueDefaults, setCreateIssueDefaults] = useState<{
+    stateId?: string;
+    stateName: string;
+  }>({ stateName: "Backlog" });
 
   const { options, updateOptions, saveAsDefault, reset } = useDisplayOptions(
     params.key,
@@ -148,6 +153,14 @@ export default function TeamIssuesPage() {
     { id: "backlog", label: "Backlog" },
   ];
 
+  const openCreateIssue = useCallback(
+    (defaults?: { stateId?: string; stateName: string }) => {
+      setCreateIssueDefaults(defaults ?? { stateName: "Backlog" });
+      setShowCreateIssue(true);
+    },
+    [],
+  );
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center text-[var(--color-text-secondary)]">
@@ -181,7 +194,7 @@ export default function TeamIssuesPage() {
           }
           action={{
             label: "Create issue",
-            onClick: () => setShowCreateIssue(true),
+            onClick: () => openCreateIssue(),
           }}
         />
         <CreateIssueModal
@@ -191,6 +204,8 @@ export default function TeamIssuesPage() {
           teamKey={data?.team?.key ?? params.key}
           teamName={data?.team?.name ?? params.key}
           teamId={data?.team?.id ?? ""}
+          defaultStateId={createIssueDefaults.stateId}
+          defaultStateName={createIssueDefaults.stateName}
         />
       </>
     );
@@ -306,6 +321,12 @@ export default function TeamIssuesPage() {
               count={group.issues.length}
               statusCategory={group.state.category as StatusCategory}
               statusColor={group.state.color}
+              onAddIssue={() =>
+                openCreateIssue({
+                  stateId: group.state.id,
+                  stateName: group.state.name,
+                })
+              }
             />
             {group.issues.map((iss) => (
               <IssueRow
@@ -318,7 +339,9 @@ export default function TeamIssuesPage() {
                 assigneeName={iss.assignee?.name}
                 assigneeImage={iss.assignee?.image ?? undefined}
                 labels={iss.labels}
+                projectName={iss.projectName ?? undefined}
                 createdAt={iss.createdAt}
+                href={`/issue/${iss.id}`}
                 displayProperties={options.displayProperties}
               />
             ))}
@@ -330,6 +353,17 @@ export default function TeamIssuesPage() {
       <div className="flex items-center border-t border-[var(--color-border)] px-4 py-1.5 text-[12px] text-[var(--color-text-secondary)]">
         {totalIssues} issues
       </div>
+
+      <CreateIssueModal
+        open={showCreateIssue}
+        onClose={() => setShowCreateIssue(false)}
+        onCreated={fetchIssues}
+        teamKey={data.team.key}
+        teamName={data.team.name}
+        teamId={data.team.id}
+        defaultStateId={createIssueDefaults.stateId}
+        defaultStateName={createIssueDefaults.stateName}
+      />
     </div>
   );
 }

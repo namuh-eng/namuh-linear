@@ -524,5 +524,53 @@
       }
     ],
     "fix_description": "Aligned the shared accent token and label-color preset with the PRD, replaced the priority/status SVGs with Linear-matching glyphs verified from the live product, added avatar image-error fallback to initials, and hardened label chips for long text. `qa_pass` is now true for design-001; the remaining full-E2E failures are the pre-existing unrelated command-palette specs."
+  },
+  {
+    "feature_id": "feature-001",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 589 unit tests passed after the issues-list fixes.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the app still loaded successfully on `http://localhost:3015`.",
+      "Ran `make check`; typecheck and Biome both passed after the fixes.",
+      "Ran full Playwright coverage because the fix touched shared UI/routing surfaces; the only failing specs were the pre-existing unrelated `tests/e2e/command-palette.spec.ts` tests where the command palette dialog never opens on `/team/ENG/all`.",
+      "Used the live authenticated Ever session on `/team/QAX2/all` and verified real data renders across all workflow categories: Triage (1), Backlog (19), Todo (1), In Progress (1), Done (1), and Canceled (1).",
+      "Verified tab filtering with real data: Active shows only Todo and In Progress, while Backlog shows the 19 backlog issues including the seeded project/labels example.",
+      "Verified the repaired issue rows now render as links to `/issue/[id]`, include the created date, and show project metadata when present; clicking `QAX2-2` opened the real issue detail page and showed the same project/label data in the sidebar.",
+      "Verified the repaired group-header `Add issue` buttons now open the create-issue modal on populated lists; the Backlog header button opened the modal with the Backlog state preselected.",
+      "Verified large-list behavior by loading 19 backlog issues in one section, scrolling the list, and confirming the page remained responsive while rows continued to render correctly.",
+      "Saved QA evidence screenshots to `ralph/screenshots/qa/feature-001-attempt-1-list.png` and `ralph/screenshots/qa/feature-001-attempt-1-backlog.png` and compared the overall grouped-list structure against Linear's reference screenshots in `ralph/screenshots/inspect/team-issues.jpg` and `team-issues-filter-bar.jpg`."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "Issue rows were not clickable, so the list view could not navigate to the issue detail page.",
+        "expected": "Each issue row on `/team/{key}/all` should link to the corresponding issue detail route when selected.",
+        "actual": "Before the fix, rows rendered as plain `<div>` elements with no navigation target, so Ever could not click into issue detail from the list.",
+        "reproduction": "1. Open `http://localhost:3015/team/QAX2/all` with populated issues.\n2. Inspect the issue rows or attempt to click one in Ever.\n3. Observe that the pre-fix row is not an interactive link and no issue-detail navigation occurs."
+      },
+      {
+        "severity": "major",
+        "description": "The per-group `Add issue` buttons on populated issue groups did nothing.",
+        "expected": "Clicking the `Add issue` button for a state group should open the create-issue modal with that group's workflow state preselected.",
+        "actual": "Before the fix, the group header rendered the button but never attached a click handler or rendered a page-local modal on non-empty lists.",
+        "reproduction": "1. Open `http://localhost:3015/team/QAX2/all`.\n2. Click any group-header `Add issue` button.\n3. Observe that the pre-fix UI does not open the create-issue modal."
+      },
+      {
+        "severity": "major",
+        "description": "Issue rows omitted the project field even when the issue had a real linked project.",
+        "expected": "Per the PRD, each list row should show project metadata when an issue belongs to a project.",
+        "actual": "Before the fix, `/api/teams/[key]/issues` did not return project names and `IssueRow` had no project rendering path, so project-backed issues looked the same as issues without a project.",
+        "reproduction": "1. Create or seed an issue with a real `project_id`.\n2. Open `/team/QAX2/all`.\n3. Observe that the pre-fix row shows the identifier, title, labels, and assignee but no project name."
+      },
+      {
+        "severity": "major",
+        "description": "The list view hid the issue date by default even though the PRD requires a date column in each row.",
+        "expected": "Issue rows should show the date by default in the standard list view.",
+        "actual": "Before the fix, the display-options defaults had `created: false`, so the rendered rows hid the creation date unless toggled manually.",
+        "reproduction": "1. Open `/team/QAX2/all` with any issue data.\n2. Observe the pre-fix row contents.\n3. Note that no date is shown even though the row includes other metadata columns."
+      }
+    ],
+    "fix_description": "Fixed four issues in the issues list feature: made rows real detail links, wired group-header add buttons to the create modal with state defaults, added project names to the API/UI row rendering, and enabled the created-date column by default. `qa_pass` is now true for feature-001; the only remaining E2E failures are the pre-existing unrelated command-palette specs."
   }
 ]

@@ -61,7 +61,7 @@ export const defaultDisplayProperties: DisplayProperties = {
   labels: true,
   links: false,
   timeInStatus: false,
-  created: false,
+  created: true,
   updated: false,
   pullRequests: false,
 };

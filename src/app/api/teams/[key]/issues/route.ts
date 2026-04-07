@@ -4,11 +4,12 @@ import {
   issue,
   issueLabel,
   label,
+  project,
   team,
   user,
   workflowState,
 } from "@/lib/db/schema";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -56,12 +57,14 @@ export async function GET(
       assigneeName: user.name,
       assigneeImage: user.image,
       projectId: issue.projectId,
+      projectName: project.name,
       dueDate: issue.dueDate,
       createdAt: issue.createdAt,
       sortOrder: issue.sortOrder,
     })
     .from(issue)
     .leftJoin(user, eq(issue.assigneeId, user.id))
+    .leftJoin(project, eq(issue.projectId, project.id))
     .where(eq(issue.teamId, teamRecord.id))
     .orderBy(asc(issue.sortOrder), desc(issue.createdAt));
 
@@ -77,7 +80,8 @@ export async function GET(
         labelColor: label.color,
       })
       .from(issueLabel)
-      .innerJoin(label, eq(issueLabel.labelId, label.id));
+      .innerJoin(label, eq(issueLabel.labelId, label.id))
+      .where(inArray(issueLabel.issueId, issueIds));
 
     labelsMap = {};
     for (const row of issueLabelRows) {
@@ -119,6 +123,7 @@ export async function GET(
         labels: labelsMap[i.id] ?? [],
         labelIds: (labelsMap[i.id] ?? []).map((l) => l.name),
         projectId: i.projectId,
+        projectName: i.projectName,
         dueDate: i.dueDate,
         createdAt: i.createdAt,
       })),

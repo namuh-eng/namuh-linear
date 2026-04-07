@@ -4,8 +4,8 @@ import { StatusIcon } from "@/components/icons/status-icon";
 import { IssueRow } from "@/components/issue-row";
 import { IssuesGroupHeader } from "@/components/issues-group-header";
 import { LabelChip } from "@/components/label-chip";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {
   cleanup();
@@ -72,12 +72,15 @@ describe("IssueRow", () => {
     expect(screen.getByText("Feb 15")).toBeDefined();
   });
 
+  it("renders project name when provided", () => {
+    render(<IssueRow {...defaultProps} projectName="Roadmap" />);
+    expect(screen.getByText("Roadmap")).toBeDefined();
+  });
+
   it("renders as a clickable row", () => {
-    const { container } = render(<IssueRow {...defaultProps} />);
-    const link = container.querySelector(
-      "a, [role='link'], [data-testid='issue-row']",
-    );
-    expect(link).toBeDefined();
+    render(<IssueRow {...defaultProps} href="/issue/issue-1" />);
+    const link = screen.getByRole("link", { name: /eng-123 fix login bug/i });
+    expect(link.getAttribute("href")).toBe("/issue/issue-1");
   });
 });
 
@@ -119,5 +122,20 @@ describe("IssuesGroupHeader", () => {
     );
     const button = screen.getByRole("button", { name: /add issue/i });
     expect(button).toBeDefined();
+  });
+
+  it("calls onAddIssue when add issue button is clicked", () => {
+    const onAddIssue = vi.fn();
+    render(
+      <IssuesGroupHeader
+        name="Backlog"
+        count={0}
+        statusCategory="backlog"
+        statusColor="#6b6f76"
+        onAddIssue={onAddIssue}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /add issue/i }));
+    expect(onAddIssue).toHaveBeenCalled();
   });
 });

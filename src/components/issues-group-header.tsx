@@ -13,6 +13,7 @@ interface IssuesGroupHeaderProps {
   count: number;
   statusCategory: StatusCategory;
   statusColor: string;
+  onAddIssue?: () => void;
 }
 
 export function IssuesGroupHeader({
@@ -20,6 +21,7 @@ export function IssuesGroupHeader({
   count,
   statusCategory,
   statusColor,
+  onAddIssue,
 }: IssuesGroupHeaderProps) {
   return (
     <div className="flex h-[36px] items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-content-bg)] px-4 text-[13px]">
@@ -32,6 +34,7 @@ export function IssuesGroupHeader({
       <button
         type="button"
         aria-label="Add issue"
+        onClick={onAddIssue}
         className="flex h-5 w-5 items-center justify-center rounded text-[var(--color-text-secondary)] opacity-0 transition-opacity hover:text-[var(--color-text-primary)] group-hover:opacity-100"
       >
         <svg

@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -170,6 +171,113 @@ describe("Empty state pages", () => {
       expect(screen.getByText("ENG-1")).toBeDefined();
       expect(screen.getByText("First issue")).toBeDefined();
     });
+  });
+
+  it("Team Issues page renders issue detail links and project names for populated groups", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          team: { id: "team-1", name: "Engineering", key: "ENG" },
+          groups: [
+            {
+              state: {
+                id: "state-1",
+                name: "Backlog",
+                category: "backlog",
+                color: "#6b6f76",
+                position: 1,
+              },
+              issues: [
+                {
+                  id: "issue-1",
+                  number: 1,
+                  identifier: "ENG-1",
+                  title: "Linked issue",
+                  priority: "high",
+                  stateId: "state-1",
+                  assigneeId: "user-1",
+                  assignee: { name: "Jane Doe" },
+                  labels: [{ name: "bug", color: "#ef4444" }],
+                  labelIds: ["bug"],
+                  projectId: "project-1",
+                  projectName: "Roadmap",
+                  dueDate: null,
+                  createdAt: "2026-04-07T00:00:00.000Z",
+                },
+              ],
+            },
+          ],
+          filterOptions: {
+            statuses: [],
+            assignees: [],
+            labels: [],
+            priorities: [],
+          },
+        }),
+    });
+
+    const { container } = render(<TeamIssuesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Roadmap")).toBeDefined();
+      expect(container.querySelector("a[href='/issue/issue-1']")).toBeTruthy();
+    });
+  });
+
+  it("Team Issues page opens the create modal from a group header add button", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          team: { id: "team-1", name: "Engineering", key: "ENG" },
+          groups: [
+            {
+              state: {
+                id: "state-1",
+                name: "Backlog",
+                category: "backlog",
+                color: "#6b6f76",
+                position: 1,
+              },
+              issues: [
+                {
+                  id: "issue-1",
+                  number: 1,
+                  identifier: "ENG-1",
+                  title: "First issue",
+                  priority: "none",
+                  stateId: "state-1",
+                  assigneeId: null,
+                  assignee: null,
+                  labels: [],
+                  labelIds: [],
+                  projectId: null,
+                  projectName: null,
+                  dueDate: null,
+                  createdAt: "2026-04-07T00:00:00.000Z",
+                },
+              ],
+            },
+          ],
+          filterOptions: {
+            statuses: [],
+            assignees: [],
+            labels: [],
+            priorities: [],
+          },
+        }),
+    });
+
+    render(<TeamIssuesPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add issue" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: /create issue for engineering/i,
+    });
+    expect(within(dialog).getByText("Backlog")).toBeDefined();
+    expect(within(dialog).getByPlaceholderText("Issue title")).toBeDefined();
   });
 
   it("Team Board page shows 'No issues' with create CTA", async () => {
