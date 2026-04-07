@@ -448,5 +448,33 @@
       }
     ],
     "fix_description": "Made the workspace trigger and help control real menus, wired the shell `Create issue` button to the shared issue modal, moved the shell onto theme tokens with persisted global theme application, and fixed active-route highlighting for issue/project detail pages. `qa_pass` is now true for layout-001; the remaining full-E2E failures are the pre-existing unrelated command-palette specs that need authenticated test setup."
+  },
+  {
+    "feature_id": "layout-002",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 576 unit tests passed before the layout-002 fix.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the app still loaded successfully on `http://localhost:3015`.",
+      "Compared the clone against the original Linear sidebar in Ever on `https://linear.app` and confirmed the expected structure: `More` expands into a compact nested link group and `Your teams` lists multiple independently collapsible team sections.",
+      "Reproduced the live clone bug before the fix: the sidebar rendered only a single hard-coded team block for the current workspace, so `layout-002` could not satisfy the multi-team acceptance criteria even when additional teams existed.",
+      "Seeded six additional real teams plus default workflow states into the `Onboarding QA Team` workspace to exercise the missing multi-team and scroll cases, then reloaded `/team/ONB/all`.",
+      "Verified in Ever after the fix that the clone now renders seven separate team sections, each with `Triage`, `Issues`, `Projects`, and `Views`, and that collapsing `Platform` hid only that team's sub-navigation while leaving the other teams expanded.",
+      "Verified sidebar overflow with real browser measurements via `ever eval`: the nav reported `clientHeight: 848`, `scrollHeight: 1343`, and `scrollable: true`, confirming the sidebar scrolls with many items.",
+      "Verified the clone's `More` section now expands as a nested workspace sub-list with `Settings` and `Teams`, which aligns materially closer to Linear than the pre-fix flat inline rendering.",
+      "Saved QA evidence to `ralph/screenshots/qa/layout-002-attempt-1-linear-more.jpg`, `ralph/screenshots/qa/layout-002-attempt-1-multi-team.jpg`, and `ralph/screenshots/qa/layout-002-attempt-1-collapsed.jpg`.",
+      "Ran `make check` and `make test` after the fix; typecheck, Biome, and all 578 unit tests passed.",
+      "Ran full `VERBOSE=1 make test-e2e` because the fix touched shared layout code; smoke still passed, and the only failing specs were the pre-existing unrelated `tests/e2e/command-palette.spec.ts` tests where the command palette dialog never appears on their protected-route setup."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "The sidebar assumed a single current team and could not render multiple per-team sections for a workspace.",
+        "expected": "When a workspace has multiple teams, the sidebar should list each team separately with its own collapsible `Triage`, `Issues`, `Projects`, and `Views` links, matching the `layout-002` spec and Linear's behavior.",
+        "actual": "Before the fix, the app shell/layout only passed one `teamName/teamKey` pair into the sidebar, so the UI always rendered a single hard-coded team block regardless of how many real teams existed in the workspace.",
+        "reproduction": "1. Create or seed multiple teams in the same workspace.\n2. Open an authenticated app route such as `/team/ONB/all`.\n3. Observe that the pre-fix sidebar still showed only one team section instead of one block per team."
+      }
+    ],
+    "fix_description": "Updated the shared app shell to load the full workspace team list, extended the sidebar to render per-team collapsible sections, and tightened the nested `More` submenu styling. `qa_pass` is now true for layout-002; the remaining full-E2E failures are the pre-existing unrelated command-palette specs."
   }
 ]

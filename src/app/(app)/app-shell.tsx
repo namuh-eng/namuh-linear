@@ -2,7 +2,7 @@
 
 import { CommandPalette } from "@/components/command-palette";
 import { CreateIssueModal } from "@/components/create-issue-modal";
-import { Sidebar } from "@/components/sidebar";
+import { Sidebar, type SidebarTeam } from "@/components/sidebar";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -13,6 +13,7 @@ interface AppShellProps {
   teamName: string;
   teamId: string;
   teamKey: string;
+  teams?: SidebarTeam[];
 }
 
 interface ShellContext {
@@ -21,6 +22,7 @@ interface ShellContext {
   teamName: string;
   teamId: string;
   teamKey: string;
+  teams: SidebarTeam[];
 }
 
 function getActiveTeamKey(pathname: string): string | null {
@@ -44,6 +46,7 @@ export function AppShell({
   teamName,
   teamId,
   teamKey,
+  teams,
 }: AppShellProps) {
   const pathname = usePathname();
   const [showCreateIssue, setShowCreateIssue] = useState(false);
@@ -53,6 +56,10 @@ export function AppShell({
     teamName,
     teamId,
     teamKey,
+    teams:
+      teams && teams.length > 0
+        ? teams
+        : [{ id: teamId, name: teamName, key: teamKey }],
   });
 
   useEffect(() => {
@@ -62,6 +69,10 @@ export function AppShell({
       teamName,
       teamId,
       teamKey,
+      teams:
+        teams && teams.length > 0
+          ? teams
+          : [{ id: teamId, name: teamName, key: teamKey }],
     };
     const activeTeamKey = getActiveTeamKey(pathname);
 
@@ -94,7 +105,15 @@ export function AppShell({
     return () => {
       cancelled = true;
     };
-  }, [pathname, teamId, teamKey, teamName, workspaceInitials, workspaceName]);
+  }, [
+    pathname,
+    teamId,
+    teamKey,
+    teamName,
+    teams,
+    workspaceInitials,
+    workspaceName,
+  ]);
 
   return (
     <div className="flex h-screen bg-[var(--color-sidebar-bg)]">
@@ -103,6 +122,7 @@ export function AppShell({
         workspaceInitials={shellContext.workspaceInitials}
         teamName={shellContext.teamName}
         teamKey={shellContext.teamKey}
+        teams={shellContext.teams}
         onCreateIssue={() => setShowCreateIssue(true)}
       />
       <main className="flex-1 overflow-hidden p-2 pl-0">

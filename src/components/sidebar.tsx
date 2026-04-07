@@ -4,11 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
+export interface SidebarTeam {
+  id?: string;
+  name: string;
+  key: string;
+}
+
 interface SidebarProps {
   workspaceName?: string;
   workspaceInitials?: string;
   teamName?: string;
   teamKey?: string;
+  teams?: SidebarTeam[];
   onCreateIssue?: () => void;
 }
 
@@ -41,6 +48,20 @@ function isTeamViewsRoute(pathname: string, teamKey: string) {
     pathname === `/team/${teamKey}/views` ||
     pathname.startsWith(`/team/${teamKey}/views/`)
   );
+}
+
+function getPathTeamKey(pathname: string) {
+  const teamMatch = pathname.match(/^\/team\/([^/]+)/);
+  if (teamMatch) {
+    return decodeURIComponent(teamMatch[1]);
+  }
+
+  const settingsMatch = pathname.match(/^\/settings\/teams\/([^/]+)/);
+  if (settingsMatch) {
+    return decodeURIComponent(settingsMatch[1]);
+  }
+
+  return null;
 }
 
 function SidebarLink({
@@ -124,10 +145,17 @@ export function Sidebar({
   workspaceInitials = "W",
   teamName = "Engineering",
   teamKey = "ENG",
+  teams,
   onCreateIssue,
 }: SidebarProps) {
   const pathname = usePathname();
+  const resolvedTeams =
+    teams && teams.length > 0 ? teams : [{ name: teamName, key: teamKey }];
+  const activeTeamKey = getPathTeamKey(pathname);
   const [teamExpanded, setTeamExpanded] = useState(true);
+  const [expandedTeams, setExpandedTeams] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(resolvedTeams.map((team) => [team.key, true])),
+  );
   const [moreExpanded, setMoreExpanded] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
@@ -138,6 +166,23 @@ export function Sidebar({
     setWorkspaceMenuOpen(false);
     setHelpMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const nextTeams =
+      teams && teams.length > 0 ? teams : [{ name: teamName, key: teamKey }];
+
+    setExpandedTeams((current) => {
+      const next = Object.fromEntries(
+        nextTeams.map((team) => [team.key, current[team.key] ?? true]),
+      );
+
+      if (activeTeamKey) {
+        next[activeTeamKey] = true;
+      }
+
+      return next;
+    });
+  }, [activeTeamKey, teamKey, teamName, teams]);
 
   return (
     <aside className="flex h-screen w-[244px] shrink-0 flex-col bg-[var(--color-sidebar-bg)] px-3 py-2.5 transition-colors">
@@ -350,6 +395,7 @@ export function Sidebar({
 
         <button
           type="button"
+          aria-expanded={moreExpanded}
           onClick={() => setMoreExpanded(!moreExpanded)}
           className="flex w-full items-center gap-2.5 rounded-md px-2 py-[5px] text-[13px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
         >
@@ -371,9 +417,23 @@ export function Sidebar({
             </svg>
           </span>
           <span>More</span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`ml-auto transition-transform ${moreExpanded ? "rotate-90" : ""}`}
+            aria-hidden="true"
+          >
+            <path d="m9 18 6-6-6-6" />
+          </svg>
         </button>
         {moreExpanded && (
-          <div className="ml-2">
+          <div className="ml-4 border-l border-[var(--color-border)] pl-2">
             <SidebarLink
               href="/settings"
               label="Settings"
@@ -429,108 +489,150 @@ export function Sidebar({
           collapsed={!teamExpanded}
           onToggle={() => setTeamExpanded(!teamExpanded)}
         />
-        {teamExpanded && (
-          <>
-            <div className="flex items-center gap-2 rounded-md px-2 py-[5px] text-[13px] font-medium text-[var(--color-text-primary)]">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-[var(--color-accent)] text-[8px] font-bold text-white">
-                {teamKey.charAt(0)}
-              </span>
-              <span className="truncate">{teamName}</span>
-            </div>
-            <SidebarLink
-              href={`/team/${teamKey}/triage`}
-              label="Triage"
-              active={pathname === `/team/${teamKey}/triage`}
-              indent
-              icon={
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  role="img"
-                  aria-label="Triage icon"
+        {teamExpanded &&
+          resolvedTeams.map((team) => {
+            const teamSectionActive =
+              pathname === `/team/${team.key}/triage` ||
+              isTeamIssuesRoute(pathname, team.key) ||
+              isTeamProjectsRoute(pathname, team.key) ||
+              isTeamViewsRoute(pathname, team.key);
+
+            return (
+              <div key={team.key}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedTeams((current) => ({
+                      ...current,
+                      [team.key]: !current[team.key],
+                    }))
+                  }
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-[5px] text-[13px] transition-colors ${
+                    teamSectionActive
+                      ? "text-[var(--color-text-primary)]"
+                      : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+                  }`}
                 >
-                  <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                </svg>
-              }
-            />
-            <SidebarLink
-              href={`/team/${teamKey}/all`}
-              label="Issues"
-              active={isTeamIssuesRoute(pathname, teamKey)}
-              indent
-              icon={
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  role="img"
-                  aria-label="Issues icon"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="m9 12 2 2 4-4" />
-                </svg>
-              }
-            />
-            <SidebarLink
-              href={`/team/${teamKey}/projects`}
-              label="Projects"
-              active={isTeamProjectsRoute(pathname, teamKey)}
-              indent
-              icon={
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  role="img"
-                  aria-label="Team Projects icon"
-                >
-                  <path d="M2 17 12 22 22 17" />
-                  <path d="M2 12 12 17 22 12" />
-                  <path d="M12 2 2 7 12 12 22 7Z" />
-                </svg>
-              }
-            />
-            <SidebarLink
-              href={`/team/${teamKey}/views`}
-              label="Views"
-              active={isTeamViewsRoute(pathname, teamKey)}
-              indent
-              icon={
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  role="img"
-                  aria-label="Team Views icon"
-                >
-                  <path d="M5 12s2.545-5 7-5c4.454 0 7 5 7 5s-2.546 5-7 5c-4.455 0-7-5-7-5z" />
-                  <path d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
-                </svg>
-              }
-            />
-          </>
-        )}
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-[var(--color-accent)] text-[8px] font-bold text-white">
+                    {team.key.charAt(0)}
+                  </span>
+                  <span className="truncate">{team.name}</span>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`ml-auto transition-transform ${
+                      expandedTeams[team.key] ? "rotate-90" : ""
+                    }`}
+                    aria-hidden="true"
+                  >
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </button>
+                {expandedTeams[team.key] && (
+                  <>
+                    <SidebarLink
+                      href={`/team/${team.key}/triage`}
+                      label="Triage"
+                      active={pathname === `/team/${team.key}/triage`}
+                      indent
+                      icon={
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          role="img"
+                          aria-label="Triage icon"
+                        >
+                          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                        </svg>
+                      }
+                    />
+                    <SidebarLink
+                      href={`/team/${team.key}/all`}
+                      label="Issues"
+                      active={isTeamIssuesRoute(pathname, team.key)}
+                      indent
+                      icon={
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          role="img"
+                          aria-label="Issues icon"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="m9 12 2 2 4-4" />
+                        </svg>
+                      }
+                    />
+                    <SidebarLink
+                      href={`/team/${team.key}/projects`}
+                      label="Projects"
+                      active={isTeamProjectsRoute(pathname, team.key)}
+                      indent
+                      icon={
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          role="img"
+                          aria-label="Team Projects icon"
+                        >
+                          <path d="M2 17 12 22 22 17" />
+                          <path d="M2 12 12 17 22 12" />
+                          <path d="M12 2 2 7 12 12 22 7Z" />
+                        </svg>
+                      }
+                    />
+                    <SidebarLink
+                      href={`/team/${team.key}/views`}
+                      label="Views"
+                      active={isTeamViewsRoute(pathname, team.key)}
+                      indent
+                      icon={
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          role="img"
+                          aria-label="Team Views icon"
+                        >
+                          <path d="M5 12s2.545-5 7-5c4.454 0 7 5 7 5s-2.546 5-7 5c-4.455 0-7-5-7-5z" />
+                          <path d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
+                        </svg>
+                      }
+                    />
+                  </>
+                )}
+              </div>
+            );
+          })}
 
         <SectionHeader label="Try" />
         <SidebarLink

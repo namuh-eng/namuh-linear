@@ -19,6 +19,7 @@ export async function GET(
   const [context] = await db
     .select({
       workspaceName: workspace.name,
+      workspaceId: workspace.id,
       teamId: team.id,
       teamName: team.name,
       teamKey: team.key,
@@ -39,8 +40,14 @@ export async function GET(
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
+  const teams = await db
+    .select({ id: team.id, name: team.name, key: team.key })
+    .from(team)
+    .where(eq(team.workspaceId, context.workspaceId));
+
   return NextResponse.json({
     ...context,
     workspaceInitials: context.workspaceName.substring(0, 2).toUpperCase(),
+    teams,
   });
 }

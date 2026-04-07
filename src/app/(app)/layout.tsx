@@ -42,7 +42,7 @@ export default async function AppLayout({
     .from(team)
     .where(eq(team.workspaceId, ws.workspaceId))
     .orderBy(desc(team.createdAt))
-    .limit(1);
+    .limit(50);
 
   const firstTeam = teams[0] ?? { id: "", name: "Team", key: "TEAM" };
 
@@ -53,6 +53,7 @@ export default async function AppLayout({
       teamName={firstTeam.name}
       teamId={firstTeam.id}
       teamKey={firstTeam.key}
+      teams={teams}
     >
       {children}
     </AppShell>

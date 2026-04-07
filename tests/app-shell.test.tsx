@@ -74,6 +74,22 @@ describe("Sidebar", () => {
     expect(screen.getByText("Frontend")).toBeDefined();
   });
 
+  it("renders multiple team sections when more than one team exists", () => {
+    render(
+      <Sidebar
+        teams={[
+          { id: "team-1", name: "Frontend", key: "FE" },
+          { id: "team-2", name: "Platform", key: "PLT" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Frontend")).toBeInTheDocument();
+    expect(screen.getByText("Platform")).toBeInTheDocument();
+    expect(screen.getAllByText("Triage")).toHaveLength(2);
+    expect(screen.getAllByText("Issues")).toHaveLength(2);
+  });
+
   it("renders team sub-navigation items", () => {
     render(<Sidebar teamKey="ENG" />);
     expect(screen.getByText("Triage")).toBeDefined();
@@ -164,6 +180,23 @@ describe("Sidebar", () => {
     expect(screen.getByText("Triage")).toBeDefined();
   });
 
+  it("toggles an individual team section without collapsing the others", () => {
+    render(
+      <Sidebar
+        teams={[
+          { id: "team-1", name: "Frontend", key: "FE" },
+          { id: "team-2", name: "Platform", key: "PLT" },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Frontend"));
+
+    expect(screen.getAllByText("Triage")).toHaveLength(1);
+    expect(screen.getAllByText("Issues")).toHaveLength(1);
+    expect(screen.getByText("Platform")).toBeInTheDocument();
+  });
+
   it("links point to correct routes", () => {
     render(<Sidebar teamKey="ENG" />);
     const inboxLink = screen.getByText("Inbox").closest("a");
@@ -209,6 +242,7 @@ describe("AppShell", () => {
         teamName="Eng"
         teamId="team-1"
         teamKey="ENG"
+        teams={[{ id: "team-1", name: "Eng", key: "ENG" }]}
       >
         <div>Content</div>
       </AppShell>,
@@ -225,6 +259,7 @@ describe("AppShell", () => {
         teamName="Team"
         teamId="team-1"
         teamKey="T"
+        teams={[{ id: "team-1", name: "Team", key: "T" }]}
       >
         <h1>Hello World</h1>
       </AppShell>,
@@ -240,6 +275,7 @@ describe("AppShell", () => {
         teamName="Team"
         teamId="team-1"
         teamKey="T"
+        teams={[{ id: "team-1", name: "Team", key: "T" }]}
       >
         <div>Test</div>
       </AppShell>,
@@ -258,6 +294,10 @@ describe("AppShell", () => {
         teamName: "QA Fix 20260407 1644",
         teamId: "team-id-2",
         teamKey: "QAX2",
+        teams: [
+          { id: "team-id-1", name: "Onboarding QA Team", key: "QAX" },
+          { id: "team-id-2", name: "QA Fix 20260407 1644", key: "QAX2" },
+        ],
       }),
     } as Response);
 
@@ -268,6 +308,7 @@ describe("AppShell", () => {
         teamName="Onboarding QA Team"
         teamId="team-id-1"
         teamKey="QAX"
+        teams={[{ id: "team-id-1", name: "Onboarding QA Team", key: "QAX" }]}
       >
         <div>Content</div>
       </AppShell>,
