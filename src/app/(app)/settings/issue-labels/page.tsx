@@ -21,7 +21,7 @@ const LABEL_COLORS = [
   "#f2c94c",
   "#4cb782",
   "#3b82f6",
-  "#5e6ad2",
+  "#7180ff",
   "#8b5cf6",
   "#d946ef",
   "#ec4899",

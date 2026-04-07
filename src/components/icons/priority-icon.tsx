@@ -20,33 +20,21 @@ export function PriorityIcon({
   const config = priorityConfig[priority];
 
   if (priority === 1) {
-    // Urgent: exclamation mark in rounded rectangle
+    // Matches Linear's urgent priority glyph.
     return (
       <svg
         width={size}
         height={size}
         viewBox="0 0 16 16"
-        fill="none"
+        fill={config.color}
         role="img"
         aria-label={config.label}
         className={className}
       >
-        <rect
-          x="1"
-          y="1"
-          width="14"
-          height="14"
-          rx="3"
-          fill={config.color}
-          fillOpacity="0.9"
-        />
         <path
-          d="M8 4v4.5"
-          stroke="white"
-          strokeWidth="1.5"
-          strokeLinecap="round"
+          d="M3 1C1.91067 1 1 1.91067 1 3V13C1 14.0893 1.91067 15 3 15H13C14.0893 15 15 14.0893 15 13V3C15 1.91067 14.0893 1 13 1H3ZM7 4L9 4L8.75391 8.99836H7.25L7 4ZM9 11C9 11.5523 8.55228 12 8 12C7.44772 12 7 11.5523 7 11C7 10.4477 7.44772 10 8 10C8.55228 10 9 10.4477 9 11Z"
+          fill={config.color}
         />
-        <circle cx="8" cy="11" r="0.75" fill="white" />
       </svg>
     );
   }
@@ -74,50 +62,34 @@ export function PriorityIcon({
     );
   }
 
-  // High/Medium/Low: bar chart with varying heights
-  const barHeights = {
-    2: [10, 7, 4], // High: tall bars
-    3: [6, 6, 4], // Medium: medium bars
-    4: [4, 4, 4], // Low: short bars
-  } as const;
-
-  const heights = barHeights[priority as 2 | 3 | 4];
-
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 16 16"
-      fill="none"
+      fill={config.color}
       role="img"
       aria-label={config.label}
       className={className}
     >
-      <rect
-        x="2"
-        y={14 - heights[0]}
-        width="3"
-        height={heights[0]}
-        rx="1"
-        fill={config.color}
-      />
+      <rect x="1.5" y="8" width="3" height="6" rx="1" fill={config.color} />
       <rect
         x="6.5"
-        y={14 - heights[1]}
+        y="5"
         width="3"
-        height={heights[1]}
+        height="9"
         rx="1"
         fill={config.color}
-        fillOpacity={priority >= 3 ? "0.5" : "1"}
+        fillOpacity={priority === 4 ? "0.4" : "1"}
       />
       <rect
-        x="11"
-        y={14 - heights[2]}
+        x="11.5"
+        y="2"
         width="3"
-        height={heights[2]}
+        height="12"
         rx="1"
         fill={config.color}
-        fillOpacity={priority >= 4 ? "0.3" : priority >= 3 ? "0.5" : "1"}
+        fillOpacity={priority === 2 ? "1" : "0.4"}
       />
     </svg>
   );

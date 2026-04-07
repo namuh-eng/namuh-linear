@@ -476,5 +476,53 @@
       }
     ],
     "fix_description": "Updated the shared app shell to load the full workspace team list, extended the sidebar to render per-team collapsible sections, and tightened the nested `More` submenu styling. `qa_pass` is now true for layout-002; the remaining full-E2E failures are the pre-existing unrelated command-palette specs."
+  },
+  {
+    "feature_id": "design-001",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test` before the fix; all 578 unit tests passed.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the app still loaded successfully on `http://localhost:3015`.",
+      "Opened the clone in Ever on `http://localhost:3015/team/ONB/all` and the original product on `https://linear.app`, then extracted live SVG markup from both apps to compare the rendered priority and status glyphs directly.",
+      "Confirmed the clone light theme already used the correct background tokens and, before the fix, reported the wrong accent token via `getComputedStyle(document.documentElement)`: `--color-accent` was `#5e6ad2` instead of the spec's `#7180ff`.",
+      "Verified against Linear's live DOM that the clone's pre-fix priority icons used the wrong bar ordering and urgent glyph, and the pre-fix triage/backlog/started/completed status icons did not match Linear's actual symbol paths.",
+      "Verified the avatar fallback bug in component QA: when an avatar image load fails, the pre-fix component kept rendering a broken `<img>` instead of falling back to initials.",
+      "Hardened label chip behavior for long text by keeping the full label in `title` while truncating the visible chip content in narrow layouts.",
+      "Saved comparison evidence to `ralph/screenshots/qa/design-001-attempt-1-clone-issues-light.jpg` and `ralph/screenshots/qa/design-001-attempt-1-linear-issues-reference.jpg`.",
+      "Re-ran `make check` and `make test` after the fix; typecheck, Biome, and all 585 unit tests passed.",
+      "Ran full `make test-e2e` after the shared-component changes; smoke still passed, and the only failing specs were the pre-existing unrelated `tests/e2e/command-palette.spec.ts` tests where the command palette dialog/input never appears on their protected-route setup."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "The shared accent token was off-spec across the app and auth surfaces.",
+        "expected": "The design foundation should expose the PRD-specified Linear accent token `#7180ff` consistently anywhere the shared accent color is used.",
+        "actual": "Before the fix, `src/app/globals.css` defined `--color-accent`, `--auth-accent`, and the auth primary button color as `#5e6ad2`, and the label color preset list still used `#5e6ad2`.",
+        "reproduction": "1. Open any authenticated page in the clone.\n2. Run `getComputedStyle(document.documentElement).getPropertyValue(\"--color-accent\")` in the browser console (or via `ever eval`).\n3. Observe the pre-fix value `#5e6ad2` instead of `#7180ff`."
+      },
+      {
+        "severity": "major",
+        "description": "Priority glyphs did not match Linear's actual iconography.",
+        "expected": "Urgent/high/medium/low priority should use the same core SVG shapes as Linear's live issue list, including ascending bar ordering for bar-chart priorities and the correct urgent path.",
+        "actual": "Before the fix, the clone rendered descending priority bars and a different urgent rectangle/exclamation composition than the SVG markup extracted from Linear.",
+        "reproduction": "1. Open the clone and Linear side by side on issue-list pages.\n2. Inspect the rendered priority SVGs (or extract `outerHTML` from each app).\n3. Compare the pre-fix clone bars/path against Linear's live `High Priority`, `Medium Priority`, `Low Priority`, and `Urgent Priority` SVGs."
+      },
+      {
+        "severity": "major",
+        "description": "Multiple status category icons diverged from Linear's real status symbols.",
+        "expected": "The shared triage, backlog, unstarted, started, and completed status icons should materially match Linear's live symbols so issue/status surfaces use the expected visual language.",
+        "actual": "Before the fix, the clone used a dotted circle for triage, a simple dashed circle for backlog, a half-filled circle for started, and a different completed checkmark treatment instead of Linear's actual symbol paths.",
+        "reproduction": "1. Open the clone issue list and Linear's Engineering issue list.\n2. Extract the status SVG markup from both apps.\n3. Observe that the pre-fix clone markup differs from Linear's live `IssueStatusTriage`, `IssueStatusBacklog`, `IssueStatusTodo`, `IssueStatusStarted`, and `IssueStatusDone` symbols."
+      },
+      {
+        "severity": "major",
+        "description": "Avatar images had no fallback path when image loading failed.",
+        "expected": "If an avatar `src` fails to load, the shared avatar component should fall back to the user's initials instead of leaving a broken image.",
+        "actual": "Before the fix, `Avatar` always rendered the `<img>` whenever `src` was present, so failed loads stayed as broken images with no initials fallback.",
+        "reproduction": "1. Render the shared `Avatar` component with a valid `name` and an invalid `src`.\n2. Trigger the image error event.\n3. Observe that the pre-fix component continues to render the broken `<img>` rather than the initials fallback."
+      }
+    ],
+    "fix_description": "Aligned the shared accent token and label-color preset with the PRD, replaced the priority/status SVGs with Linear-matching glyphs verified from the live product, added avatar image-error fallback to initials, and hardened label chips for long text. `qa_pass` is now true for design-001; the remaining full-E2E failures are the pre-existing unrelated command-palette specs."
   }
 ]

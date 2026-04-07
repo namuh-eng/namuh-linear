@@ -1,8 +1,9 @@
+import { readFileSync } from "node:fs";
 import { Avatar } from "@/components/avatar";
 import { PriorityIcon } from "@/components/icons/priority-icon";
 import { StatusIcon } from "@/components/icons/status-icon";
 import { LabelChip } from "@/components/label-chip";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 afterEach(() => {
@@ -53,6 +54,32 @@ describe("PriorityIcon", () => {
     );
     const svg = container.querySelector("svg");
     expect(svg?.classList.contains("custom-class")).toBe(true);
+  });
+
+  it("matches Linear's high priority bar ordering", () => {
+    const { container } = render(<PriorityIcon priority={2} />);
+    const rects = [...container.querySelectorAll("rect")];
+
+    expect(
+      rects.map((rect) => ({
+        x: rect.getAttribute("x"),
+        y: rect.getAttribute("y"),
+        height: rect.getAttribute("height"),
+        fillOpacity: rect.getAttribute("fill-opacity"),
+      })),
+    ).toEqual([
+      { x: "1.5", y: "8", height: "6", fillOpacity: null },
+      { x: "6.5", y: "5", height: "9", fillOpacity: "1" },
+      { x: "11.5", y: "2", height: "12", fillOpacity: "1" },
+    ]);
+  });
+
+  it("matches Linear's low priority opacity treatment", () => {
+    const { container } = render(<PriorityIcon priority={4} />);
+    const rects = [...container.querySelectorAll("rect")];
+
+    expect(rects[1]?.getAttribute("fill-opacity")).toBe("0.4");
+    expect(rects[2]?.getAttribute("fill-opacity")).toBe("0.4");
   });
 });
 
@@ -107,6 +134,22 @@ describe("StatusIcon", () => {
     expect(svg?.getAttribute("width")).toBe("20");
     expect(svg?.getAttribute("height")).toBe("20");
   });
+
+  it("uses the Linear backlog symbol path instead of a dashed circle", () => {
+    const { container } = render(<StatusIcon category="backlog" />);
+    const path = container.querySelector("path");
+
+    expect(path?.getAttribute("d")).toContain("m14.94 8.914");
+    expect(container.querySelector("circle")).toBeNull();
+  });
+
+  it("uses the Linear triage symbol path", () => {
+    const { container } = render(<StatusIcon category="triage" />);
+    const path = container.querySelector("path");
+
+    expect(path?.getAttribute("d")).toContain("M8 15A7 7 0 1 0 8 1");
+    expect(path?.getAttribute("d")).toContain("L3.174 8.372");
+  });
 });
 
 describe("Avatar", () => {
@@ -124,6 +167,15 @@ describe("Avatar", () => {
     render(<Avatar name="John Doe" src="/avatar.png" />);
     const img = screen.getByRole("img");
     expect(img).toBeDefined();
+  });
+
+  it("falls back to initials when the image fails to load", () => {
+    render(<Avatar name="John Doe" src="/missing-avatar.png" />);
+
+    const img = screen.getByRole("img");
+    fireEvent.error(img);
+
+    expect(screen.getByText("JD")).toBeDefined();
   });
 
   it("applies default size of 20px", () => {
@@ -185,5 +237,30 @@ describe("LabelChip", () => {
     );
     expect(screen.getByText("bug")).toBeDefined();
     expect(screen.getByText("frontend")).toBeDefined();
+  });
+
+  it("preserves long label text in the title while truncating the visible chip", () => {
+    const longName =
+      "platform-foundations-design-token-regression-validation-label";
+    const { container } = render(
+      <div className="w-24">
+        <LabelChip name={longName} color="#3b82f6" />
+      </div>,
+    );
+
+    const chip = container.querySelector("span[title]");
+    const text = chip?.querySelector("span:last-child");
+
+    expect(chip?.getAttribute("title")).toBe(longName);
+    expect(text?.classList.contains("truncate")).toBe(true);
+  });
+});
+
+describe("Design tokens", () => {
+  it("defines the Linear accent token in globals.css", () => {
+    const css = readFileSync("src/app/globals.css", "utf8");
+
+    expect(css).toContain("--color-accent: #7180ff;");
+    expect(css).toContain("--auth-primary-bg: #7180ff;");
   });
 });
