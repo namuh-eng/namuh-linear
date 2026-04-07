@@ -1457,5 +1457,44 @@
       }
     ],
     "fix_description": "Added a real workspace security settings API and UI save flow, backed invite links with persistent workspace tokens and an `accept-invite` join path, implemented approved-domain management plus auto-join for matching users, and replaced the inert SAML/SCIM control with a working docs link."
+  },
+  {
+    "feature_id": "settings-009",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; the full Vitest suite passed before the feature-specific fixes.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the authenticated smoke flow passed before manual QA.",
+      "Opened `/settings/api` in the authenticated browser and reproduced the original failures: docs text was not navigable, `New OAuth application` and `New webhook` did nothing, the page had no real data source, and the API key permission selector reset to `Only admins` after reload.",
+      "Compared the live clone against `ralph/screenshots/inspect/settings-api.jpg` and confirmed the overall section structure matched Linear, but the clone lacked the single-row action states and all of the admin flows behind them.",
+      "Added a real workspace API settings route, then verified through a live owner-session browser run that docs links now resolve to the Linear developer docs, OAuth application creation persists and renders on the page, webhook creation persists with the selected event set, and the API key permission selector survives a full reload.",
+      "Verified the API-key flow end to end in the live browser by switching the workspace permission to `All members`, creating `QA Automation Key 1775599484565`, and confirming the list shows the key name, access level, creator, and created date.",
+      "Saved the post-fix browser evidence screenshot to `ralph/screenshots/qa/settings-009-attempt-1.png`.",
+      "Ran `make check`, `make test`, and a final `npx playwright test tests/e2e/smoke.spec.ts` after the fixes; typecheck, Biome, the full Vitest suite (`653` tests), and smoke Playwright (`2` tests) all passed."
+    ],
+    "bugs_found": [
+      {
+        "severity": "critical",
+        "description": "The API settings page was a static stub with no backend integration, so OAuth applications, webhooks, and API keys could not be created or listed from real workspace data.",
+        "expected": "The page should load persisted workspace API settings and allow the documented admin flows to create and display OAuth applications, webhooks, and member API keys.",
+        "actual": "Before the fix, `/settings/api` only rendered hardcoded empty states and inert buttons, and the page never read from or wrote to workspace settings, `webhook`, or `api_key` data.",
+        "reproduction": "1. Sign in and open `/settings/api`.\n2. Click `New OAuth application` or `New webhook`.\n3. Observe that no dialog, save action, or list update occurs.\n4. Reload the page and observe it still shows the original hardcoded empty states."
+      },
+      {
+        "severity": "major",
+        "description": "The docs controls were plain text, so the GraphQL, OAuth, and webhook docs could not be opened from the admin page.",
+        "expected": "Each section should expose a working docs link that navigates to the appropriate Linear developer documentation.",
+        "actual": "Before the fix, the `Docs` elements were rendered as non-interactive spans with no hrefs or navigation behavior.",
+        "reproduction": "1. Open `/settings/api`.\n2. Try to open any `Docs` control from the page.\n3. Observe that it is not clickable and no navigation occurs."
+      },
+      {
+        "severity": "major",
+        "description": "The API key creation permission control used local React state only, so the selected permission level reverted on reload and never updated the workspace settings.",
+        "expected": "Changing `API key creation` should persist to the active workspace and reload with the saved value.",
+        "actual": "Before the fix, changing the selector updated the current page state only; refreshing `/settings/api` restored the hardcoded `Only admins` default.",
+        "reproduction": "1. Open `/settings/api`.\n2. Change `API key creation` from `Only admins` to `All members`.\n3. Reload the page.\n4. Observe that the selector resets to `Only admins`."
+      }
+    ],
+    "fix_description": "Replaced the static API settings stub with a real workspace-backed page and route, added working docs links plus OAuth, webhook, and API-key creation flows, persisted the API-key permission setting through workspace security settings, and added regression tests plus a live browser QA pass."
   }
 ]
