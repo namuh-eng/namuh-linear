@@ -59,4 +59,86 @@
     --color-status-completed: #4cb782;
     --color-status-canceled: #6b6f76;
   }
+
+  .auth-shell {
+    --auth-background: #08090a;
+    --auth-text: #ffffff;
+    --auth-muted: #6b6f76;
+    --auth-link: #ffffff;
+    --auth-logo: #ffffff;
+    --auth-accent: #5e6ad2;
+    --auth-primary-bg: #5e6ad2;
+    --auth-primary-bg-hover: #6b76df;
+    --auth-primary-text: #ffffff;
+    --auth-secondary-bg: #1a1b1f;
+    --auth-secondary-bg-hover: #202127;
+    --auth-secondary-border: #272a31;
+    --auth-secondary-text: #f3f4f6;
+    --auth-input-bg: #121318;
+    --auth-input-border: #272a31;
+    --auth-input-placeholder: #6b6f76;
+    --auth-error: #f76a6a;
+    background: radial-gradient(
+        circle at top,
+        rgba(94, 106, 210, 0.08),
+        transparent 26%
+      ), var(--auth-background);
+  }
+
+  @media (prefers-color-scheme: light) {
+    .auth-shell {
+      --auth-background: #f7f7f8;
+      --auth-text: #23252a;
+      --auth-muted: #6d727c;
+      --auth-link: #23252a;
+      --auth-logo: #23252a;
+      --auth-secondary-bg: #ffffff;
+      --auth-secondary-bg-hover: #f1f2f5;
+      --auth-secondary-border: #d7dbe3;
+      --auth-secondary-text: #42454d;
+      --auth-input-bg: #ffffff;
+      --auth-input-border: #d7dbe3;
+      --auth-input-placeholder: #8c919c;
+      background: radial-gradient(
+          circle at top,
+          rgba(94, 106, 210, 0.12),
+          transparent 26%
+        ), var(--auth-background);
+    }
+  }
+}
+
+@layer components {
+  .auth-primary-button {
+    background-color: var(--auth-primary-bg);
+    color: var(--auth-primary-text);
+  }
+
+  .auth-primary-button:hover {
+    background-color: var(--auth-primary-bg-hover);
+  }
+
+  .auth-secondary-button {
+    background-color: var(--auth-secondary-bg);
+    border-color: var(--auth-secondary-border);
+    color: var(--auth-secondary-text);
+  }
+
+  .auth-secondary-button:hover {
+    background-color: var(--auth-secondary-bg-hover);
+  }
+
+  .auth-input {
+    background-color: var(--auth-input-bg);
+    border-color: var(--auth-input-border);
+    color: var(--auth-text);
+  }
+
+  .auth-input::placeholder {
+    color: var(--auth-input-placeholder);
+  }
+
+  .auth-input:focus {
+    border-color: var(--auth-accent);
+  }
 }

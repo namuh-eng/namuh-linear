@@ -245,5 +245,40 @@
       }
     ],
     "fix_description": "Removed protected onboarding pages from the middleware public allowlist, preserved `callbackUrl` throughout the login client flow, and added regression tests for both fixes. `qa_pass` is now true for auth-003; the remaining `make test-e2e` failures are pre-existing command-palette specs unrelated to this feature."
+  },
+  {
+    "feature_id": "auth-004",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make check`; typecheck and Biome both passed after the auth-004 fixes.",
+      "Ran `make test`; all 548 unit tests passed.",
+      "Ran full `make test-e2e` because the fix touched shared auth routing/layout. Smoke passed, and the only failing specs were the pre-existing unrelated command-palette tests that still fail while logged out.",
+      "Opened the clone auth surface in Ever and confirmed `/login` renders the auth UI rather than the authenticated shell.",
+      "Compared the clone against fresh Playwright captures of `https://linear.app/login` and `https://linear.app/signup`; Linear exposes both dark/light auth surfaces and a shared login/signup entry point.",
+      "Reproduced the pre-fix auth-004 bugs: the clone stayed dark even under a light color-scheme and `/signup` had no implemented page.",
+      "Patched the auth UI to use a shared `/login` + `/signup` screen, updated the Linear-style icon/button treatment, and added light-theme auth tokens plus signup/login footer affordances.",
+      "Captured post-fix screenshots for the clone at `ralph/screenshots/qa/auth-004-attempt-1-verified-login-dark.png`, `ralph/screenshots/qa/auth-004-attempt-1-verified-login-light.png`, `ralph/screenshots/qa/auth-004-attempt-1-verified-login-mobile.png`, `ralph/screenshots/qa/auth-004-attempt-1-verified-signup-dark.png`, and `ralph/screenshots/qa/auth-004-attempt-1-verified-signup-light.png`.",
+      "Saved the reference captures used for comparison at `ralph/screenshots/qa/auth-004-attempt-1-linear-dark-desktop.png`, `ralph/screenshots/qa/auth-004-attempt-1-linear-light-desktop.png`, and `ralph/screenshots/qa/auth-004-attempt-1-linear-signup.png`.",
+      "Verified the browser email entrypoint still works by opening `Continue with Email` and confirming the email input renders on both `/login` and `/signup`.",
+      "Verified the Google entry point still returns a real OAuth redirect by posting to `POST /api/auth/sign-in/social`; the API returned `200` plus a Google authorization URL targeting `http://localhost:3015/api/auth/callback/google`."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "The login/signup UI ignored light color-scheme preferences and stayed dark-only.",
+        "expected": "The auth entry point should match Linear's light and dark presentations instead of forcing a dark-only screen.",
+        "actual": "Fresh browser contexts with `prefers-color-scheme: light` still rendered the clone's login page on a black background with dark-only button styles.",
+        "reproduction": "1. Open `http://localhost:3015/login` in a browser context with `prefers-color-scheme: light`.\n2. Observe the page stays dark instead of switching to a light auth surface.\n3. Compare it with `https://linear.app/login`, which renders a light version under the same preference."
+      },
+      {
+        "severity": "major",
+        "description": "The clone did not implement `/signup`, so the auth UI did not actually handle both login and signup.",
+        "expected": "The auth surface should support both `/login` and `/signup`, with the signup route presenting the same provider choices and the appropriate signup copy.",
+        "actual": "There was no `src/app/(auth)/signup/page.tsx`, so `/signup` was missing even though the feature spec requires a shared login/signup entry point.",
+        "reproduction": "1. Inspect the auth routes before the fix and note that only `src/app/(auth)/login/page.tsx` exists.\n2. Navigate to `http://localhost:3015/signup`.\n3. Observe that the clone has no dedicated signup implementation."
+      }
+    ],
+    "fix_description": "Replaced the single dark-only login screen with a shared theme-aware auth page for `/login` and `/signup`, matched Linear's login/signup copy and icon treatment more closely, and added regression coverage for the signup affordance and signup route. `qa_pass` is now true for auth-004; the remaining full-E2E failures are the pre-existing unrelated command-palette specs."
   }
 ]

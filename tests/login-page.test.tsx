@@ -21,6 +21,7 @@ const mockLocation = {
 vi.stubGlobal("location", mockLocation);
 
 import LoginPage from "@/app/(auth)/login/page";
+import SignupPage from "@/app/(auth)/signup/page";
 import { signIn } from "@/lib/auth-client";
 
 describe("Login page", () => {
@@ -128,9 +129,14 @@ describe("Login page", () => {
 
   it("shows footer with terms text", () => {
     render(<LoginPage />);
-    expect(
-      screen.getByText(/Terms of Service and Privacy Policy/),
-    ).toBeDefined();
+    expect(screen.getByText("Terms of Service")).toBeDefined();
+    expect(screen.getByText("Privacy Policy")).toBeDefined();
+  });
+
+  it("shows signup affordance on the login page", () => {
+    render(<LoginPage />);
+    expect(screen.getByText("Sign up")).toBeDefined();
+    expect(screen.getByText("learn more")).toBeDefined();
   });
 
   it("shows error when magic link fails", async () => {
@@ -223,5 +229,14 @@ describe("Login page", () => {
     expect(assignMock).toHaveBeenCalledWith(
       "http://localhost:3000/api/auth/magic-link/verify?token=123456&callbackURL=%2Fteam%2FABC%2Fboard&errorCallbackURL=%2Flogin%3FcallbackUrl%3D%252Fteam%252FABC%252Fboard",
     );
+  });
+
+  it("renders the signup variant", () => {
+    render(<SignupPage />);
+    expect(screen.getByText("Create your workspace")).toBeDefined();
+    expect(screen.getByText("Already have an account?")).toBeDefined();
+    expect(screen.getByText("Log in")).toBeDefined();
+    expect(screen.getByText("Terms of Service")).toBeDefined();
+    expect(screen.getByText("Data Processing Agreement")).toBeDefined();
   });
 });
