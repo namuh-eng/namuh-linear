@@ -95,7 +95,7 @@
     "priority": "P2",
     "core": true,
     "dependent_on": ["auth-003", "infra-001"],
-    "build_pass": false,
+    "build_pass": true,
     "qa_pass": false
   },
   {

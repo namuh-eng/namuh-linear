@@ -37,5 +37,31 @@
       "Dark/light theme switching on login page",
       "Inter font loading and fallback behavior"
     ]
+  },
+  {
+    "feature_id": "onboarding-001",
+    "tests_written": [
+      "renders page title and description",
+      "renders workspace name and URL inputs",
+      "auto-generates URL slug from workspace name",
+      "sanitizes special characters in slug",
+      "allows manual URL slug editing",
+      "renders Linear logo",
+      "disables submit when fields empty",
+      "enables submit when fields filled",
+      "submits form and redirects on success",
+      "displays error on API failure",
+      "shows loading state during submission",
+      "displays linear.app/ prefix"
+    ],
+    "needs_deeper_qa": [
+      "Full E2E: login → create workspace → redirect to team page",
+      "Slug uniqueness validation with real database",
+      "Transaction rollback if any step fails (e.g., duplicate team key)",
+      "Root page redirect logic with real sessions",
+      "Edge case: very long workspace names",
+      "Edge case: unicode/emoji in workspace name",
+      "Default workflow states created correctly in DB"
+    ]
   }
 ]

@@ -88,3 +88,37 @@ Date: 2026-04-07
 - Changed accent color to #5E6AD2 (Linear's exact purple) throughout login page
 - Login handles both login and signup implicitly (no separate signup page, matching Linear)
 - Added autoFocus to email input for better UX
+
+## Iteration 4 — onboarding-001: Workspace Creation Flow
+Date: 2026-04-07
+
+### What was built
+- Workspace creation page (`/create-workspace`) with Linear-style dark theme UI
+- API route `POST /api/workspaces` — creates workspace, owner member, default team, team member, and 6 default workflow states (Triage, Backlog, Todo, In Progress, Done, Canceled) in a single transaction
+- API route `GET /api/workspaces` — returns workspaces the authenticated user is a member of
+- Root page (`/`) now redirects: no session → `/login`, no workspace → `/create-workspace`, has workspace → `/team/{key}/all`
+- Updated middleware to allow `/create-workspace` and `/api/workspaces` as public paths
+- Auto-generates URL slug from workspace name (lowercase, hyphenated, sanitized)
+- Manual slug editing supported
+- Input validation: name + slug required, slug length 2-63 chars, slug uniqueness check
+- Team key auto-generated from first 3 chars of workspace name (uppercase)
+
+### Test results
+- 12 unit tests passing (tests/create-workspace.test.tsx)
+- 114 total tests passing (excluding pre-existing onboard-validation failures)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/app/api/workspaces/route.ts — new API route (POST + GET)
+- src/app/create-workspace/page.tsx — new workspace creation page
+- src/app/page.tsx — rewritten as server component with workspace redirect logic
+- src/middleware.ts — added /create-workspace and /api/workspaces to public paths
+- tests/create-workspace.test.tsx — new unit test file (12 tests)
+- prd.json — marked onboarding-001 build_pass: true
+
+### Decisions
+- Used transaction for workspace creation to ensure atomicity (workspace + member + team + team member + workflow states)
+- Default workflow states match Linear's categories: triage, backlog, unstarted, started, completed, canceled
+- Root page is a server component that queries DB to determine redirect target
+- Creator is automatically added as workspace owner and default team member
