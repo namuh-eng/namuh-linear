@@ -417,3 +417,36 @@ Date: 2026-04-07
 - Related data fetched in parallel with Promise.all for performance
 - Description is plain text for now — rich text editing will be a future enhancement
 - Comment composer is a placeholder textarea — submission not wired up yet
+
+## Iteration 13 — feature-004: Create Issue Modal
+Date: 2026-04-07
+
+### What was built
+- API route `POST /api/issues` — creates new issue with auto-generated identifier (ENG-N), supports title, description, team, state, priority, assignee, project
+- CreateIssueModal component (`src/components/create-issue-modal.tsx`) — modal with:
+  - Team selector header (ENG badge + "New issue" breadcrumb)
+  - Title input and description textarea
+  - Bottom toolbar: Status (Backlog), Priority, Labels buttons
+  - More actions button
+  - Footer: "Create more" toggle + "Create Issue" submit button
+  - Submit disabled when title empty, submits via POST /api/issues
+  - Close button and backdrop click to dismiss
+
+### Test results
+- 12 unit tests passing (tests/create-issue-modal.test.tsx)
+- 231 total tests passing (excluding pre-existing onboard-validation failures)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/app/api/issues/route.ts — new POST API route
+- src/components/create-issue-modal.tsx — new CreateIssueModal component
+- tests/create-issue-modal.test.tsx — new unit test file (12 tests)
+- prd.json — marked feature-004 build_pass: true
+- qa-hints.json — added feature-004 QA hints
+
+### Decisions
+- Auto-increments issue number per team using MAX(number) + 1
+- Defaults to backlog workflow state if no stateId provided
+- Toolbar buttons are visual placeholders — dropdown menus will be added when filter/combobox infrastructure is built
+- Removed autoFocus to comply with Biome accessibility rules

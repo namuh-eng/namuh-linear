@@ -221,6 +221,29 @@
     ]
   },
   {
+    "feature_id": "feature-004",
+    "tests_written": [
+      "Modal renders when open, hidden when closed",
+      "Renders team identifier (ENG)",
+      "Renders title and description inputs",
+      "Renders Create Issue button",
+      "Renders toolbar (Backlog, Priority, Labels)",
+      "Close button calls onClose",
+      "Submit disabled when title empty, enabled when filled",
+      "Renders Create more toggle"
+    ],
+    "needs_deeper_qa": [
+      "E2E: open modal, type title, submit, verify issue created",
+      "Status/Priority/Labels combobox dropdowns — not yet interactive",
+      "Assignee selector — not yet implemented",
+      "Project selector — not yet implemented",
+      "File attachment — not yet implemented",
+      "Rich text description editing",
+      "Keyboard shortcut (C) to open modal",
+      "Create more toggle persists and clears form correctly"
+    ]
+  },
+  {
     "feature_id": "feature-003",
     "tests_written": [
       "IssueProperties renders status with icon and name",
