@@ -1,8 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 const DEFAULT_INVITE_TTL_SECONDS = 60 * 60 * 24 * 7;
-const DEV_INVITE_SECRET = "local-invite-secret";
-
 export interface InviteTokenPayload {
   workspaceId: string;
   email: string;
@@ -11,7 +9,14 @@ export interface InviteTokenPayload {
 }
 
 function getInviteSecret(): string {
-  return process.env.BETTER_AUTH_SECRET ?? DEV_INVITE_SECRET;
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("BETTER_AUTH_SECRET must be set in production");
+    }
+    return "dev-only-invite-secret-not-for-production";
+  }
+  return secret;
 }
 
 function signPayload(payload: string): string {

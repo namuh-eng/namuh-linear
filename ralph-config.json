@@ -9,8 +9,7 @@
   "skipDeploy": false,
   "browserAgent": "ever",
   "testAccount": {
-    "provider": "google",
-    "email": "jaeyunha0317@gmail.com"
+    "provider": "google"
   },
   "services": {
     "email": { "provider": "ses", "package": "@aws-sdk/client-sesv2" },
@@ -64,7 +63,7 @@
       "aws-cli": {
         "command": "aws sts get-caller-identity",
         "status": "pass",
-        "detail": "jaeyun-dev (699486076867)"
+        "detail": "configured"
       },
       "docker": {
         "command": "docker info",

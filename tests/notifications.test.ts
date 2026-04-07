@@ -14,12 +14,12 @@ describe("notifications helpers", () => {
 
   it("resolves mentioned users from workspace member candidates", () => {
     const mentionedUserIds = resolveMentionedUserIdsFromCandidates(
-      "Looping in @jaeyun and @ashley",
+      "Looping in @test and @ashley",
       [
         {
           userId: "user-1",
-          email: "jaeyunha0317@gmail.com",
-          name: "Jaeyun Ha",
+          email: "test@example.com",
+          name: "Test User",
         },
         {
           userId: "user-2",

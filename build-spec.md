@@ -249,7 +249,7 @@ REST API routes (Next.js App Router API routes):
 
 **Profile** (`/settings/account/profile`):
 - Profile picture: circular avatar upload (recommended 256x256px), shows current avatar
-- Email: read-only display (jaeyunha0317@gmail.com)
+- Email: read-only display (from authenticated user session)
 - Full name: editable text input
 - Username: editable text input ("One word, like a nickname or first name")
 - "Update" button to save changes

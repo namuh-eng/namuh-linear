@@ -5,7 +5,7 @@ set -euo pipefail
 
 COUNT="${1:-20}"
 API_URL="${2:-http://127.0.0.1:3002}"
-MASTER_KEY="${DASHBOARD_KEY:-re_dev_token_123}"
+MASTER_KEY="${DASHBOARD_KEY:?ERROR: Set DASHBOARD_KEY in .env before running this script}"
 
 echo "=== Generating $COUNT demo API keys ==="
 echo "API: $API_URL"

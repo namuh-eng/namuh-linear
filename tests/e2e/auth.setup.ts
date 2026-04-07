@@ -41,7 +41,7 @@ async function readLatestMagicLinkToken(email: string) {
 }
 
 setup("authenticate playwright browser", async ({ page }) => {
-  const email = ralphConfig.testAccount?.email;
+  const email = process.env.TEST_ACCOUNT_EMAIL ?? "test@example.com";
   expect(email).toBeTruthy();
 
   const callbackURL = "http://localhost:3015/inbox";
