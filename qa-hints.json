@@ -808,5 +808,28 @@
       "Email toggle shows team email address",
       "Visual comparison with Linear screenshot"
     ]
+  },
+  {
+    "feature_id": "settings-012",
+    "tests_written": [
+      "renders page title 'Issue statuses'",
+      "renders description text",
+      "renders all 6 category headers",
+      "renders status names (Spec Needed, Todo, In Dev, Code Review, Done)",
+      "renders issue counts (68, 6, 25)",
+      "renders 'Default' badge on first Backlog status",
+      "renders status descriptions",
+      "renders 16 statuses total",
+      "renders add buttons for each category",
+      "renders duplicate issue status selector"
+    ],
+    "needs_deeper_qa": [
+      "Status reordering within categories",
+      "Inline status name editing",
+      "Add new status flow",
+      "Duplicate status selector saves to backend",
+      "StatusIcon renders correct icon per category",
+      "Visual comparison with Linear screenshot"
+    ]
   }
 ]

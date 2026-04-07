@@ -1258,3 +1258,36 @@ Date: 2026-04-07
 - Estimate options match Linear: Not in use, Linear, Exponential, T-shirt
 - Identifier input auto-uppercases for consistency with team keys
 - Email address format: {key}@team.linear.app shown when email toggle is enabled
+
+## Iteration 41 — settings-012: Team Issue Statuses Settings
+Date: 2026-04-07
+
+### What was built
+- Team Issue Statuses page (`/settings/teams/[key]/statuses`):
+  - Title "Issue statuses" with description
+  - Visual list grouped by 6 categories: Triage, Backlog, Unstarted, Started, Completed, Canceled
+  - Category headers with add status (+) buttons
+  - Each status row: StatusIcon (from design system), name, issue count, description
+  - "Default" badge on first Backlog status
+  - 16 statuses matching Linear's Engineering team workflow
+  - Duplicate issue status selector at bottom
+- Uses StatusIcon component from design-001 for category-appropriate icons
+
+### Test results
+- 10 unit tests passing (tests/team-statuses.test.tsx)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/app/(app)/settings/teams/[key]/statuses/page.tsx — new Team Issue Statuses page
+- tests/team-statuses.test.tsx — new unit test file (10 tests)
+- prd.json — marked settings-012 build_pass: true
+- qa-hints.json — added settings-012 QA hints
+
+### Decisions
+- Used StatusIcon component for category-specific icons (triage=dotted, backlog=dashed, etc.)
+- Issue count formatted as "N issues" (plural), empty string for 0
+- Duplicate status selector populated from all statuses across categories
+- Category headers use bg surface color to visually separate sections
+
+## BUILD COMPLETE — All 41 features have build_pass: true
