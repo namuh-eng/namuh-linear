@@ -13,6 +13,11 @@ interface BoardColumnProps {
   count: number;
   statusCategory: StatusCategory;
   statusColor: string;
+  testId?: string;
+  isDropTarget?: boolean;
+  onDragOver?: React.DragEventHandler<HTMLDivElement>;
+  onDrop?: React.DragEventHandler<HTMLDivElement>;
+  onDragLeave?: React.DragEventHandler<HTMLDivElement>;
   children: React.ReactNode;
 }
 
@@ -21,10 +26,20 @@ export function BoardColumn({
   count,
   statusCategory,
   statusColor,
+  testId,
+  isDropTarget = false,
+  onDragOver,
+  onDrop,
+  onDragLeave,
   children,
 }: BoardColumnProps) {
   return (
-    <div className="flex min-w-[280px] flex-1 flex-col">
+    <div
+      data-testid={testId}
+      className={`flex min-w-[280px] flex-1 flex-col rounded-xl transition-colors ${
+        isDropTarget ? "bg-[var(--color-surface-hover)]" : ""
+      }`}
+    >
       {/* Column header */}
       <div className="flex items-center gap-2 px-2 py-2.5">
         <StatusIcon category={statusCategory} color={statusColor} size={14} />
@@ -58,7 +73,17 @@ export function BoardColumn({
       </div>
 
       {/* Cards */}
-      <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto px-1.5 pb-2">
+      <div
+        data-testid={testId ? `${testId}-cards` : undefined}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onDragLeave={onDragLeave}
+        className={`flex flex-1 flex-col gap-1.5 overflow-y-auto rounded-lg px-1.5 pb-2 transition-colors ${
+          isDropTarget
+            ? "border border-dashed border-[var(--color-accent)]"
+            : "border border-transparent"
+        }`}
+      >
         {children}
       </div>
     </div>

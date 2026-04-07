@@ -14,18 +14,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
-
-  // Find issue by identifier (e.g., ENG-45) or by id
+async function findIssueRecord(id: string) {
   const issues = await db
     .select({
       id: issue.id,
@@ -44,21 +33,60 @@ export async function GET(
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
       teamId: issue.teamId,
+      canceledAt: issue.canceledAt,
+      completedAt: issue.completedAt,
     })
     .from(issue)
     .where(eq(issue.identifier, id))
     .limit(1);
 
-  if (issues.length === 0) {
-    // Try by UUID
-    const byId = await db.select().from(issue).where(eq(issue.id, id)).limit(1);
-    if (byId.length === 0) {
-      return NextResponse.json({ error: "Issue not found" }, { status: 404 });
-    }
-    issues.push(byId[0]);
+  if (issues.length > 0) {
+    return issues[0];
   }
 
-  const iss = issues[0];
+  const byId = await db
+    .select({
+      id: issue.id,
+      number: issue.number,
+      identifier: issue.identifier,
+      title: issue.title,
+      description: issue.description,
+      priority: issue.priority,
+      stateId: issue.stateId,
+      assigneeId: issue.assigneeId,
+      creatorId: issue.creatorId,
+      projectId: issue.projectId,
+      dueDate: issue.dueDate,
+      estimate: issue.estimate,
+      sortOrder: issue.sortOrder,
+      createdAt: issue.createdAt,
+      updatedAt: issue.updatedAt,
+      teamId: issue.teamId,
+      canceledAt: issue.canceledAt,
+      completedAt: issue.completedAt,
+    })
+    .from(issue)
+    .where(eq(issue.id, id))
+    .limit(1);
+
+  return byId[0] ?? null;
+}
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  const iss = await findIssueRecord(id);
+  if (!iss) {
+    return NextResponse.json({ error: "Issue not found" }, { status: 404 });
+  }
 
   // Fetch related data in parallel
   const [
@@ -148,4 +176,81 @@ export async function GET(
       createdAt: c.createdAt,
     })),
   });
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const body = (await request.json()) as {
+    stateId?: string;
+    sortOrder?: number;
+  };
+
+  const existingIssue = await findIssueRecord(id);
+  if (!existingIssue) {
+    return NextResponse.json({ error: "Issue not found" }, { status: 404 });
+  }
+
+  const updateData: Partial<typeof issue.$inferInsert> = {
+    updatedAt: new Date(),
+  };
+
+  if (body.stateId !== undefined) {
+    const states = await db
+      .select({
+        id: workflowState.id,
+        teamId: workflowState.teamId,
+        category: workflowState.category,
+      })
+      .from(workflowState)
+      .where(eq(workflowState.id, body.stateId))
+      .limit(1);
+
+    const nextState = states[0];
+    if (!nextState || nextState.teamId !== existingIssue.teamId) {
+      return NextResponse.json(
+        { error: "Workflow state not found" },
+        { status: 400 },
+      );
+    }
+
+    updateData.stateId = nextState.id;
+    updateData.completedAt =
+      nextState.category === "completed" ? new Date() : null;
+    updateData.canceledAt =
+      nextState.category === "canceled" ? new Date() : null;
+
+    if (
+      body.sortOrder === undefined &&
+      nextState.id !== existingIssue.stateId
+    ) {
+      const lastIssueInState = await db
+        .select({ sortOrder: issue.sortOrder })
+        .from(issue)
+        .where(eq(issue.stateId, nextState.id))
+        .orderBy(desc(issue.sortOrder), desc(issue.createdAt))
+        .limit(1);
+
+      updateData.sortOrder = (lastIssueInState[0]?.sortOrder ?? -1) + 1;
+    }
+  }
+
+  if (body.sortOrder !== undefined) {
+    updateData.sortOrder = body.sortOrder;
+  }
+
+  const updated = await db
+    .update(issue)
+    .set(updateData)
+    .where(eq(issue.id, existingIssue.id))
+    .returning();
+
+  return NextResponse.json(updated[0]);
 }

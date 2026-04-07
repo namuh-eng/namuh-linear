@@ -64,6 +64,42 @@ type StatusCategory =
   | "completed"
   | "canceled";
 
+function moveIssueBetweenGroups(
+  groups: StateGroup[],
+  issueId: string,
+  destinationStateId: string,
+): StateGroup[] {
+  let movedIssue: IssueData | null = null;
+
+  const groupsWithoutIssue = groups.map((group) => {
+    const nextIssues = group.issues.filter((issue) => {
+      if (issue.id !== issueId) {
+        return true;
+      }
+
+      movedIssue = { ...issue, stateId: destinationStateId };
+      return false;
+    });
+
+    return nextIssues === group.issues
+      ? group
+      : { ...group, issues: nextIssues };
+  });
+
+  if (!movedIssue) {
+    return groups;
+  }
+
+  return groupsWithoutIssue.map((group) =>
+    group.state.id === destinationStateId
+      ? {
+          ...group,
+          issues: [...group.issues, movedIssue as IssueData],
+        }
+      : group,
+  );
+}
+
 export default function TeamBoardPage() {
   const params = useParams<{ key: string }>();
   const router = useRouter();
@@ -71,6 +107,13 @@ export default function TeamBoardPage() {
   const [loading, setLoading] = useState(true);
   const [showDisplayOptions, setShowDisplayOptions] = useState(false);
   const [showCreateIssue, setShowCreateIssue] = useState(false);
+  const [draggedIssue, setDraggedIssue] = useState<{
+    issueId: string;
+    fromStateId: string;
+  } | null>(null);
+  const [dropTargetStateId, setDropTargetStateId] = useState<string | null>(
+    null,
+  );
 
   const { options, updateOptions, saveAsDefault, reset } = useDisplayOptions(
     params.key,
@@ -119,6 +162,99 @@ export default function TeamBoardPage() {
   const totalIssues = (data?.groups ?? []).reduce(
     (sum, g) => sum + g.issues.length,
     0,
+  );
+
+  const handleIssueDragStart = useCallback(
+    (issueId: string, fromStateId: string) =>
+      (event: React.DragEvent<HTMLDivElement>) => {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", issueId);
+        setDraggedIssue({ issueId, fromStateId });
+        setDropTargetStateId(null);
+      },
+    [],
+  );
+
+  const handleIssueDragEnd = useCallback(() => {
+    setDraggedIssue(null);
+    setDropTargetStateId(null);
+  }, []);
+
+  const handleColumnDragOver = useCallback(
+    (stateId: string) => (event: React.DragEvent<HTMLDivElement>) => {
+      if (!draggedIssue) {
+        return;
+      }
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      setDropTargetStateId(stateId);
+    },
+    [draggedIssue],
+  );
+
+  const handleColumnDragLeave = useCallback(
+    (stateId: string) => (event: React.DragEvent<HTMLDivElement>) => {
+      if (dropTargetStateId !== stateId) {
+        return;
+      }
+
+      const relatedTarget = event.relatedTarget;
+      if (
+        relatedTarget instanceof Node &&
+        event.currentTarget.contains(relatedTarget)
+      ) {
+        return;
+      }
+
+      setDropTargetStateId(null);
+    },
+    [dropTargetStateId],
+  );
+
+  const handleColumnDrop = useCallback(
+    (stateId: string) => async (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+
+      if (!draggedIssue || draggedIssue.fromStateId === stateId || !data) {
+        setDropTargetStateId(null);
+        return;
+      }
+
+      const previousGroups = data.groups;
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              groups: moveIssueBetweenGroups(
+                current.groups,
+                draggedIssue.issueId,
+                stateId,
+              ),
+            }
+          : current,
+      );
+      setDraggedIssue(null);
+      setDropTargetStateId(null);
+
+      const response = await fetch(`/api/issues/${draggedIssue.issueId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ stateId }),
+      });
+
+      if (!response.ok) {
+        setData((current) =>
+          current ? { ...current, groups: previousGroups } : current,
+        );
+        return;
+      }
+
+      await fetchIssues();
+    },
+    [data, draggedIssue, fetchIssues],
   );
 
   // Apply filters and filter out empty columns for completed/canceled unless showEmptyColumns is on
@@ -277,10 +413,16 @@ export default function TeamBoardPage() {
             count={group.issues.length}
             statusCategory={group.state.category as StatusCategory}
             statusColor={group.state.color}
+            testId={`board-column-${group.state.id}`}
+            isDropTarget={dropTargetStateId === group.state.id}
+            onDragOver={handleColumnDragOver(group.state.id)}
+            onDrop={handleColumnDrop(group.state.id)}
+            onDragLeave={handleColumnDragLeave(group.state.id)}
           >
             {group.issues.map((iss) => (
               <IssueCard
                 key={iss.id}
+                issueId={iss.id}
                 identifier={iss.identifier}
                 title={iss.title}
                 priority={priorityMap[iss.priority] ?? 0}
@@ -290,6 +432,10 @@ export default function TeamBoardPage() {
                 assigneeImage={iss.assignee?.image ?? undefined}
                 labels={iss.labels}
                 createdAt={iss.createdAt}
+                draggable
+                isDragging={draggedIssue?.issueId === iss.id}
+                onDragStart={handleIssueDragStart(iss.id, group.state.id)}
+                onDragEnd={handleIssueDragEnd}
               />
             ))}
           </BoardColumn>

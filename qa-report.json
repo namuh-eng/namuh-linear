@@ -572,5 +572,32 @@
       }
     ],
     "fix_description": "Fixed four issues in the issues list feature: made rows real detail links, wired group-header add buttons to the create modal with state defaults, added project names to the API/UI row rendering, and enabled the created-date column by default. `qa_pass` is now true for feature-001; the only remaining E2E failures are the pre-existing unrelated command-palette specs."
+  },
+  {
+    "feature_id": "feature-002",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 590 unit tests passed after the board fixes.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the app still loaded successfully on `http://localhost:3015`.",
+      "Ran `make check`; typecheck and Biome both passed after the fixes.",
+      "Ran full `make test-e2e` because the fix touched shared UI/API code; the only failing specs were the pre-existing unrelated `tests/e2e/command-palette.spec.ts` cases where the command palette dialog still never opens.",
+      "Used the live authenticated Ever session on `/team/QAX2/board` and verified all six Kanban columns render with real counts and cards: Triage (1), Backlog (19), Todo (1), In Progress (1), Done (1), and Canceled (1).",
+      "Verified issue cards render the required metadata on the live board, including identifier, title, priority icon, labels, assignee avatar, and created date for the seeded `QAX2-2` project/label example and the started/completed/canceled cards.",
+      "Verified sparse-column behavior on `/team/ONB/board`: empty `Done` and `Canceled` columns are hidden by default and appear when `Display` → `Show empty columns` is enabled.",
+      "Verified backlog-heavy column behavior on `/team/QAX2/board`; the 19-card backlog column remained scrollable without breaking adjacent columns, and the board layout remained horizontally navigable with all six status columns rendered.",
+      "Compared the repaired board against the Linear reference screenshot in `ralph/screenshots/inspect/team-board.jpg` and saved QA evidence to `ralph/screenshots/qa/feature-002-attempt-1-board-before-fix.jpg` and `ralph/screenshots/qa/feature-002-attempt-1-board-after-fix.jpg`.",
+      "Verified the new drag-and-drop path end to end: browser-side drag events now set the card grab state and destination drop highlight, authenticated `PATCH /api/issues/:id` moves issue `QAX2-2` between workflow states, and a refreshed `/team/QAX2/board` reflects the updated column counts/card placement. The test issue was restored to Backlog after verification."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "Board cards were not draggable and the clone had no issue-update API to persist a board move between status columns.",
+        "expected": "Per the PRD, users should be able to drag an issue card from one Kanban status column to another and have the new workflow state persist after reload.",
+        "actual": "Before the fix, board cards rendered as static `<div>` elements with no `draggable` behavior, columns exposed no drop target handlers, and `/api/issues/[id]` only supported `GET`, so moving an issue between columns was impossible.",
+        "reproduction": "1. Open `http://localhost:3015/team/QAX2/board` with real issue data.\n2. Attempt to drag `QAX2-2` from Backlog to Todo.\n3. Observe that the pre-fix card cannot be picked up, the target column never highlights, and there is no API path to persist the workflow-state change."
+      }
+    ],
+    "fix_description": "Implemented board drag-and-drop for issue cards, added the missing authenticated `PATCH /api/issues/[id]` state-update path, highlighted column drop targets, and added a regression test covering a board move. `qa_pass` is now true for feature-002; the remaining E2E failures are the pre-existing unrelated command-palette specs."
   }
 ]

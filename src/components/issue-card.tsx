@@ -11,6 +11,7 @@ type StatusCategory =
   | "canceled";
 
 interface IssueCardProps {
+  issueId?: string;
   identifier: string;
   title: string;
   priority: 0 | 1 | 2 | 3 | 4;
@@ -21,6 +22,10 @@ interface IssueCardProps {
   labels?: { name: string; color: string }[];
   createdAt: string;
   href?: string;
+  draggable?: boolean;
+  isDragging?: boolean;
+  onDragStart?: React.DragEventHandler<HTMLDivElement>;
+  onDragEnd?: React.DragEventHandler<HTMLDivElement>;
 }
 
 function formatDate(dateStr: string): string {
@@ -43,6 +48,7 @@ function formatDate(dateStr: string): string {
 }
 
 export function IssueCard({
+  issueId,
   identifier,
   title,
   priority,
@@ -50,11 +56,22 @@ export function IssueCard({
   assigneeImage,
   labels,
   createdAt,
+  draggable = false,
+  isDragging = false,
+  onDragStart,
+  onDragEnd,
 }: IssueCardProps) {
   return (
     <div
       data-testid="issue-card"
-      className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 transition-colors hover:bg-[var(--color-surface-hover)]"
+      data-issue-id={issueId}
+      draggable={draggable}
+      aria-grabbed={draggable ? isDragging : undefined}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={`rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 transition-colors hover:bg-[var(--color-surface-hover)] ${
+        draggable ? "cursor-grab active:cursor-grabbing" : ""
+      } ${isDragging ? "opacity-60" : ""}`}
     >
       {/* Title */}
       <p className="mb-2 text-[13px] leading-snug text-[var(--color-text-primary)]">
