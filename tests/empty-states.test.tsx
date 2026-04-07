@@ -106,14 +106,35 @@ describe("Empty state pages", () => {
     expect(screen.getByText("Create issue")).toBeDefined();
   });
 
-  it("Team Cycles page shows 'No active cycle'", () => {
+  it("Team Cycles page shows 'No active cycle'", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          team: { id: "1", name: "Engineering", key: "ENG" },
+          cycles: [],
+        }),
+    }) as unknown as typeof fetch;
     render(<TeamCyclesPage />);
-    expect(screen.getByText("No active cycle")).toBeDefined();
+    expect(
+      await screen.findByText("No active cycle", {}, { timeout: 2000 }),
+    ).toBeDefined();
   });
 
-  it("Team Triage page shows 'No issues to triage'", () => {
+  it("Team Triage page shows 'No issues to triage'", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          team: { id: "1", name: "Engineering", key: "ENG" },
+          issues: [],
+          count: 0,
+        }),
+    }) as unknown as typeof fetch;
     render(<TeamTriagePage />);
-    expect(screen.getByText("No issues to triage")).toBeDefined();
+    expect(
+      await screen.findByText("No issues to triage", {}, { timeout: 2000 }),
+    ).toBeDefined();
     expect(screen.getByText("Create triage issue")).toBeDefined();
   });
 
@@ -161,8 +182,14 @@ describe("Empty state pages", () => {
     ).toBeDefined();
   });
 
-  it("Initiatives page shows 'No initiatives'", () => {
+  it("Initiatives page shows 'No initiatives'", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ initiatives: [] }),
+    }) as unknown as typeof fetch;
     render(<InitiativesPage />);
-    expect(screen.getByText("No initiatives")).toBeDefined();
+    expect(
+      await screen.findByText("No initiatives", {}, { timeout: 2000 }),
+    ).toBeDefined();
   });
 });

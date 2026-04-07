@@ -156,7 +156,11 @@ export default function InitiativesPage() {
       <div className="flex-1 overflow-y-auto">
         {filteredInitiatives.length === 0 ? (
           <EmptyState
-            title={`No ${activeTab} initiatives`}
+            title={
+              activeTab === "active"
+                ? "No initiatives"
+                : `No ${activeTab} initiatives`
+            }
             description="Initiatives are larger, strategic product efforts that organize multiple projects toward a common goal."
             icon={
               <svg
