@@ -1,5 +1,6 @@
 .PHONY: check test test-e2e typecheck lint format fix all dev build clean
 .PHONY: check-header test-header check-verbose test-verbose
+.PHONY: dev-services dev-services-down
 
 # Full validation: check + test
 all: check test
@@ -71,3 +72,11 @@ db-push:
 # Clean build artifacts
 clean:
 	rm -rf .next dist node_modules/.cache
+
+# Start Postgres + Redis for local development (run alongside npm run dev)
+dev-services:
+	docker compose -f docker-compose.yml up postgres redis -d
+
+# Stop development services
+dev-services-down:
+	docker compose -f docker-compose.yml down
