@@ -89,9 +89,19 @@ describe("Empty state pages", () => {
     expect(screen.getByText("Create issue")).toBeDefined();
   });
 
-  it("Team Board page shows 'No issues' with create CTA", () => {
+  it("Team Board page shows 'No issues' with create CTA", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          team: { id: "1", name: "Engineering", key: "ENG" },
+          groups: [],
+        }),
+    });
     render(<TeamBoardPage />);
-    expect(screen.getByText("No issues")).toBeDefined();
+    expect(
+      await screen.findByText("No issues", {}, { timeout: 2000 }),
+    ).toBeDefined();
     expect(screen.getByText("Create issue")).toBeDefined();
   });
 

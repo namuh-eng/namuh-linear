@@ -197,5 +197,27 @@
       "Large number of issues — scroll performance",
       "Visual comparison with Linear's actual issue list layout"
     ]
+  },
+  {
+    "feature_id": "feature-002",
+    "tests_written": [
+      "IssueCard renders identifier, title, priority icon",
+      "IssueCard renders labels when provided",
+      "IssueCard renders assignee avatar when provided",
+      "IssueCard renders creation date",
+      "IssueCard hides assignee when not provided",
+      "BoardColumn renders header with name, count, status icon",
+      "BoardColumn renders children (issue cards)",
+      "BoardColumn renders add issue button",
+      "Board page shows empty state when no issues"
+    ],
+    "needs_deeper_qa": [
+      "E2E: navigate to board view and verify kanban columns render",
+      "Drag & drop between columns (not yet implemented — placeholder for future)",
+      "Column scroll behavior with many cards",
+      "Visual comparison with Linear's actual board layout",
+      "Board with many columns — horizontal scroll",
+      "Empty columns visibility toggle"
+    ]
   }
 ]

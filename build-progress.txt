@@ -343,3 +343,40 @@ Date: 2026-04-07
 - Tab filtering is client-side (All/Active/Backlog filter by workflow state category)
 - Issue priority stored as enum string in DB, mapped to numeric for PriorityIcon component
 - Reused design system components (PriorityIcon, StatusIcon, Avatar, LabelChip) from design-001
+
+## Iteration 11 — feature-002: Issues Board View (Kanban)
+Date: 2026-04-07
+
+### What was built
+- IssueCard component (`src/components/issue-card.tsx`) — card for board view with title, identifier, priority icon, labels, assignee avatar, date
+- BoardColumn component (`src/components/board-column.tsx`) — Kanban column with header (status icon, name, count, add button) and scrollable card area
+- Team Board page (`src/app/(app)/team/[key]/board/page.tsx`) — full Kanban board:
+  - Fetches issues from same API as list view (`/api/teams/[key]/issues`)
+  - Columns per workflow state with issue cards
+  - Hides empty completed/canceled columns by default
+  - Empty state fallback
+  - Header with team name and issue count
+- Updated empty states test for board page (mocked fetch)
+
+### Test results
+- 11 unit tests passing (tests/board-view.test.tsx)
+  - 7 IssueCard tests (identifier, title, priority, labels, assignee, date, no-assignee)
+  - 4 BoardColumn tests (header, status icon, children, add button)
+- 209 total tests passing (excluding pre-existing onboard-validation failures)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/components/issue-card.tsx — new IssueCard component
+- src/components/board-column.tsx — new BoardColumn component
+- src/app/(app)/team/[key]/board/page.tsx — rewritten with Kanban board
+- tests/board-view.test.tsx — new unit test file (11 tests)
+- tests/empty-states.test.tsx — updated board test with fetch mock
+- prd.json — marked feature-002 build_pass: true
+- qa-hints.json — added feature-002 QA hints
+
+### Decisions
+- Reused same API route as list view (/api/teams/[key]/issues) — both views show same data, different layout
+- Drag & drop not implemented in this pass (will need a DnD library like @dnd-kit)
+- Empty completed/canceled columns hidden by default to match Linear's behavior
+- IssueCard is separate from IssueRow — different layout needs (card vs row)
