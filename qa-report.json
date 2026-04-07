@@ -37,5 +37,28 @@
       }
     ],
     "fix_description": "Fixed two Redis helper bugs discovered during QA: replaced wildcard invalidation based on blocking `KEYS` with cursor-based `SCAN`, and deduplicated pub/sub message listeners so repeated subscriptions do not leak handlers. `qa_pass` remains false because real `namuh-linear` ElastiCache provisioning/configuration is still missing."
+  },
+  {
+    "feature_id": "infra-002",
+    "attempt": 2,
+    "status": "partial",
+    "tested_steps": [
+      "Ran `make test`; all 533 unit tests passed.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the clone loaded successfully on http://localhost:3015.",
+      "Captured a QA browser snapshot of the running clone login page with Ever and saved a Playwright screenshot to `ralph/screenshots/qa/infra-002-attempt-2-home.png`.",
+      "Verified the local environment still has no configured Redis endpoint: `printenv REDIS_URL` returned empty and `.env` contains no `REDIS_URL=` entry.",
+      "Queried AWS with `aws elasticache describe-cache-clusters --cache-cluster-id namuh-linear-redis --region us-east-1 --show-cache-node-info`; AWS returned `CacheClusterNotFound`.",
+      "Queried AWS for related infrastructure and found only partial network scaffolding: the `namuh-linear-vpc` VPC and `namuh-linear-priv-a`/`namuh-linear-priv-b` subnets exist, but `namuh-linear-db` is missing, `namuh-linear-redis-sg` is absent, and `namuh-linear-redis-subnet` does not exist."
+    ],
+    "bugs_found": [
+      {
+        "severity": "critical",
+        "description": "The clone still does not have a provisioned or configured app-specific Redis backend for infra-002.",
+        "expected": "A reachable `namuh-linear` ElastiCache Redis instance should exist in AWS and the app should have `REDIS_URL` configured so caching and pub/sub can use real infrastructure.",
+        "actual": "The local environment has no `REDIS_URL`, AWS returns `CacheClusterNotFound` for `namuh-linear-redis`, and the expected Redis subnet group/security group are also absent.",
+        "reproduction": "1. Run `printenv REDIS_URL` and inspect `.env` for `REDIS_URL=`.\n2. Run `aws elasticache describe-cache-clusters --cache-cluster-id namuh-linear-redis --region us-east-1 --show-cache-node-info`.\n3. Optionally run `aws elasticache describe-cache-subnet-groups --cache-subnet-group-name namuh-linear-redis-subnet --region us-east-1` and `aws ec2 describe-security-groups --filters \"Name=group-name,Values=namuh-linear-redis-sg\" \"Name=vpc-id,Values=vpc-0ba0437daa56cfb86\" --region us-east-1`.\n4. Observe that the app-specific Redis infrastructure and env configuration are still missing."
+      }
+    ],
+    "fix_description": "No safe repo-only fix was available during QA. The remaining failure is missing real AWS Redis provisioning/configuration rather than broken helper code, so `qa_pass` remains false."
   }
 ]
