@@ -108,5 +108,30 @@
       }
     ],
     "fix_description": "Provisioned the missing S3 bucket in AWS, applied the required CORS policy, configured the local runtime with `AWS_REGION` and `S3_BUCKET`, and verified the real helper with successful live avatar upload plus presigned attachment upload/download."
+  },
+  {
+    "feature_id": "infra-004",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 533 unit tests passed before the email fix.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the clone loaded successfully on `http://localhost:3015`.",
+      "Verified AWS SES account state in `us-east-1`: `ProductionAccessEnabled=true`, `SendingEnabled=true`, and verified sending domain `foreverbrowsing.com` via `aws sesv2 get-account`, `list-email-identities`, and `get-email-identity`.",
+      "Reproduced the real failure by invoking `src/lib/email.ts` with the current runtime env; `sendMagicLinkEmail` to `success@simulator.amazonses.com` failed with `MessageRejected` because the clone fell back to unverified sender `noreply@namuh-linear.example.com`.",
+      "Updated the fallback sender to the verified SES domain and added a regression test covering the no-`SENDER_EMAIL` path.",
+      "Verified real SES acceptance through the actual app helper functions: `sendMagicLinkEmail`, `sendInvitationEmail`, and `sendNotificationEmail` all succeeded when sending to `success@simulator.amazonses.com`.",
+      "Verified the user-facing magic-link flow in the browser: `/login` -> `Continue with Email` -> submit `success@simulator.amazonses.com` -> `Check your email` confirmation rendered successfully. Saved screenshot to `ralph/screenshots/qa/infra-004-attempt-1-login-magic-link.png`.",
+      "Ran `make check` and `make test` after the fix; both passed. Also ran `make test-e2e` as a cross-feature check: smoke passed, while unrelated command-palette specs still failed outside this feature area."
+    ],
+    "bugs_found": [
+      {
+        "severity": "critical",
+        "description": "The clone's email utility defaulted to an unverified SES sender address, so magic-link auth emails and other application emails failed in the real environment when `SENDER_EMAIL` was unset.",
+        "expected": "The clone should send mail from a verified SES identity so magic links, invitations, and notifications succeed even when the local runtime does not explicitly set `SENDER_EMAIL`.",
+        "actual": "The helper fell back to `noreply@namuh-linear.example.com`, and SES rejected live sends with `MessageRejected: Email address is not verified`.",
+        "reproduction": "1. Ensure `.env` has no `SENDER_EMAIL` entry and source it into the shell.\n2. Run `npx tsx --eval 'import { sendMagicLinkEmail } from \"./src/lib/email.ts\"; (async () => { await sendMagicLinkEmail(\"success@simulator.amazonses.com\", \"123456\", \"http://localhost:3015/api/auth/verify?token=test\"); })().catch((error) => { console.error(error); process.exit(1); });'`.\n3. Observe SES rejecting the send because `noreply@namuh-linear.example.com` is not a verified identity in `us-east-1`."
+      }
+    ],
+    "fix_description": "Changed the email helper fallback sender from the dead `.example.com` address to `noreply@foreverbrowsing.com`, which is covered by the verified `foreverbrowsing.com` SES identity, and added a regression test for the unset-`SENDER_EMAIL` path."
   }
 ]
