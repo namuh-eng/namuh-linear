@@ -1,8 +1,9 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { getDatabaseUrl } from "./connection-string";
 import * as schema from "./schema";
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = getDatabaseUrl();
 const needsSsl = process.env.DB_SSL === "true";
 
 const pool = new Pool({

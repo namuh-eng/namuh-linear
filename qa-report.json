@@ -133,5 +133,38 @@
       }
     ],
     "fix_description": "Changed the email helper fallback sender from the dead `.example.com` address to `noreply@foreverbrowsing.com`, which is covered by the verified `foreverbrowsing.com` SES identity, and added a regression test for the unset-`SENDER_EMAIL` path."
+  },
+  {
+    "feature_id": "auth-001",
+    "attempt": 1,
+    "status": "partial",
+    "tested_steps": [
+      "Ran `make test`; all 534 unit tests passed.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the clone loaded successfully on `http://localhost:3015`.",
+      "Opened `/login` in Ever, confirmed the login screen renders with the Google and email CTAs, and saved screenshots to `ralph/screenshots/qa/auth-001-attempt-1-login.jpg` and `ralph/screenshots/qa/auth-001-attempt-1-after-google-click.jpg`.",
+      "Reproduced the initial Google OAuth failure: clicking `Continue with Google` did not leave `/login`, and `POST /api/auth/sign-in/social` returned `500`.",
+      "Inspected the live Next dev log and traced the `500` to Better Auth failing to open Postgres with `SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string` because `.env` had no `DATABASE_URL`.",
+      "Configured the app with a real local Postgres connection (`localhost:5432/namuh_linear`), pushed the Drizzle schema, and verified `user`, `account`, `session`, and `verification` tables now exist in Postgres.",
+      "Re-tested `POST /api/auth/sign-in/social` and confirmed it now returns `200` with a Google authorization URL and Better Auth state cookie.",
+      "Re-tested the browser flow in Ever and reached Google, but the provider rejects the request with `Error 400: redirect_uri_mismatch`; screenshot saved to `ralph/screenshots/qa/auth-001-attempt-1-google-oauth-page.jpg`.",
+      "Verified no auth records were created because the Google flow never reaches the callback: `/api/auth/get-session` returns `null`, and Postgres counts remain `user=0`, `account=0`, `session=0`."
+    ],
+    "bugs_found": [
+      {
+        "severity": "major",
+        "description": "The app runtime was missing `DATABASE_URL`, so Better Auth could not reach Postgres and Google sign-in crashed before generating an authorization redirect.",
+        "expected": "The Google auth endpoint should open the Postgres-backed Better Auth tables and return a valid Google authorization URL when `Continue with Google` is clicked.",
+        "actual": "`.env` had no `DATABASE_URL`, `POST /api/auth/sign-in/social` returned `500`, and the Next dev log showed `SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string`.",
+        "reproduction": "1. Start the app with the pre-fix `.env`.\n2. Open `/login` and click `Continue with Google`, or `curl -X POST http://localhost:3015/api/auth/sign-in/social -H 'Content-Type: application/json' -H 'Origin: http://localhost:3015' -d '{\"provider\":\"google\",\"callbackURL\":\"/\"}'`.\n3. Observe the request fail with `500` and the server log report the Postgres SCRAM password error."
+      },
+      {
+        "severity": "critical",
+        "description": "Google OAuth is still blocked because the configured Google OAuth client does not authorize the clone's redirect URI.",
+        "expected": "After clicking `Continue with Google`, Google should accept the auth request, redirect back to `/api/auth/callback/google`, create/link the user account on first login, and establish a session.",
+        "actual": "Google renders `Access blocked: This app’s request is invalid` with `Error 400: redirect_uri_mismatch` for the clone's callback URI, so the flow never reaches the Better Auth callback and no user/account/session rows are created.",
+        "reproduction": "1. Open `http://localhost:3015/login`.\n2. Click `Continue with Google`.\n3. Observe the Google error page showing `Error 400: redirect_uri_mismatch` instead of completing the OAuth flow."
+      }
+    ],
+    "fix_description": "Fixed the missing Postgres runtime configuration by restoring a real local `DATABASE_URL`, adding a development fallback for missing `DATABASE_URL` in the runtime and Drizzle config, creating/pushing the auth schema into Postgres, and restoring Better Auth's Google authorization redirect. `qa_pass` remains false because the Google OAuth client itself is externally misconfigured and still rejects the callback URI."
   }
 ]

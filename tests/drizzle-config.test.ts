@@ -62,4 +62,17 @@ describe("drizzle.config.ts SSL configuration", () => {
       "postgresql://localhost:5432/test?sslmode=require",
     );
   });
+
+  it("falls back to the local development database when DATABASE_URL is unset", async () => {
+    // biome-ignore lint/performance/noDelete: process.env needs delete — assignment coerces to string "undefined"
+    delete process.env.DATABASE_URL;
+    // biome-ignore lint/performance/noDelete: process.env needs delete — assignment coerces to string "undefined"
+    delete process.env.DB_SSL;
+
+    const mod = await import("../drizzle.config");
+
+    expect(getDbUrl(mod.default)).toBe(
+      "postgresql://postgres:postgres@localhost:5432/namuh_linear",
+    );
+  });
 });

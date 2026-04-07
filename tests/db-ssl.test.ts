@@ -87,4 +87,22 @@ describe("db/index.ts SSL configuration", () => {
       }),
     );
   });
+
+  it("falls back to the local development database when DATABASE_URL is unset", async () => {
+    // biome-ignore lint/performance/noDelete: process.env needs delete — assignment coerces to string "undefined"
+    delete process.env.DATABASE_URL;
+    // biome-ignore lint/performance/noDelete: process.env needs delete — assignment coerces to string "undefined"
+    delete process.env.DB_SSL;
+
+    const { Pool } = await import("pg");
+    await import("@/lib/db/index");
+
+    expect(Pool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        connectionString:
+          "postgresql://postgres:postgres@localhost:5432/namuh_linear",
+        ssl: undefined,
+      }),
+    );
+  });
 });

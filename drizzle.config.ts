@@ -1,6 +1,7 @@
 import { defineConfig } from "drizzle-kit";
+import { getDatabaseUrl } from "./src/lib/db/connection-string";
 
-const url = process.env.DATABASE_URL ?? "";
+const url = getDatabaseUrl();
 const needsSsl = process.env.DB_SSL === "true";
 
 export default defineConfig({
