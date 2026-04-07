@@ -33,6 +33,7 @@ You are an AI product builder. Your job is to build a working clone of a real pr
    - If any fail, fix and re-run. Do NOT proceed until all green.
    - Do NOT run `make test-e2e` during build — QA handles E2E.
 7. **Smoke test** (first iteration only): Create `tests/e2e/smoke.spec.ts` — tests core navigation (sidebar links, pages load). Keep under 10 tests. Update as you add major pages.
+   - **E2E auth**: If the app has auth, set up a Playwright auth fixture so E2E tests don't get blocked by login redirects. Create `tests/e2e/auth.setup.ts` that creates a session (via a test-only API route `POST /api/test/create-session` that's enabled only in `NODE_ENV=test`), saves state to `tests/e2e/.auth/user.json`, and configure `playwright.config.ts` to use it as a setup project with `storageState`. Do NOT skip this — every E2E test behind auth will fail without it.
 8. Update `prd.json`: set `build_pass: true` ONLY after all tests pass. Do NOT touch `qa_pass` — that is set by the QA agent.
 9. **Log QA hints** — append to `qa-hints.json` what you tested and what needs deeper QA:
    ```json

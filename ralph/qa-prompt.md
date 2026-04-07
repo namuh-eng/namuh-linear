@@ -35,6 +35,25 @@ The original product is your **source of truth**.
 Also run full `make test-e2e` to catch cross-feature regressions.
 </important>
 
+### Playwright E2E Auth Setup (CRITICAL)
+Playwright E2E tests run in a clean browser with NO cookies. If E2E tests fail because they redirect to `/login`, you MUST set up a Playwright auth fixture:
+
+1. **Create `tests/e2e/auth.setup.ts`** (if it doesn't exist) — a setup project that:
+   - Navigates to `/login`
+   - Logs in via Google OAuth using the test account from `ralph-config.json` (`testAccount.email`)
+   - Saves the authenticated browser state to `tests/e2e/.auth/user.json`
+2. **Update `playwright.config.ts`** (if not already done) to:
+   - Add a `setup` project that runs `auth.setup.ts` first
+   - Set `storageState: 'tests/e2e/.auth/user.json'` in the default project
+   - Make the default project depend on `setup`
+3. **Add `tests/e2e/.auth/` to `.gitignore`**
+
+If Google OAuth is too complex for Playwright (it involves third-party redirects), use this alternative:
+- Create a test API route `POST /api/test/create-session` (only enabled when `NODE_ENV=test`) that creates a Better Auth session directly in the database and returns the session cookie
+- Call this route in the auth setup to get a valid session without going through OAuth
+
+**Do NOT skip this step.** Every E2E test behind an auth wall will fail without it. Do NOT weaken tests by removing auth checks — fix the test infrastructure instead.
+
 ### Step 2: Authenticate Before Testing
 5. Start dev server if not running (`npm run dev`).
 6. Open clone in Ever CLI: `ever start --url http://localhost:3015` (reuse existing session if running).
