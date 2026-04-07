@@ -757,5 +757,32 @@
       "Visual comparison with Linear screenshot",
       "Docs links navigation"
     ]
+  },
+  {
+    "feature_id": "settings-010",
+    "tests_written": [
+      "renders team name",
+      "renders General card with description",
+      "renders Members card with count",
+      "renders Slack notifications card",
+      "renders Issues, projects, and docs section",
+      "renders Issue labels card with count",
+      "renders Templates card",
+      "renders Recurring issues card",
+      "renders Workflow section",
+      "renders Issue statuses card with count",
+      "renders Triage card with enabled status",
+      "renders Cycles card with off status",
+      "renders AI section with Agents and Discussion summaries",
+      "renders Danger zone section",
+      "renders Leave, Retire, Delete team buttons"
+    ],
+    "needs_deeper_qa": [
+      "Card navigation to sub-pages",
+      "API route for team settings data",
+      "Dynamic team key from URL params",
+      "Visual comparison with Linear screenshot",
+      "Danger zone actions (leave/retire/delete)"
+    ]
   }
 ]

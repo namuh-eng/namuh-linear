@@ -1197,3 +1197,34 @@ Date: 2026-04-07
 - UI-first approach: lists show empty states, creation flows are placeholder buttons
 - Permission selector defaults to "Only admins" matching Linear's default
 - Used span for Slack/docs links instead of anchor to satisfy a11y linter
+
+## Iteration 39 — settings-010: Team Settings Hub Page
+Date: 2026-04-07
+
+### What was built
+- Team settings hub page (`/settings/teams/[key]`) with card-based layout:
+  - Team header with icon and name
+  - General, Members (count), Slack notifications cards
+  - **Issues, projects, and docs** section: Issue labels (count), Templates, Recurring issues
+  - **Workflow** section: Issue statuses (count), Workflows & automations, Triage (enabled/disabled), Cycles (on/off)
+  - **AI** section: Agents, Discussion summaries
+  - **Team hierarchy**: Parent team selector
+  - **Danger zone**: Leave team, Retire team, Delete team buttons
+- Reusable SettingsCard, SectionTitle, DangerButton components
+- Fetches team data from `/api/teams/[key]/settings`
+
+### Test results
+- 15 unit tests passing (tests/team-settings-hub.test.tsx)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/app/(app)/settings/teams/[key]/page.tsx — new Team settings hub page
+- tests/team-settings-hub.test.tsx — new unit test file (15 tests)
+- prd.json — marked settings-010 build_pass: true
+- qa-hints.json — added settings-010 QA hints
+
+### Decisions
+- Cards are clickable but links not wired yet (sub-pages built in subsequent iterations)
+- Team data fetched from API with memberCount, labelCount, statusCount, triageEnabled, cyclesEnabled
+- Danger zone uses muted buttons that highlight red on hover

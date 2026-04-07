@@ -425,7 +425,7 @@
     "priority": "P9",
     "core": false,
     "dependent_on": ["settings-001", "infra-001"],
-    "build_pass": false,
+    "build_pass": true,
     "qa_pass": false
   },
   {
