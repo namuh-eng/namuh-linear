@@ -926,5 +926,46 @@
       }
     ],
     "fix_description": "Aligned the My Issues API with the shell's workspace selection, added project breadcrumb data to issue rows, broadened subscribed/activity aggregation to include assignment/creation/comment-derived issues, merged identical states across teams for workspace-wide views, and fixed status filtering so cross-team My Issues rows filter against shared grouped status options."
+  },
+  {
+    "feature_id": "feature-030",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; all 624 then 630 unit tests passed while locking down the cycles and team-settings regressions.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; smoke passed with the Playwright auth fixture and the app loaded successfully on `http://localhost:3015`.",
+      "Ran full Playwright coverage with `npx playwright test`; the cycles/auth smoke paths still passed, while the only failing specs were the pre-existing unrelated `tests/e2e/command-palette.spec.ts` cases where the command palette dialog never opens.",
+      "Opened `/settings/teams/ONB/general` in Ever and reproduced the initial blocker where the page rendered `Team not found` because the backing `/api/teams/[key]/settings` route did not exist, then re-verified the fixed page loads real team data and persists cycle settings.",
+      "Verified the create-cycle form now uses local/team cadence defaults instead of the broken UTC-shifted date math: after enabling cycles for `ONB`, setting the start day to Tuesday and duration to 3 weeks, the form defaulted to `2026-04-14` through `2026-05-04` instead of the previous off-by-one UTC values.",
+      "Verified real API creation, overlap rejection, update, and deletion flows through the authenticated browser session: `POST /api/teams/ONB/cycles` created past/current/upcoming cycles, an overlapping create returned `409 {\"error\":\"Cycle dates overlap with an existing cycle\"}`, `PATCH /api/teams/ONB/cycles/[cycleId]` renamed the upcoming cycle, and `DELETE /api/teams/ONB/cycles/[cycleId]` removed a temporary cycle and unlinked issue `ONB-6` in Postgres.",
+      "Seeded real ONB issues into `QA Cycle Current` in Postgres and verified `/team/ONB/cycles/<cycleId>` groups them under Triage, Backlog, In Progress, and Done, with the progress summary reflecting the live issue distribution.",
+      "Verified the date-edge auto-rollover behavior in the browser after the timezone fix: with the team timezone still set to `America/Los_Angeles`, a cycle ending on `2026-04-07` correctly remained in `Current Cycle` while the cycle starting `2026-04-08` remained `Upcoming` on April 8, 2026 KST.",
+      "Captured QA evidence screenshots to `ralph/screenshots/qa/feature-030-cycles-list.png` and `ralph/screenshots/qa/feature-030-cycle-detail.png`, and compared the overall structure against `ralph/screenshots/inspect/cycles.jpg` and `ralph/screenshots/inspect/cycles-detail.jpg`.",
+      "Ran `make check` and `make test` after the fixes; both passed (`TypeCheck passed`, `Lint & Format passed`, `630` unit tests passed)."
+    ],
+    "bugs_found": [
+      {
+        "severity": "critical",
+        "description": "The team settings page for cycle configuration had no backing API route, so `/settings/teams/{key}/general` rendered `Team not found` and users could not configure cycle cadence at all.",
+        "expected": "Team settings should load the active team's data and allow configuring cycle enablement, start day, and duration from the general settings page.",
+        "actual": "The page fetched `/api/teams/{key}/settings`, but that route did not exist, so the browser rendered `Team not found` and there was no persistence path for cycle settings.",
+        "reproduction": "1. Open `http://localhost:3015/settings/teams/ONB/general` while signed in.\n2. Observe the page render `Team not found` instead of the team settings form.\n3. Confirm `src/app/api/teams/[key]/settings/route.ts` was missing before the fix."
+      },
+      {
+        "severity": "major",
+        "description": "Cycle creation and section categorization used UTC-based timestamp logic, producing off-by-one defaults and incorrect current/upcoming/past buckets around timezone boundaries.",
+        "expected": "Cycle defaults should respect the configured team cadence, and cycle sections should be determined by calendar dates in the team's timezone so cycles remain current through their end date.",
+        "actual": "The create form defaulted to the previous UTC date in KST, and the list categorized cycles with exact UTC timestamps, so a cycle ending on the team's current day could already show as past.",
+        "reproduction": "1. On April 8, 2026 KST, open `/team/ONB/cycles` before the fix and start the create form.\n2. Observe the start date default to `2026-04-07` because the page used `toISOString()`.\n3. Create cycles ending `2026-04-07` and starting `2026-04-08`, keep the team timezone on `America/Los_Angeles`, and observe the list misclassify the end-date cycle as past instead of current."
+      },
+      {
+        "severity": "major",
+        "description": "The cycles API accepted invalid overlapping ranges and the UI hid the resulting backend validation failures.",
+        "expected": "Cycle create/update should reject overlapping or malformed date ranges and surface the error to the user.",
+        "actual": "Before the fix there was no date-range validation, no overlap detection, and the form failed silently on non-OK responses.",
+        "reproduction": "1. Create one cycle for `ONB` covering `2026-04-08` to `2026-04-28`.\n2. Attempt to create another covering `2026-04-20` to `2026-05-05`.\n3. Before the fix, the API accepted overlapping ranges and the UI provided no useful error feedback."
+      }
+    ],
+    "fix_description": "Added the missing team settings API, wired real cycle cadence controls and saving into team general settings, fixed local/team-date handling for cycle defaults and section categorization, validated cycle date formats/ranges/overlaps in the API, surfaced create errors in the UI, and re-verified create/update/delete/detail flows plus issue unlinking against the real database."
   }
 ]

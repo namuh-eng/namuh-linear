@@ -11,6 +11,9 @@ interface TeamGeneralData {
   estimateType: string;
   emailEnabled: boolean;
   detailedHistory: boolean;
+  cyclesEnabled: boolean;
+  cycleStartDay: number;
+  cycleDurationWeeks: number;
 }
 
 const TIMEZONES = [
@@ -40,6 +43,25 @@ const ESTIMATE_OPTIONS = [
   { value: "linear", label: "Linear (1, 2, 3, 4, ...)" },
   { value: "exponential", label: "Exponential (1, 2, 4, 8, ...)" },
   { value: "tshirt", label: "T-shirt (XS, S, M, L, XL)" },
+];
+
+const CYCLE_START_DAY_OPTIONS = [
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
+  { value: 7, label: "Sunday" },
+];
+
+const CYCLE_DURATION_OPTIONS = [
+  { value: 1, label: "1 week" },
+  { value: 2, label: "2 weeks" },
+  { value: 3, label: "3 weeks" },
+  { value: 4, label: "4 weeks" },
+  { value: 6, label: "6 weeks" },
+  { value: 8, label: "8 weeks" },
 ];
 
 function Toggle({
@@ -103,12 +125,23 @@ export default function TeamGeneralSettingsPage() {
   const [estimateType, setEstimateType] = useState("none");
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [detailedHistory, setDetailedHistory] = useState(false);
+  const [cyclesEnabled, setCyclesEnabled] = useState(false);
+  const [cycleStartDay, setCycleStartDay] = useState(1);
+  const [cycleDurationWeeks, setCycleDurationWeeks] = useState(2);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/teams/${teamKey}/settings`)
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error("Failed to load team settings");
+        }
+
+        return res.json();
+      })
       .then((data) => {
-        const t = data.team;
+        const t = data.team as TeamGeneralData;
         setTeam(t);
         setName(t.name);
         setIdentifier(t.key);
@@ -116,9 +149,63 @@ export default function TeamGeneralSettingsPage() {
         setEstimateType(t.estimateType || "none");
         setEmailEnabled(t.emailEnabled || false);
         setDetailedHistory(t.detailedHistory || false);
+        setCyclesEnabled(t.cyclesEnabled || false);
+        setCycleStartDay(t.cycleStartDay || 1);
+        setCycleDurationWeeks(t.cycleDurationWeeks || 2);
       })
+      .catch(() => setTeam(null))
       .finally(() => setLoading(false));
   }, [teamKey]);
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const res = await fetch(`/api/teams/${teamKey}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          key: identifier,
+          timezone,
+          estimateType,
+          emailEnabled,
+          detailedHistory,
+          cyclesEnabled,
+          cycleStartDay,
+          cycleDurationWeeks,
+        }),
+      });
+
+      const data = (await res.json().catch(() => null)) as {
+        error?: string;
+        team?: TeamGeneralData;
+      } | null;
+
+      if (!res.ok || !data?.team) {
+        throw new Error(data?.error || "Failed to save team settings");
+      }
+
+      setTeam(data.team);
+      setName(data.team.name);
+      setIdentifier(data.team.key);
+      setTimezone(data.team.timezone || "America/Los_Angeles");
+      setEstimateType(data.team.estimateType || "none");
+      setEmailEnabled(data.team.emailEnabled || false);
+      setDetailedHistory(data.team.detailedHistory || false);
+      setCyclesEnabled(data.team.cyclesEnabled || false);
+      setCycleStartDay(data.team.cycleStartDay || 1);
+      setCycleDurationWeeks(data.team.cycleDurationWeeks || 2);
+      setSaveMessage("Changes saved");
+    } catch (error) {
+      setSaveMessage(
+        error instanceof Error ? error.message : "Failed to save team settings",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -235,6 +322,65 @@ export default function TeamGeneralSettingsPage() {
         </div>
       </div>
 
+      <SectionHeader
+        title="Cycles"
+        description="Configure the cadence your team uses for iterative planning. These settings determine the default start day and duration for new cycles."
+      />
+
+      <div className="rounded-lg border border-[var(--color-border)] p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[13px] text-[var(--color-text-primary)]">
+              Enable cycles
+            </div>
+            <div className="mt-0.5 text-[12px] text-[var(--color-text-tertiary)]">
+              Turn on automated cycle planning for this team
+            </div>
+          </div>
+          <Toggle
+            enabled={cyclesEnabled}
+            onChange={setCyclesEnabled}
+            label="Enable cycles"
+          />
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <label className="flex flex-col gap-1 text-[12px] text-[var(--color-text-secondary)]">
+            <span>Starts on</span>
+            <select
+              aria-label="Cycle start day"
+              value={String(cycleStartDay)}
+              onChange={(e) => setCycleStartDay(Number(e.target.value))}
+              disabled={!cyclesEnabled}
+              className="rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {CYCLE_START_DAY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex flex-col gap-1 text-[12px] text-[var(--color-text-secondary)]">
+            <span>Length</span>
+            <select
+              aria-label="Cycle duration"
+              value={String(cycleDurationWeeks)}
+              onChange={(e) => setCycleDurationWeeks(Number(e.target.value))}
+              disabled={!cyclesEnabled}
+              className="rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {CYCLE_DURATION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
       {/* ─── Create issues by email ───────────────────────── */}
       <SectionHeader title="Create issues by email" />
 
@@ -280,6 +426,22 @@ export default function TeamGeneralSettingsPage() {
             label="Enable detailed issue history"
           />
         </div>
+      </div>
+
+      <div className="mt-6 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-md bg-[var(--color-accent)] px-3 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {saving ? "Saving..." : "Save changes"}
+        </button>
+        {saveMessage && (
+          <span className="text-[12px] text-[var(--color-text-secondary)]">
+            {saveMessage}
+          </span>
+        )}
       </div>
     </div>
   );

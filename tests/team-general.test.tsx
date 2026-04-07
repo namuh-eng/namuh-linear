@@ -1,4 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
@@ -15,6 +21,9 @@ const mockTeam = {
   estimateType: "none",
   emailEnabled: false,
   detailedHistory: false,
+  cyclesEnabled: false,
+  cycleStartDay: 1,
+  cycleDurationWeeks: 2,
 };
 
 describe("TeamGeneralSettingsPage", () => {
@@ -24,19 +33,26 @@ describe("TeamGeneralSettingsPage", () => {
   });
 
   async function renderPage() {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ team: mockTeam }),
-      }),
-    );
+      })
+      .mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ team: mockTeam }),
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
 
     const { default: TeamGeneralPage } = await import(
       "@/app/(app)/settings/teams/[key]/general/page"
     );
     render(<TeamGeneralPage />);
     await screen.findByText("General");
+
+    return fetchMock;
   }
 
   it("renders page title 'General'", async () => {
@@ -100,5 +116,45 @@ describe("TeamGeneralSettingsPage", () => {
   it("renders 'Enable detailed issue history' toggle", async () => {
     await renderPage();
     expect(screen.getByText("Enable detailed issue history")).toBeDefined();
+  });
+
+  it("renders cycle configuration controls", async () => {
+    await renderPage();
+    expect(screen.getByText("Cycles")).toBeDefined();
+    expect(screen.getByText(/configure the cadence/i)).toBeDefined();
+    expect(screen.getByText("Enable cycles")).toBeDefined();
+    expect(screen.getByText("Starts on")).toBeDefined();
+    expect(screen.getByText("Length")).toBeDefined();
+  });
+
+  it("saves cycle settings changes", async () => {
+    const fetchMock = await renderPage();
+
+    fireEvent.click(screen.getByRole("switch", { name: "Enable cycles" }));
+    fireEvent.change(screen.getByLabelText("Cycle start day"), {
+      target: { value: "2" },
+    });
+    fireEvent.change(screen.getByLabelText("Cycle duration"), {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("/api/teams/ENG/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Engineering",
+          key: "ENG",
+          timezone: "America/Los_Angeles",
+          estimateType: "none",
+          emailEnabled: false,
+          detailedHistory: false,
+          cyclesEnabled: true,
+          cycleStartDay: 2,
+          cycleDurationWeeks: 3,
+        }),
+      }),
+    );
   });
 });

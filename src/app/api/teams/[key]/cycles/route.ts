@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth";
+import { cycleRangesOverlap, parseCycleDateInput } from "@/lib/cycle-utils";
 import { db } from "@/lib/db";
 import { cycle, issue, team, workflowState } from "@/lib/db/schema";
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -17,7 +18,15 @@ export async function GET(
   const { key } = await params;
 
   const teams = await db
-    .select({ id: team.id, name: team.name, key: team.key })
+    .select({
+      id: team.id,
+      name: team.name,
+      key: team.key,
+      cyclesEnabled: team.cyclesEnabled,
+      cycleStartDay: team.cycleStartDay,
+      cycleDurationWeeks: team.cycleDurationWeeks,
+      timezone: team.timezone,
+    })
     .from(team)
     .where(eq(team.key, key))
     .limit(1);
@@ -89,7 +98,15 @@ export async function GET(
   );
 
   return NextResponse.json({
-    team: { id: teamRecord.id, name: teamRecord.name, key: teamRecord.key },
+    team: {
+      id: teamRecord.id,
+      name: teamRecord.name,
+      key: teamRecord.key,
+      cyclesEnabled: teamRecord.cyclesEnabled ?? false,
+      cycleStartDay: teamRecord.cycleStartDay ?? 1,
+      cycleDurationWeeks: teamRecord.cycleDurationWeeks ?? 2,
+      timezone: teamRecord.timezone ?? "",
+    },
     cycles: cyclesWithCounts,
   });
 }
@@ -117,6 +134,26 @@ export async function POST(
 
   const teamRecord = teams[0];
   const body = await request.json();
+  const startDate =
+    typeof body.startDate === "string"
+      ? parseCycleDateInput(body.startDate)
+      : null;
+  const endDate =
+    typeof body.endDate === "string" ? parseCycleDateInput(body.endDate) : null;
+
+  if (!startDate || !endDate) {
+    return NextResponse.json(
+      { error: "Start and end dates must use YYYY-MM-DD format" },
+      { status: 400 },
+    );
+  }
+
+  if (startDate.getTime() > endDate.getTime()) {
+    return NextResponse.json(
+      { error: "Cycle end date must be on or after the start date" },
+      { status: 400 },
+    );
+  }
 
   // Get next cycle number
   const lastCycle = await db
@@ -127,6 +164,30 @@ export async function POST(
     .limit(1);
 
   const nextNumber = (lastCycle[0]?.number ?? 0) + 1;
+  const existingCycles = await db
+    .select({
+      id: cycle.id,
+      startDate: cycle.startDate,
+      endDate: cycle.endDate,
+    })
+    .from(cycle)
+    .where(eq(cycle.teamId, teamRecord.id));
+
+  const overlappingCycle = existingCycles.find((existingCycle) =>
+    cycleRangesOverlap(
+      startDate,
+      endDate,
+      existingCycle.startDate,
+      existingCycle.endDate,
+    ),
+  );
+
+  if (overlappingCycle) {
+    return NextResponse.json(
+      { error: "Cycle dates overlap with an existing cycle" },
+      { status: 409 },
+    );
+  }
 
   const newCycle = await db
     .insert(cycle)
@@ -134,8 +195,8 @@ export async function POST(
       name: body.name ?? null,
       number: nextNumber,
       teamId: teamRecord.id,
-      startDate: new Date(body.startDate),
-      endDate: new Date(body.endDate),
+      startDate,
+      endDate,
       autoRollover: body.autoRollover ?? true,
     })
     .returning();

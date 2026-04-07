@@ -185,6 +185,27 @@ describe("categorizeCycles", () => {
     expect(result.current).toBeNull();
     expect(result.past.length).toBe(1);
   });
+
+  it("uses the provided team timezone when determining the active cycle", async () => {
+    const { categorizeCycles } = await import("@/lib/cycle-utils");
+    const now = new Date("2026-04-08T02:15:00+09:00");
+    const cycles = [
+      makeCycle({
+        id: "current-la",
+        startDate: "2026-03-18T00:00:00.000Z",
+        endDate: "2026-04-07T00:00:00.000Z",
+      }),
+      makeCycle({
+        id: "upcoming-la",
+        startDate: "2026-04-08T00:00:00.000Z",
+        endDate: "2026-04-28T00:00:00.000Z",
+      }),
+    ];
+
+    const result = categorizeCycles(cycles, now, "America/Los_Angeles");
+    expect(result.current?.id).toBe("current-la");
+    expect(result.upcoming[0]?.id).toBe("upcoming-la");
+  });
 });
 
 // ─── formatCycleDate ────────────────────────────────────────────────
@@ -198,5 +219,41 @@ describe("formatCycleDate", () => {
   it("formats date in different month", async () => {
     const { formatCycleDate } = await import("@/lib/cycle-utils");
     expect(formatCycleDate("2026-01-15T00:00:00.000Z")).toBe("Jan 15");
+  });
+});
+
+describe("getDateInputValue", () => {
+  it("returns the local calendar date instead of the UTC date", async () => {
+    const { getDateInputValue } = await import("@/lib/cycle-utils");
+    const kstDate = new Date("2026-04-08T02:06:37+09:00");
+    expect(getDateInputValue(kstDate)).toBe("2026-04-08");
+  });
+});
+
+describe("cycleRangesOverlap", () => {
+  it("returns true when cycle ranges overlap", async () => {
+    const { cycleRangesOverlap } = await import("@/lib/cycle-utils");
+
+    expect(
+      cycleRangesOverlap(
+        new Date("2026-04-01T00:00:00.000Z"),
+        new Date("2026-04-14T00:00:00.000Z"),
+        new Date("2026-04-10T00:00:00.000Z"),
+        new Date("2026-04-21T00:00:00.000Z"),
+      ),
+    ).toBe(true);
+  });
+
+  it("returns false when cycle ranges only touch at the boundary", async () => {
+    const { cycleRangesOverlap } = await import("@/lib/cycle-utils");
+
+    expect(
+      cycleRangesOverlap(
+        new Date("2026-04-01T00:00:00.000Z"),
+        new Date("2026-04-14T00:00:00.000Z"),
+        new Date("2026-04-15T00:00:00.000Z"),
+        new Date("2026-04-28T00:00:00.000Z"),
+      ),
+    ).toBe(false);
   });
 });

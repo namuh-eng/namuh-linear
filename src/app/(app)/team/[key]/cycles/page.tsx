@@ -1,10 +1,9 @@
 "use client";
 
-import { CycleProgressBar } from "@/components/cycle-progress-bar";
 import { CycleRow } from "@/components/cycle-row";
 import { CycleSection } from "@/components/cycle-section";
 import { EmptyState } from "@/components/empty-state";
-import { categorizeCycles, formatCycleDate } from "@/lib/cycle-utils";
+import { categorizeCycles, getDateInputValue } from "@/lib/cycle-utils";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -21,8 +20,59 @@ interface CycleData {
 }
 
 interface CyclesResponse {
-  team: { id: string; name: string; key: string };
+  team: {
+    id: string;
+    name: string;
+    key: string;
+    cyclesEnabled: boolean;
+    cycleStartDay: number;
+    cycleDurationWeeks: number;
+    timezone: string;
+  };
   cycles: CycleData[];
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function alignToCycleStartDay(date: Date, cycleStartDay: number): Date {
+  const next = new Date(date);
+  const targetDay = cycleStartDay % 7;
+  const delta = (targetDay - next.getDay() + 7) % 7;
+  next.setDate(next.getDate() + delta);
+  return next;
+}
+
+function getCycleFormDefaults(data: CyclesResponse | null) {
+  const durationWeeks = data?.team.cycleDurationWeeks ?? 2;
+  const today = new Date();
+  const latestCycleEnd = data?.cycles.reduce<Date | null>((latest, cycle) => {
+    const cycleEnd = new Date(cycle.endDate);
+    if (!latest || cycleEnd.getTime() > latest.getTime()) {
+      return cycleEnd;
+    }
+
+    return latest;
+  }, null);
+
+  let startDate =
+    latestCycleEnd && latestCycleEnd.getTime() >= today.getTime()
+      ? addDays(latestCycleEnd, 1)
+      : today;
+
+  if (data?.team.cyclesEnabled) {
+    startDate = alignToCycleStartDay(startDate, data.team.cycleStartDay);
+  }
+
+  const endDate = addDays(startDate, durationWeeks * 7 - 1);
+
+  return {
+    startDate: getDateInputValue(startDate),
+    endDate: getDateInputValue(endDate),
+  };
 }
 
 export default function TeamCyclesPage() {
@@ -30,6 +80,7 @@ export default function TeamCyclesPage() {
   const [data, setData] = useState<CyclesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const fetchCycles = useCallback(async () => {
     try {
@@ -37,6 +88,8 @@ export default function TeamCyclesPage() {
       if (res.ok) {
         const json = await res.json();
         setData(json);
+      } else {
+        setData(null);
       }
     } finally {
       setLoading(false);
@@ -62,9 +115,16 @@ export default function TeamCyclesPage() {
       });
 
       if (res.ok) {
+        setCreateError(null);
         setShowCreateForm(false);
-        fetchCycles();
+        await fetchCycles();
+        return;
       }
+
+      const json = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      setCreateError(json?.error ?? "Failed to create cycle");
     },
     [params.key, fetchCycles],
   );
@@ -86,7 +146,10 @@ export default function TeamCyclesPage() {
           </h1>
           <button
             type="button"
-            onClick={() => setShowCreateForm(true)}
+            onClick={() => {
+              setCreateError(null);
+              setShowCreateForm(true);
+            }}
             className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:opacity-90"
           >
             New cycle
@@ -95,7 +158,12 @@ export default function TeamCyclesPage() {
         {showCreateForm ? (
           <CreateCycleForm
             onSubmit={handleCreateCycle}
-            onCancel={() => setShowCreateForm(false)}
+            onCancel={() => {
+              setCreateError(null);
+              setShowCreateForm(false);
+            }}
+            error={createError}
+            defaults={getCycleFormDefaults(data)}
           />
         ) : (
           <EmptyState
@@ -130,7 +198,11 @@ export default function TeamCyclesPage() {
     );
   }
 
-  const { current, upcoming, past } = categorizeCycles(data.cycles);
+  const { current, upcoming, past } = categorizeCycles(
+    data.cycles,
+    new Date(),
+    data.team.timezone || undefined,
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -146,7 +218,10 @@ export default function TeamCyclesPage() {
         </div>
         <button
           type="button"
-          onClick={() => setShowCreateForm(true)}
+          onClick={() => {
+            setCreateError(null);
+            setShowCreateForm(true);
+          }}
           className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:opacity-90"
         >
           New cycle
@@ -156,7 +231,12 @@ export default function TeamCyclesPage() {
       {showCreateForm && (
         <CreateCycleForm
           onSubmit={handleCreateCycle}
-          onCancel={() => setShowCreateForm(false)}
+          onCancel={() => {
+            setCreateError(null);
+            setShowCreateForm(false);
+          }}
+          error={createError}
+          defaults={getCycleFormDefaults(data)}
         />
       )}
 
@@ -185,16 +265,14 @@ export default function TeamCyclesPage() {
 function CreateCycleForm({
   onSubmit,
   onCancel,
+  error,
+  defaults,
 }: {
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
+  error: string | null;
+  defaults: { startDate: string; endDate: string };
 }) {
-  // Default: start today, end in 2 weeks
-  const today = new Date().toISOString().split("T")[0];
-  const twoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
-
   return (
     <form
       onSubmit={onSubmit}
@@ -213,7 +291,7 @@ function CreateCycleForm({
             <input
               name="startDate"
               type="date"
-              defaultValue={today}
+              defaultValue={defaults.startDate}
               required
               className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
             />
@@ -223,12 +301,13 @@ function CreateCycleForm({
             <input
               name="endDate"
               type="date"
-              defaultValue={twoWeeks}
+              defaultValue={defaults.endDate}
               required
               className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
             />
           </label>
         </div>
+        {error && <p className="text-[12px] text-red-400">{error}</p>}
         <div className="flex items-center gap-2">
           <button
             type="submit"

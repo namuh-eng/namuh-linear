@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { cycleRangesOverlap, parseCycleDateInput } from "@/lib/cycle-utils";
 import { db } from "@/lib/db";
 import {
   cycle,
@@ -9,7 +10,7 @@ import {
   user,
   workflowState,
 } from "@/lib/db/schema";
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -89,7 +90,8 @@ export async function GET(
         labelColor: label.color,
       })
       .from(issueLabel)
-      .innerJoin(label, eq(issueLabel.labelId, label.id));
+      .innerJoin(label, eq(issueLabel.labelId, label.id))
+      .where(inArray(issueLabel.issueId, issueIds));
 
     labelsMap = {};
     for (const row of issueLabelRows) {
@@ -171,11 +173,77 @@ export async function PATCH(
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  const existingCycles = await db
+    .select({
+      id: cycle.id,
+      startDate: cycle.startDate,
+      endDate: cycle.endDate,
+    })
+    .from(cycle)
+    .where(and(eq(cycle.id, cycleId), eq(cycle.teamId, teams[0].id)))
+    .limit(1);
+
+  if (existingCycles.length === 0) {
+    return NextResponse.json({ error: "Cycle not found" }, { status: 404 });
+  }
+
+  const existingCycle = existingCycles[0];
+  const nextStartDate =
+    body.startDate !== undefined
+      ? parseCycleDateInput(body.startDate)
+      : existingCycle.startDate;
+  const nextEndDate =
+    body.endDate !== undefined
+      ? parseCycleDateInput(body.endDate)
+      : existingCycle.endDate;
+
+  if (!nextStartDate || !nextEndDate) {
+    return NextResponse.json(
+      { error: "Start and end dates must use YYYY-MM-DD format" },
+      { status: 400 },
+    );
+  }
+
+  if (nextStartDate.getTime() > nextEndDate.getTime()) {
+    return NextResponse.json(
+      { error: "Cycle end date must be on or after the start date" },
+      { status: 400 },
+    );
+  }
+
+  const allTeamCycles = await db
+    .select({
+      id: cycle.id,
+      startDate: cycle.startDate,
+      endDate: cycle.endDate,
+    })
+    .from(cycle)
+    .where(eq(cycle.teamId, teams[0].id));
+
+  const overlappingCycle = allTeamCycles.find(
+    (teamCycle) =>
+      teamCycle.id !== cycleId &&
+      cycleRangesOverlap(
+        nextStartDate,
+        nextEndDate,
+        teamCycle.startDate,
+        teamCycle.endDate,
+      ),
+  );
+
+  if (overlappingCycle) {
+    return NextResponse.json(
+      { error: "Cycle dates overlap with an existing cycle" },
+      { status: 409 },
+    );
+  }
+
+  const updateData: Record<string, unknown> = {
+    updatedAt: new Date(),
+    startDate: nextStartDate,
+    endDate: nextEndDate,
+  };
   if (body.name !== undefined) updateData.name = body.name;
-  if (body.startDate !== undefined)
-    updateData.startDate = new Date(body.startDate);
-  if (body.endDate !== undefined) updateData.endDate = new Date(body.endDate);
   if (body.autoRollover !== undefined)
     updateData.autoRollover = body.autoRollover;
 
