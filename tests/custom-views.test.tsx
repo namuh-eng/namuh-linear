@@ -7,19 +7,93 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import ViewsPage from "@/app/(app)/views/page";
+import { ViewsPage } from "@/components/views-page";
 
-// Mock next/navigation
+const push = vi.fn();
+let searchParams = new URLSearchParams();
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
-  usePathname: () => "/views",
-  useParams: () => ({}),
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push, replace: vi.fn(), back: vi.fn() }),
+  useSearchParams: () => searchParams,
 }));
 
-// Mock fetch globally
 const mockFetch = vi.fn();
+const confirmSpy = vi.fn(() => true);
+const storage = new Map<string, string>();
+
 global.fetch = mockFetch;
+window.confirm = confirmSpy;
+
+Object.defineProperty(window, "localStorage", {
+  value: {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      storage.set(key, value);
+    },
+    removeItem: (key: string) => {
+      storage.delete(key);
+    },
+    clear: () => {
+      storage.clear();
+    },
+  },
+  configurable: true,
+});
+
+function buildViewsResponse() {
+  return {
+    teams: [
+      { id: "team-1", key: "ONB", name: "Onboarding QA Team" },
+      { id: "team-2", key: "PLT", name: "Platform" },
+    ],
+    views: [
+      {
+        id: "view-1",
+        name: "High priority onboarding",
+        layout: "list",
+        isPersonal: true,
+        owner: { name: "John Doe", image: null },
+        teamId: "team-1",
+        teamKey: "ONB",
+        teamName: "Onboarding QA Team",
+        entityType: "issues",
+        scope: "team",
+        filterState: {
+          entityType: "issues",
+          scope: "team",
+          issueFilters: [
+            { type: "priority", operator: "is", values: ["high"] },
+          ],
+          projectStatusFilter: "all",
+          projectSortBy: "created-desc",
+        },
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+      {
+        id: "view-2",
+        name: "Project progress",
+        layout: "list",
+        isPersonal: false,
+        owner: { name: "Jane Smith", image: null },
+        teamId: null,
+        teamKey: null,
+        teamName: null,
+        entityType: "projects",
+        scope: "workspace",
+        filterState: {
+          entityType: "projects",
+          scope: "workspace",
+          issueFilters: [],
+          projectStatusFilter: "started",
+          projectSortBy: "progress-desc",
+        },
+        createdAt: "2026-01-02T00:00:00Z",
+        updatedAt: "2026-01-02T00:00:00Z",
+      },
+    ],
+  };
+}
 
 function waitForLoaded() {
   return waitFor(() => {
@@ -27,252 +101,192 @@ function waitForLoaded() {
   });
 }
 
-describe("Custom Views Page", () => {
+describe("ViewsPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchParams = new URLSearchParams();
+    storage.clear();
+  });
+
   afterEach(() => {
     cleanup();
   });
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it("renders issue views by default and switches tabs via router", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => buildViewsResponse(),
+    });
+
+    render(<ViewsPage initialTab="issues" />);
+    await waitForLoaded();
+
+    expect(screen.getByRole("heading", { name: "Views" })).toBeInTheDocument();
+    expect(screen.getByText("High priority onboarding")).toBeInTheDocument();
+    expect(screen.queryByText("Project progress")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    expect(push).toHaveBeenCalledWith("/views/projects");
   });
 
-  describe("Views list rendering", () => {
-    it("renders page title and tabs", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ views: [] }),
-      });
-
-      render(<ViewsPage />);
-      await waitForLoaded();
-
-      expect(
-        screen.getByRole("heading", { name: "Views" }),
-      ).toBeInTheDocument();
-      const tabButtons = screen
-        .getAllByRole("button")
-        .filter((btn) => btn.hasAttribute("data-active"));
-      expect(tabButtons).toHaveLength(2);
-      expect(tabButtons[0]).toHaveTextContent("Issues");
-      expect(tabButtons[1]).toHaveTextContent("Projects");
-      expect(tabButtons[0]).toHaveAttribute("data-active", "true");
+  it("shows the empty state when the active tab has no views", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        teams: [{ id: "team-1", key: "ONB", name: "Onboarding QA Team" }],
+        views: [],
+      }),
     });
 
-    it("shows empty state when no views exist", async () => {
-      mockFetch.mockResolvedValueOnce({
+    render(<ViewsPage initialTab="issues" />);
+    await waitForLoaded();
+
+    expect(screen.getByText("No views")).toBeInTheDocument();
+  });
+
+  it("creates issue views with captured team filters", async () => {
+    window.localStorage.setItem(
+      "namuh-linear-filters:team:ONB",
+      JSON.stringify([{ type: "status", operator: "is", values: ["started"] }]),
+    );
+
+    mockFetch
+      .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ views: [] }),
-      });
-
-      render(<ViewsPage />);
-      await waitForLoaded();
-
-      expect(screen.getByText("No views")).toBeInTheDocument();
-    });
-
-    it("renders view list with name and owner columns", async () => {
-      mockFetch.mockResolvedValueOnce({
+        json: async () => ({ teams: buildViewsResponse().teams, views: [] }),
+      })
+      .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          views: [
-            {
-              id: "v1",
-              name: "My Active Issues",
-              layout: "list",
-              isPersonal: true,
-              owner: { name: "John Doe", image: null },
-              createdAt: "2026-01-01T00:00:00Z",
-            },
-            {
-              id: "v2",
-              name: "Sprint Board",
-              layout: "board",
-              isPersonal: false,
-              owner: { name: "Jane Smith", image: null },
-              createdAt: "2026-01-02T00:00:00Z",
-            },
-          ],
+          view: buildViewsResponse().views[0],
         }),
       });
 
-      render(<ViewsPage />);
-      await waitForLoaded();
+    render(<ViewsPage initialTab="issues" />);
+    await waitForLoaded();
 
-      expect(screen.getByText("My Active Issues")).toBeInTheDocument();
-      expect(screen.getByText("Sprint Board")).toBeInTheDocument();
-      expect(screen.getByText("Name")).toBeInTheDocument();
-      expect(screen.getByText("Owner")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /create view/i })[0]);
+    fireEvent.change(screen.getByPlaceholderText(/view name/i), {
+      target: { value: "Filtered Issues" },
     });
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
-    it("separates personal and shared views with section headers", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          views: [
-            {
-              id: "v1",
-              name: "Personal View",
-              layout: "list",
-              isPersonal: true,
-              owner: { name: "John Doe", image: null },
-              createdAt: "2026-01-01T00:00:00Z",
-            },
-            {
-              id: "v2",
-              name: "Shared View",
-              layout: "board",
-              isPersonal: false,
-              owner: { name: "John Doe", image: null },
-              createdAt: "2026-01-02T00:00:00Z",
-            },
-          ],
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/views",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"issueFilters":[{"type":"status"'),
         }),
-      });
-
-      render(<ViewsPage />);
-      await waitForLoaded();
-
-      expect(screen.getByText("Personal View")).toBeInTheDocument();
-      expect(screen.getByText(/Only visible to you/)).toBeInTheDocument();
-      expect(screen.getByText("Shared View")).toBeInTheDocument();
-    });
-
-    it("shows create view button in header", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          views: [
-            {
-              id: "v1",
-              name: "Test View",
-              layout: "list",
-              isPersonal: false,
-              owner: { name: "John", image: null },
-              createdAt: "2026-01-01T00:00:00Z",
-            },
-          ],
-        }),
-      });
-
-      render(<ViewsPage />);
-      await waitForLoaded();
-
-      expect(
-        screen.getByRole("button", { name: /create view/i }),
-      ).toBeInTheDocument();
-    });
-
-    it("displays view layout icon", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          views: [
-            {
-              id: "v1",
-              name: "List View",
-              layout: "list",
-              isPersonal: false,
-              owner: { name: "John", image: null },
-              createdAt: "2026-01-01T00:00:00Z",
-            },
-          ],
-        }),
-      });
-
-      render(<ViewsPage />);
-      await waitForLoaded();
-
-      expect(screen.getByText("List View")).toBeInTheDocument();
-      expect(screen.getByLabelText(/list layout/i)).toBeInTheDocument();
+      );
     });
   });
 
-  describe("Create view modal", () => {
-    it("opens modal and submits new view", async () => {
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            views: [
-              {
-                id: "v1",
-                name: "Existing View",
-                layout: "list",
-                isPersonal: false,
-                owner: { name: "User", image: null },
-                createdAt: "2026-01-01T00:00:00Z",
-              },
-            ],
-          }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            view: { id: "new-v", name: "New View", layout: "list" },
-          }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ views: [] }),
-        });
-
-      render(<ViewsPage />);
-      await waitForLoaded();
-
-      const createBtn = screen.getByRole("button", { name: /create view/i });
-      fireEvent.click(createBtn);
-
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText(/view name/i)).toBeInTheDocument();
-      });
-
-      fireEvent.change(screen.getByPlaceholderText(/view name/i), {
-        target: { value: "New View" },
-      });
-
-      const submitBtn = screen.getByRole("button", { name: /^create$/i });
-      fireEvent.click(submitBtn);
-
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith(
-          "/api/views",
-          expect.objectContaining({ method: "POST" }),
-        );
-      });
+  it("opens issue views by restoring filters and navigating to the team route", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => buildViewsResponse(),
     });
+
+    render(<ViewsPage initialTab="issues" />);
+    await waitForLoaded();
+
+    fireEvent.click(await screen.findByText("High priority onboarding"));
+
+    expect(window.localStorage.getItem("namuh-linear-filters:team:ONB")).toBe(
+      JSON.stringify([{ type: "priority", operator: "is", values: ["high"] }]),
+    );
+    expect(push).toHaveBeenCalledWith("/team/ONB/all");
   });
 
-  describe("Tab switching", () => {
-    it("switches between Issues and Projects tabs", async () => {
-      mockFetch.mockResolvedValue({
+  it("opens project views by restoring project view state", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => buildViewsResponse(),
+    });
+
+    render(<ViewsPage initialTab="projects" />);
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByText("Project progress"));
+
+    expect(
+      window.localStorage.getItem("namuh-linear-project-view:workspace"),
+    ).toBe(
+      JSON.stringify({
+        statusFilter: "started",
+        sortBy: "progress-desc",
+        teamId: null,
+      }),
+    );
+    expect(push).toHaveBeenCalledWith("/projects");
+  });
+
+  it("edits and deletes saved views", async () => {
+    mockFetch
+      .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ views: [] }),
+        json: async () => buildViewsResponse(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          view: {
+            ...buildViewsResponse().views[0],
+            name: "Renamed view",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true }),
       });
 
-      render(<ViewsPage />);
-      await waitForLoaded();
+    render(<ViewsPage initialTab="issues" />);
+    await waitForLoaded();
 
-      const tabButtons = screen
-        .getAllByRole("button")
-        .filter((btn) => btn.hasAttribute("data-active"));
-      const issuesTab = tabButtons[0];
-      const projectsTab = tabButtons[1];
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit High priority onboarding" }),
+    );
+    fireEvent.change(screen.getByPlaceholderText(/view name/i), {
+      target: { value: "Renamed view" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
 
-      expect(issuesTab).toHaveAttribute("data-active", "true");
-      expect(projectsTab).toHaveAttribute("data-active", "false");
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/views/view-1",
+        expect.objectContaining({ method: "PATCH" }),
+      );
+    });
 
-      fireEvent.click(projectsTab);
-      expect(projectsTab).toHaveAttribute("data-active", "true");
-      expect(issuesTab).toHaveAttribute("data-active", "false");
+    await screen.findByText("Renamed view");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete Renamed view" }),
+    );
+
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalledWith("/api/views/view-1", {
+        method: "DELETE",
+      });
     });
   });
 });
 
-describe("Views API route", () => {
-  it("API route file exports GET and POST handlers", async () => {
+describe("Views API routes", () => {
+  it("export the expected handlers", async () => {
     const fs = await import("node:fs");
-    const content = fs.readFileSync("src/app/api/views/route.ts", "utf-8");
-    expect(content).toContain("export async function GET");
-    expect(content).toContain("export async function POST");
+    const listRoute = fs.readFileSync("src/app/api/views/route.ts", "utf-8");
+    const detailRoute = fs.readFileSync(
+      "src/app/api/views/[id]/route.ts",
+      "utf-8",
+    );
+
+    expect(listRoute).toContain("export async function GET");
+    expect(listRoute).toContain("export async function POST");
+    expect(detailRoute).toContain("export async function GET");
+    expect(detailRoute).toContain("export async function PATCH");
+    expect(detailRoute).toContain("export async function DELETE");
   });
 });

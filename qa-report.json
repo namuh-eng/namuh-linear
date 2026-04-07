@@ -1094,5 +1094,45 @@
       }
     ],
     "fix_description": "Fixed the real search route (`inArray` plus explicit active-workspace scoping), expanded the palette to cover the required grouped commands/footer hints, hardened async search against stale responses, restored focus on close, wired the sidebar to an explicit open event, persisted the last issue for navigation, and verified the real create-issue command path plus live search results in Ever."
+  },
+  {
+    "feature_id": "feature-041",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; the full Vitest suite passed after the custom-view fixes (`643` unit tests passed).",
+      "Ran smoke Playwright earlier in the loop and reran the required full shared-code regression suite with `make test-e2e`; the final full E2E run passed (`6 passed`).",
+      "Ran `make check`; typecheck plus Biome passed on the final code.",
+      "Opened `http://localhost:3015/views/issues` in Ever, verified the route now renders instead of 404ing, and confirmed the team sidebar `Views` link now resolves to `/views/issues?team=ONB` instead of the broken `/team/ONB/views` path.",
+      "Created an issue view in Ever for `Onboarding QA Team`, confirmed the modal now loads teams from the active workspace, saved `QA Filtered Issues View`, and verified the view list renders Name/Owner columns plus personal view actions.",
+      "Opened the saved issue view and verified it restored the real persisted filter state on `/team/ONB/all`: the page showed `Status is In Progress` and `Priority is High`, and the filtered list rendered the real `ONB-4 QA feature 004 browser verification` issue.",
+      "Edited the saved issue view name in Ever to `QA Renamed Issues View`, then deleted it successfully through the real UI after forcing `window.confirm = () => true` for browser automation compatibility.",
+      "Created a workspace-scoped project view in Ever with sort order `Progress`, opened it, and verified it navigated to `/projects` with the saved sort restored and real project data visible (`QA Empty State Project`).",
+      "Saved QA evidence screenshots to `ralph/screenshots/qa/feature-041-issue-view.jpg` and `ralph/screenshots/qa/feature-041-project-view.jpg`."
+    ],
+    "bugs_found": [
+      {
+        "severity": "critical",
+        "description": "The saved-views feature was not actually navigable from its expected route surface.",
+        "expected": "Workspace views should open from `/views/issues` and `/views/projects`, and team sidebar `Views` links should land on a working custom-views page.",
+        "actual": "Before the fix, `/views/issues` returned a real 404 after login, the feature only existed at `/views`, and team sidebar links pointed to `/team/{key}/views`, which was not implemented.",
+        "reproduction": "1. Sign in and open `http://localhost:3015/views/issues` before the fix.\n2. Observe the Next.js 404 page.\n3. From `/team/ONB/all`, click the sidebar `Views` link under `Onboarding QA Team`.\n4. Observe the app routes to an unimplemented `/team/ONB/views` path."
+      },
+      {
+        "severity": "critical",
+        "description": "Saved views did not behave like saved views: they could not restore filters, open real lists, or be edited/deleted.",
+        "expected": "Creating a custom view should persist its issue/project configuration, the row should open the corresponding filtered issue/project list, and users should be able to edit or delete saved views.",
+        "actual": "Before the fix, the page only supported listing and POST creation by name; rows were non-navigable, issue filters were dropped on create, project sort/filter state was not stored, and there were no edit/delete handlers or API routes.",
+        "reproduction": "1. Open `/views` before the fix and create a view.\n2. Observe that the request body posts only a name/layout shell and saves no useful filter state.\n3. Try to click the resulting row or edit/delete it.\n4. Observe there is no navigation behavior, no edit UI, and no delete path."
+      },
+      {
+        "severity": "major",
+        "description": "The views and projects APIs could scope to the wrong workspace for multi-workspace users, so the modal showed the wrong teams and the saved-view data could mismatch the current shell.",
+        "expected": "Views and project data should resolve against the active workspace shown by the app shell, matching the `activeWorkspaceId` cookie behavior used by the main layout.",
+        "actual": "Before the fix, the APIs selected the newest membership row instead of the active workspace, so the custom-view modal surfaced teams from another workspace (`My Issues Cross-Team`, `QA Fix 20260407 1644`) while the shell was showing `Onboarding QA Team`.",
+        "reproduction": "1. Sign in as a user who belongs to multiple workspaces.\n2. Open the `Onboarding QA Team` shell and navigate to `/views/issues` before the fix.\n3. Open `Create view`.\n4. Observe that the team dropdown is populated from another workspace instead of the current shell."
+      }
+    ],
+    "fix_description": "Refactored views into route-aware `/views/issues` and `/views/projects` pages, added saved issue/project view metadata plus edit/delete APIs, restored issue filters and project sort/filter state when opening views, corrected the team sidebar links, and fixed workspace resolution so the views and projects APIs honor the same active-workspace cookie logic as the app shell."
   }
 ]

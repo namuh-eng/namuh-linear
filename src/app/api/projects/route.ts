@@ -1,7 +1,8 @@
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { issue, member, project, user } from "@/lib/db/schema";
-import { count, desc, eq, sql } from "drizzle-orm";
+import { issue, project, projectTeam, team, user } from "@/lib/db/schema";
+import { count, desc, eq, inArray, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -21,19 +22,10 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Find user's workspace
-  const members = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .orderBy(desc(member.createdAt))
-    .limit(1);
-
-  if (members.length === 0) {
+  const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+  if (!workspaceId) {
     return NextResponse.json({ projects: [] });
   }
-
-  const workspaceId = members[0].workspaceId;
 
   // Get all projects for this workspace with lead info
   const projects = await db
@@ -60,6 +52,10 @@ export async function GET() {
   // Get issue counts per project for progress calculation
   const projectIds = projects.map((p) => p.id);
   const progressMap: Record<string, { total: number; completed: number }> = {};
+  const projectTeamsMap: Record<
+    string,
+    { id: string; key: string; name: string }[]
+  > = {};
 
   if (projectIds.length > 0) {
     const issueCounts = await db
@@ -80,6 +76,29 @@ export async function GET() {
         };
       }
     }
+
+    const projectTeamRows = await db
+      .select({
+        projectId: projectTeam.projectId,
+        teamId: team.id,
+        teamKey: team.key,
+        teamName: team.name,
+      })
+      .from(projectTeam)
+      .innerJoin(team, eq(projectTeam.teamId, team.id))
+      .where(inArray(projectTeam.projectId, projectIds));
+
+    for (const row of projectTeamRows) {
+      if (!projectTeamsMap[row.projectId]) {
+        projectTeamsMap[row.projectId] = [];
+      }
+
+      projectTeamsMap[row.projectId].push({
+        id: row.teamId,
+        key: row.teamKey,
+        name: row.teamName,
+      });
+    }
   }
 
   const result = projects.map((p) => {
@@ -99,6 +118,7 @@ export async function GET() {
       priority: p.priority,
       health: "No updates",
       lead: p.leadName ? { name: p.leadName, image: p.leadImage } : null,
+      teams: projectTeamsMap[p.id] ?? [],
       startDate: p.startDate,
       targetDate: p.targetDate,
       progress,
@@ -115,14 +135,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const members = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .orderBy(desc(member.createdAt))
-    .limit(1);
-
-  if (members.length === 0) {
+  const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+  if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
 
@@ -156,7 +170,7 @@ export async function POST(request: Request) {
       await db
         .select({ slug: project.slug })
         .from(project)
-        .where(eq(project.workspaceId, members[0].workspaceId))
+        .where(eq(project.workspaceId, workspaceId))
     ).map((row) => row.slug),
   );
 
@@ -171,7 +185,7 @@ export async function POST(request: Request) {
       name,
       description,
       slug: finalSlug,
-      workspaceId: members[0].workspaceId,
+      workspaceId,
       leadId: session.user.id,
     })
     .returning();

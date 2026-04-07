@@ -608,7 +608,7 @@ export function Sidebar({
                       }
                     />
                     <SidebarLink
-                      href={`/team/${team.key}/views`}
+                      href={`/views/issues?team=${encodeURIComponent(team.key)}`}
                       label="Views"
                       active={isTeamViewsRoute(pathname, team.key)}
                       indent

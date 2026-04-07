@@ -316,7 +316,7 @@
     "core": false,
     "dependent_on": ["feature-001", "feature-006"],
     "build_pass": true,
-    "qa_pass": false
+    "qa_pass": true
   },
   {
     "id": "settings-001",

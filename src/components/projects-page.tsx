@@ -2,6 +2,7 @@
 
 import { EmptyState } from "@/components/empty-state";
 import { ProjectRow } from "@/components/project-row";
+import { useProjectViewState } from "@/hooks/use-project-view-state";
 import { useCallback, useEffect, useState } from "react";
 
 interface ProjectData {
@@ -13,6 +14,7 @@ interface ProjectData {
   priority: "none" | "urgent" | "high" | "medium" | "low";
   health: string;
   lead: { name: string; image?: string | null } | null;
+  teams: { id: string; key: string; name: string }[];
   targetDate: string | null;
   progress: number;
   createdAt: string;
@@ -38,8 +40,7 @@ export function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [sortBy, setSortBy] = useState<SortOption>("created-desc");
+  const { state: viewState, updateState } = useProjectViewState("workspace");
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -159,15 +160,20 @@ export function ProjectsPage() {
   }
 
   const filteredProjects = projects.filter((project) => {
-    if (statusFilter === "all") {
-      return true;
+    if (
+      viewState.teamId &&
+      !project.teams.some((team) => team.id === viewState.teamId)
+    ) {
+      return false;
     }
 
-    return project.status === statusFilter;
+    return viewState.statusFilter === "all"
+      ? true
+      : project.status === viewState.statusFilter;
   });
 
   const visibleProjects = [...filteredProjects].sort((left, right) => {
-    switch (sortBy) {
+    switch (viewState.sortBy) {
       case "created-asc":
         return (
           new Date(left.createdAt).getTime() -
@@ -187,6 +193,12 @@ export function ProjectsPage() {
     }
   });
 
+  const activeTeamName = viewState.teamId
+    ? (projects
+        .flatMap((project) => project.teams)
+        .find((team) => team.id === viewState.teamId)?.name ?? null)
+    : null;
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center border-b border-[var(--color-border)] px-4 py-2">
@@ -203,9 +215,11 @@ export function ProjectsPage() {
           <span>Status</span>
           <select
             aria-label="Filter projects by status"
-            value={statusFilter}
+            value={viewState.statusFilter}
             onChange={(event) =>
-              setStatusFilter(event.target.value as StatusFilter)
+              updateState({
+                statusFilter: event.target.value as StatusFilter,
+              })
             }
             className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1 text-[12px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
           >
@@ -221,8 +235,10 @@ export function ProjectsPage() {
           <span>Sort</span>
           <select
             aria-label="Sort projects"
-            value={sortBy}
-            onChange={(event) => setSortBy(event.target.value as SortOption)}
+            value={viewState.sortBy}
+            onChange={(event) =>
+              updateState({ sortBy: event.target.value as SortOption })
+            }
             className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1 text-[12px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
           >
             <option value="created-desc">Newest</option>
@@ -239,6 +255,15 @@ export function ProjectsPage() {
         >
           New project
         </button>
+        {activeTeamName && (
+          <button
+            type="button"
+            onClick={() => updateState({ teamId: null })}
+            className="mr-3 rounded-md border border-[var(--color-border)] px-2 py-1 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+          >
+            {activeTeamName} only
+          </button>
+        )}
         <span className="text-[12px] text-[var(--color-text-secondary)]">
           {visibleProjects.length} of {projects.length} projects
         </span>
@@ -320,10 +345,12 @@ export function ProjectsPage() {
             description="Try a different status filter or sort order."
             action={{
               label: "Reset filters",
-              onClick: () => {
-                setStatusFilter("all");
-                setSortBy("created-desc");
-              },
+              onClick: () =>
+                updateState({
+                  statusFilter: "all",
+                  sortBy: "created-desc",
+                  teamId: null,
+                }),
             }}
           />
         )}
