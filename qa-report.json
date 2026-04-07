@@ -1346,5 +1346,41 @@
       }
     ],
     "fix_description": "Added a real current-workspace API with load/update/delete behavior, wired the settings page to persist name/slug/fiscal month/logo changes, defaulted new workspaces to store region plus fiscal month, and implemented a confirmed workspace-deletion flow that removes the workspace and switches the session to the next remaining membership."
+  },
+  {
+    "feature_id": "settings-006",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; the full Vitest suite passed after the members-page fixes (`668` unit tests passed).",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the smoke suite passed before the feature-specific fixes.",
+      "Confirmed the pre-fix real failure with the running app: `/settings/members` stayed stuck on `Loading...` because the page fetched `/api/workspaces/members`, and `GET /api/workspaces/members` returned `404 Not Found`.",
+      "Implemented a real members backend: authenticated `GET/PATCH /api/workspaces/members`, durable `workspace_invitation` persistence, invite upserts in `POST /api/workspaces/invite`, and invitation acceptance bookkeeping in `/accept-invite`.",
+      "Implemented the missing members UI behavior: real data loading, invite modal submission, CSV export, inline role management, and success/error status messaging.",
+      "Ran `make db-push` to apply the new `workspace_invitation` schema to the live QA database.",
+      "Re-tested `/settings/members` in Ever after authenticating through the test-session route, confirmed the page rendered the real owner row, and saved a screenshot to `ralph/screenshots/qa/settings-006-attempt-1-members-page.jpg`.",
+      "Used the Invite modal in Ever to send a live invitation to `success@simulator.amazonses.com`; the page showed `Sent 1 invitation.`, and authenticated `GET /api/workspaces/members` immediately returned the new pending invitation row.",
+      "Changed the pending invitation role from `Admin` to `Guest` in Ever; the page showed `Member role updated.`, and authenticated `PATCH/GET /api/workspaces/members` confirmed the persisted role change.",
+      "Clicked `Export CSV` in Ever and confirmed the page showed `Exported members CSV.`.",
+      "Stopped the ad hoc dev server and ran `make test-e2e`; the full Playwright suite passed (`6` E2E tests passed).",
+      "Ran `make check && make test` after the final browser-found hydration fix; typecheck, Biome, and the full Vitest suite all passed."
+    ],
+    "bugs_found": [
+      {
+        "severity": "critical",
+        "description": "The members admin page had no real backend and could not load live workspace members.",
+        "expected": "Opening `/settings/members` should fetch authenticated workspace membership data and render the real table contents.",
+        "actual": "Before the fix, the client fetched `/api/workspaces/members`, but that route did not exist, so the browser stayed on the loading state and no real member data appeared.",
+        "reproduction": "1. Sign in and open `/settings/members`.\n2. Observe that the page remains on `Loading...`.\n3. Request `GET /api/workspaces/members`.\n4. Observe the `404 Not Found` response."
+      },
+      {
+        "severity": "major",
+        "description": "Invite, export, and role-management behavior were stubbed instead of functional.",
+        "expected": "The page should open an invite modal that sends real invitations, persist pending invitations in the members list, allow admins to change roles, and export the current list to CSV.",
+        "actual": "Before the fix, the header buttons were inert UI, there was no persistent invitation record for pending rows, no role-update API, and no CSV export path.",
+        "reproduction": "1. Sign in and open `/settings/members`.\n2. Click `Invite` or `Export CSV`.\n3. Observe that nothing is persisted or exported.\n4. Attempt to change a member role and observe there is no live mutation path."
+      }
+    ],
+    "fix_description": "Added a real workspace-members API and persistent invitation model, wired the settings page to load live members, send invitations, export CSV, and update roles, and updated invite acceptance so pending invitations are tracked through to membership."
   }
 ]

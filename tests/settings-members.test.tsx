@@ -1,15 +1,39 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import MembersPage from "@/app/(app)/settings/members/page";
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    refresh: vi.fn(),
+  }),
   usePathname: () => "/settings/members",
 }));
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+const createObjectURLMock = vi.fn(() => "blob:members");
+const revokeObjectURLMock = vi.fn();
+
+Object.defineProperty(global.URL, "createObjectURL", {
+  writable: true,
+  value: createObjectURLMock,
+});
+
+Object.defineProperty(global.URL, "revokeObjectURL", {
+  writable: true,
+  value: revokeObjectURLMock,
+});
 
 function waitForLoaded() {
   return waitFor(() => {
@@ -17,9 +41,23 @@ function waitForLoaded() {
   });
 }
 
-const mockMembers = [
+const mockMembers: Array<{
+  id: string;
+  kind: "member" | "invitation";
+  userId: string | null;
+  name: string;
+  email: string;
+  image: string | null;
+  role: "owner" | "admin" | "member" | "guest";
+  status: "active" | "pending";
+  teams: string[];
+  joinedAt: string;
+  lastSeenAt: string | null;
+}> = [
   {
     id: "m1",
+    kind: "member",
+    userId: "user-1",
     name: "Alice Smith",
     email: "alice@acme.com",
     image: null,
@@ -31,6 +69,8 @@ const mockMembers = [
   },
   {
     id: "m2",
+    kind: "member",
+    userId: "user-2",
     name: "Bob Jones",
     email: "bob@acme.com",
     image: null,
@@ -41,11 +81,13 @@ const mockMembers = [
     lastSeenAt: null,
   },
   {
-    id: "m3",
-    name: "Charlie Brown",
+    id: "invite-1",
+    kind: "invitation",
+    userId: null,
+    name: "Pending invite",
     email: "charlie@acme.com",
     image: null,
-    role: "member",
+    role: "guest",
     status: "pending",
     teams: [],
     joinedAt: "2026-03-10T00:00:00Z",
@@ -53,20 +95,35 @@ const mockMembers = [
   },
 ];
 
+function membersResponse(
+  members = mockMembers,
+  overrides: Partial<Record<string, unknown>> = {},
+) {
+  return {
+    workspaceId: "workspace-1",
+    currentUserId: "current-user",
+    viewerRole: "owner",
+    members,
+    ...overrides,
+  };
+}
+
 describe("Members Admin Page", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetch.mockReset();
+  });
+
   afterEach(() => {
     cleanup();
   });
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("renders Members heading with Export CSV and Invite buttons", async () => {
+  it("renders members heading, actions, and table data from the members API", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ members: mockMembers }),
+      json: async () => membersResponse(),
     });
+
     render(<MembersPage />);
     await waitForLoaded();
 
@@ -77,67 +134,187 @@ describe("Members Admin Page", () => {
       screen.getByRole("button", { name: "Export CSV" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Invite" })).toBeInTheDocument();
-  });
-
-  it("renders table columns", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ members: mockMembers }),
-    });
-    render(<MembersPage />);
-    await waitForLoaded();
-
     expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Email")).toBeInTheDocument();
     expect(screen.getByText("Status")).toBeInTheDocument();
     expect(screen.getByText("Teams")).toBeInTheDocument();
     expect(screen.getByText("Joined")).toBeInTheDocument();
     expect(screen.getByText("Last seen")).toBeInTheDocument();
-  });
-
-  it("renders member rows with name, email, and role badge", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ members: mockMembers }),
-    });
-    render(<MembersPage />);
-    await waitForLoaded();
-
     expect(screen.getByText("Alice Smith")).toBeInTheDocument();
     expect(screen.getByText("alice@acme.com")).toBeInTheDocument();
-    expect(screen.getByText("Owner")).toBeInTheDocument();
-    expect(screen.getByText("Bob Jones")).toBeInTheDocument();
+    expect(screen.getByText("charlie@acme.com")).toBeInTheDocument();
+    expect(screen.getByText("Pending invite")).toBeInTheDocument();
+    expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/members");
   });
 
   it("shows active and pending counts", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ members: mockMembers }),
+      json: async () => membersResponse(),
     });
+
     render(<MembersPage />);
     await waitForLoaded();
 
-    expect(screen.getByText("2")).toBeInTheDocument(); // Active count
-    expect(screen.getByText("1")).toBeInTheDocument(); // Pending count
-  });
-
-  it("shows active/pending status badges", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ members: mockMembers }),
-    });
-    render(<MembersPage />);
-    await waitForLoaded();
-
-    const activeBadges = screen.getAllByText("Active");
-    expect(activeBadges.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("Application")).toBeInTheDocument();
     expect(screen.getByText("Pending")).toBeInTheDocument();
   });
 
-  it("shows empty state when no members", async () => {
+  it("opens the invite modal and submits invitations through the API", async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => membersResponse(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          results: [{ email: "new@acme.com", status: "sent" }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () =>
+          membersResponse([
+            ...mockMembers,
+            {
+              id: "invite-2",
+              kind: "invitation",
+              userId: null,
+              name: "Pending invite",
+              email: "new@acme.com",
+              image: null,
+              role: "admin",
+              status: "pending",
+              teams: [],
+              joinedAt: "2026-03-11T00:00:00Z",
+              lastSeenAt: null,
+            },
+          ]),
+      });
+
+    render(<MembersPage />);
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Invite" }));
+    expect(
+      screen.getByRole("dialog", { name: "Invite members" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("teammate@company.com"), {
+      target: { value: "new@acme.com" },
+    });
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Invitation role 1" }),
+      {
+        target: { value: "admin" },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send invitations" }));
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspaceId: "workspace-1",
+          invites: [{ email: "new@acme.com", role: "admin" }],
+        }),
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Sent 1 invitation.")).toBeInTheDocument();
+    });
+  });
+
+  it("updates member roles through the members API", async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => membersResponse(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () =>
+          membersResponse([
+            mockMembers[0],
+            {
+              ...mockMembers[1],
+              role: "admin",
+            },
+            mockMembers[2],
+          ]),
+      });
+
+    render(<MembersPage />);
+    await waitForLoaded();
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Role for bob@acme.com" }),
+      {
+        target: { value: "admin" },
+      },
+    );
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/members", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: "m2",
+          kind: "member",
+          role: "admin",
+        }),
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Member role updated.")).toBeInTheDocument();
+    });
+  });
+
+  it("exports the current member list as CSV", async () => {
+    const anchorClickMock = vi.fn();
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation(((
+      tagName: string,
+    ) => {
+      const element = originalCreateElement(tagName);
+      if (tagName === "a") {
+        Object.defineProperty(element, "click", {
+          value: anchorClickMock,
+        });
+      }
+      return element;
+    }) as typeof document.createElement);
+
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ members: [] }),
+      json: async () => membersResponse(),
     });
+
+    render(<MembersPage />);
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+
+    expect(createObjectURLMock).toHaveBeenCalled();
+    expect(anchorClickMock).toHaveBeenCalled();
+    expect(revokeObjectURLMock).toHaveBeenCalledWith("blob:members");
+    expect(screen.getByText("Exported members CSV.")).toBeInTheDocument();
+  });
+
+  it("shows empty state when no members are returned", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => membersResponse([], { viewerRole: "member" }),
+    });
+
     render(<MembersPage />);
     await waitForLoaded();
 

@@ -1,6 +1,7 @@
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { member, workspace } from "@/lib/db/schema";
+import { member, user, workspace, workspaceInvitation } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email";
 import { createInviteToken } from "@/lib/invite-tokens";
 import { and, eq } from "drizzle-orm";
@@ -9,7 +10,10 @@ import { NextResponse } from "next/server";
 
 interface InviteRequest {
   workspaceId: string;
-  invites: { email: string; role: "admin" | "member" | "guest" }[];
+  invites: {
+    email: string;
+    role: "admin" | "member" | "guest";
+  }[];
 }
 
 export async function POST(request: Request) {
@@ -19,7 +23,9 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json()) as InviteRequest;
-  const { workspaceId, invites } = body;
+  const workspaceId =
+    body.workspaceId || (await resolveActiveWorkspaceId(session.user.id));
+  const { invites } = body;
 
   if (!workspaceId || !invites?.length) {
     return NextResponse.json(
@@ -43,6 +49,13 @@ export async function POST(request: Request) {
   if (membership.length === 0) {
     return NextResponse.json(
       { error: "You are not a member of this workspace" },
+      { status: 403 },
+    );
+  }
+
+  if (!["owner", "admin"].includes(membership[0].role)) {
+    return NextResponse.json(
+      { error: "You do not have permission to invite members" },
       { status: 403 },
     );
   }
@@ -76,6 +89,22 @@ export async function POST(request: Request) {
       continue;
     }
 
+    const existingMember = await db
+      .select({ id: member.id })
+      .from(member)
+      .innerJoin(user, eq(member.userId, user.id))
+      .where(and(eq(member.workspaceId, workspaceId), eq(user.email, email)))
+      .limit(1);
+
+    if (existingMember.length > 0) {
+      results.push({
+        email,
+        status: "failed",
+        error: "This person is already a workspace member",
+      });
+      continue;
+    }
+
     try {
       const inviteToken = createInviteToken({
         workspaceId,
@@ -84,6 +113,29 @@ export async function POST(request: Request) {
       });
       const inviteUrl = `${baseUrl}/accept-invite?token=${encodeURIComponent(inviteToken)}`;
       await sendInvitationEmail(email, ws.name, session.user.name, inviteUrl);
+      await db
+        .insert(workspaceInvitation)
+        .values({
+          workspaceId,
+          email,
+          role: invite.role,
+          invitedByUserId: session.user.id,
+          token: inviteToken,
+          status: "pending",
+          acceptedAt: null,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [workspaceInvitation.workspaceId, workspaceInvitation.email],
+          set: {
+            role: invite.role,
+            invitedByUserId: session.user.id,
+            token: inviteToken,
+            status: "pending",
+            acceptedAt: null,
+            updatedAt: new Date(),
+          },
+        });
       results.push({ email, status: "sent" });
     } catch (error) {
       const message =

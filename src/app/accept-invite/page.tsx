@@ -1,6 +1,12 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { member, team, teamMember, workspace } from "@/lib/db/schema";
+import {
+  member,
+  team,
+  teamMember,
+  workspace,
+  workspaceInvitation,
+} from "@/lib/db/schema";
 import { verifyInviteToken } from "@/lib/invite-tokens";
 import { and, asc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -42,7 +48,36 @@ export default async function AcceptInvitePage({
     );
   }
 
-  const invite = verifyInviteToken(token);
+  const signedInvite = verifyInviteToken(token);
+  const [storedInvite] = await db
+    .select({
+      id: workspaceInvitation.id,
+      workspaceId: workspaceInvitation.workspaceId,
+      email: workspaceInvitation.email,
+      role: workspaceInvitation.role,
+      status: workspaceInvitation.status,
+    })
+    .from(workspaceInvitation)
+    .where(eq(workspaceInvitation.token, token))
+    .limit(1);
+
+  const invite =
+    storedInvite && storedInvite.status === "pending"
+      ? {
+          id: storedInvite.id,
+          workspaceId: storedInvite.workspaceId,
+          email: storedInvite.email,
+          role: storedInvite.role,
+        }
+      : signedInvite
+        ? {
+            id: null,
+            workspaceId: signedInvite.workspaceId,
+            email: signedInvite.email,
+            role: signedInvite.role,
+          }
+        : null;
+
   if (!invite) {
     return (
       <InviteError
@@ -122,6 +157,17 @@ export default async function AcceptInvitePage({
     .insert(teamMember)
     .values({ teamId: defaultTeam.id, userId: session.user.id })
     .onConflictDoNothing();
+
+  if (invite.id) {
+    await db
+      .update(workspaceInvitation)
+      .set({
+        status: "accepted",
+        acceptedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(workspaceInvitation.id, invite.id));
+  }
 
   redirect(`/team/${defaultTeam.key}/all`);
 }

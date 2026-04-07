@@ -69,6 +69,12 @@ export const memberRole = pgEnum("member_role", [
   "guest",
 ]);
 
+export const workspaceInvitationStatus = pgEnum("workspace_invitation_status", [
+  "pending",
+  "accepted",
+  "revoked",
+]);
+
 export const notificationType = pgEnum("notification_type", [
   "assigned",
   "mentioned",
@@ -175,6 +181,32 @@ export const member = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("member_user_workspace_idx").on(t.userId, t.workspaceId)],
+);
+
+export const workspaceInvitation = pgTable(
+  "workspace_invitation",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workspaceId: uuid("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    role: memberRole("role").notNull().default("member"),
+    invitedByUserId: text("invited_by_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    status: workspaceInvitationStatus("status").notNull().default("pending"),
+    acceptedAt: timestamp("accepted_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("workspace_invitation_workspace_email_idx").on(
+      t.workspaceId,
+      t.email,
+    ),
+  ],
 );
 
 // ─── Team ────────────────────────────────────────────────────────────
@@ -664,6 +696,7 @@ export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   memberships: many(member),
+  workspaceInvitations: many(workspaceInvitation),
   teamMemberships: many(teamMember),
   createdIssues: many(issue, { relationName: "creator" }),
   assignedIssues: many(issue, { relationName: "assignee" }),
@@ -673,6 +706,7 @@ export const userRelations = relations(user, ({ many }) => ({
 
 export const workspaceRelations = relations(workspace, ({ many }) => ({
   members: many(member),
+  invitations: many(workspaceInvitation),
   teams: many(team),
   labels: many(label),
   projects: many(project),
@@ -689,6 +723,20 @@ export const memberRelations = relations(member, ({ one }) => ({
     references: [workspace.id],
   }),
 }));
+
+export const workspaceInvitationRelations = relations(
+  workspaceInvitation,
+  ({ one }) => ({
+    workspace: one(workspace, {
+      fields: [workspaceInvitation.workspaceId],
+      references: [workspace.id],
+    }),
+    inviter: one(user, {
+      fields: [workspaceInvitation.invitedByUserId],
+      references: [user.id],
+    }),
+  }),
+);
 
 export const teamRelations = relations(team, ({ one, many }) => ({
   workspace: one(workspace, {
