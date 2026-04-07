@@ -34,7 +34,6 @@ export async function GET() {
       createdAt: label.createdAt,
       updatedAt: label.updatedAt,
       issueCount: sql<number>`count(${issueLabel.issueId})::int`,
-      lastApplied: sql<string | null>`max(${issueLabel.issueId})`,
     })
     .from(label)
     .leftJoin(issueLabel, eq(label.id, issueLabel.labelId))
@@ -42,7 +41,6 @@ export async function GET() {
     .groupBy(label.id)
     .orderBy(label.name);
 
-  // For lastApplied, we need to approximate — use updatedAt as proxy
   const result = labels.map((l) => ({
     id: l.id,
     name: l.name,

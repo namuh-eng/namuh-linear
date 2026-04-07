@@ -13,6 +13,9 @@ interface LabelData {
   createdAt: string;
 }
 
+type CreateMode = "group" | "label";
+type SortDirection = "asc" | "desc";
+
 const LABEL_COLORS = [
   "#e5484d",
   "#e54666",
@@ -126,13 +129,20 @@ function InlineDescription({
 }
 
 function CreateLabelModal({
+  mode,
   onClose,
   onCreate,
 }: {
+  mode: CreateMode;
   onClose: () => void;
-  onCreate: (name: string, color: string) => void;
+  onCreate: (payload: {
+    name: string;
+    color: string;
+    description: string;
+  }) => void;
 }) {
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [color, setColor] = useState(LABEL_COLORS[0]);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -143,14 +153,18 @@ function CreateLabelModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onCreate(name.trim(), color);
+    onCreate({
+      name: name.trim(),
+      color: mode === "group" ? "#6b6f76" : color,
+      description: description.trim(),
+    });
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-[400px] rounded-lg border border-[var(--color-border)] bg-[var(--color-content-bg)] p-6 shadow-xl">
         <h2 className="mb-4 text-[16px] font-semibold text-[var(--color-text-primary)]">
-          Create label
+          {mode === "group" ? "Create group" : "Create label"}
         </h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
@@ -170,30 +184,48 @@ function CreateLabelModal({
               placeholder="Label name"
             />
           </div>
-          <div className="mb-6">
+          <div className="mb-4">
             <label
-              htmlFor="label-color"
-              className="mb-2 block text-[12px] text-[var(--color-text-secondary)]"
+              htmlFor="label-description"
+              className="mb-1 block text-[12px] text-[var(--color-text-secondary)]"
             >
-              Color
+              Description
             </label>
-            <div className="flex flex-wrap gap-2" id="label-color">
-              {LABEL_COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  className={`h-6 w-6 rounded-full border-2 transition-all ${
-                    color === c
-                      ? "border-white scale-110"
-                      : "border-transparent hover:border-[var(--color-border)]"
-                  }`}
-                  style={{ backgroundColor: c }}
-                  aria-label={`Color ${c}`}
-                />
-              ))}
-            </div>
+            <input
+              id="label-description"
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
+              placeholder="Add label description..."
+            />
           </div>
+          {mode === "label" ? (
+            <div className="mb-6">
+              <label
+                htmlFor="label-color"
+                className="mb-2 block text-[12px] text-[var(--color-text-secondary)]"
+              >
+                Color
+              </label>
+              <div className="flex flex-wrap gap-2" id="label-color">
+                {LABEL_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setColor(c)}
+                    className={`h-6 w-6 rounded-full border-2 transition-all ${
+                      color === c
+                        ? "border-white scale-110"
+                        : "border-transparent hover:border-[var(--color-border)]"
+                    }`}
+                    style={{ backgroundColor: c }}
+                    aria-label={`Color ${c}`}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="flex justify-end gap-2">
             <button
               type="button"
@@ -207,7 +239,7 @@ function CreateLabelModal({
               disabled={!name.trim()}
               className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
             >
-              Create label
+              {mode === "group" ? "Create group" : "Create label"}
             </button>
           </div>
         </form>
@@ -219,14 +251,26 @@ function CreateLabelModal({
 export default function IssueLabelsPage() {
   const [labels, setLabels] = useState<LabelData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createMode, setCreateMode] = useState<CreateMode | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const fetchLabels = useCallback(() => {
+    setError(null);
     fetch("/api/labels")
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error("Failed to load labels");
+        }
+        return res.json();
+      })
       .then((data) => {
         setLabels(data.labels ?? []);
+      })
+      .catch(() => {
+        setLabels([]);
+        setError("Could not load labels right now.");
       })
       .finally(() => setLoading(false));
   }, []);
@@ -236,31 +280,64 @@ export default function IssueLabelsPage() {
   }, [fetchLabels]);
 
   const handleUpdateDescription = async (id: string, description: string) => {
-    await fetch(`/api/labels/${id}`, {
+    const res = await fetch(`/api/labels/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ description }),
     });
+    if (!res.ok) {
+      setError("Could not save that description.");
+      return;
+    }
     setLabels((prev) =>
       prev.map((l) => (l.id === id ? { ...l, description } : l)),
     );
   };
 
-  const handleCreate = async (name: string, color: string) => {
+  const handleCreate = async ({
+    name,
+    color,
+    description,
+  }: {
+    name: string;
+    color: string;
+    description: string;
+  }) => {
     const res = await fetch("/api/labels", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, color }),
+      body: JSON.stringify({ name, color, description }),
     });
     if (res.ok) {
-      setShowCreateModal(false);
+      setCreateMode(null);
       fetchLabels();
+      return;
     }
+    setError("Could not create that item.");
   };
 
-  const filteredLabels = labels.filter((l) =>
-    l.name.toLowerCase().includes(filter.toLowerCase()),
-  );
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Delete ${name}?`)) {
+      return;
+    }
+
+    const res = await fetch(`/api/labels/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setError("Could not delete that item.");
+      return;
+    }
+
+    setLabels((prev) => prev.filter((l) => l.id !== id));
+  };
+
+  const filteredLabels = [...labels]
+    .filter((l) => l.name.toLowerCase().includes(filter.toLowerCase()))
+    .sort((a, b) => {
+      const result = a.name.localeCompare(b.name, undefined, {
+        sensitivity: "base",
+      });
+      return sortDirection === "asc" ? result : result * -1;
+    });
 
   if (loading) {
     return (
@@ -279,13 +356,14 @@ export default function IssueLabelsPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setCreateMode("group")}
             className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[12px] text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
           >
             New group
           </button>
           <button
             type="button"
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => setCreateMode("label")}
             className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:opacity-90"
           >
             New label
@@ -335,12 +413,27 @@ export default function IssueLabelsPage() {
         </button>
       </div>
 
+      {error ? (
+        <div className="mb-4 rounded-md border border-[#5c2c2c] bg-[#2b1717] px-3 py-2 text-[12px] text-[#f5b7b7]">
+          {error}
+        </div>
+      ) : null}
+
       {/* Table header */}
       <div className="flex h-[32px] items-center border-b border-[var(--color-border)] text-[11px] font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
         <div className="min-w-0 flex-1 px-4">
-          <span className="cursor-pointer hover:text-[var(--color-text-primary)]">
-            Name
-          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setSortDirection((current) =>
+                current === "asc" ? "desc" : "asc",
+              )
+            }
+            className="cursor-pointer hover:text-[var(--color-text-primary)]"
+            aria-label={`Order by Name (${sortDirection})`}
+          >
+            Name {sortDirection === "asc" ? "↓" : "↑"}
+          </button>
         </div>
         <div className="w-[200px] shrink-0 px-2">Description</div>
         <div className="w-[60px] shrink-0 px-2 text-center">Rules</div>
@@ -365,9 +458,20 @@ export default function IssueLabelsPage() {
             >
               <div className="flex min-w-0 flex-1 items-center gap-2 px-4">
                 <ColorDot color={labelItem.color} />
-                <span className="truncate text-[var(--color-text-primary)]">
+                <span
+                  data-testid="label-name"
+                  className="truncate text-[var(--color-text-primary)]"
+                >
                   {labelItem.name}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(labelItem.id, labelItem.name)}
+                  className="ml-auto rounded px-2 py-1 text-[11px] text-[var(--color-text-tertiary)] opacity-0 transition group-hover:opacity-100 hover:bg-[var(--color-surface-hover)] hover:text-[#f87171]"
+                  aria-label={`Delete ${labelItem.name}`}
+                >
+                  Delete
+                </button>
               </div>
               <div className="w-[200px] shrink-0 px-2">
                 <InlineDescription
@@ -394,9 +498,10 @@ export default function IssueLabelsPage() {
       )}
 
       {/* Create label modal */}
-      {showCreateModal && (
+      {createMode && (
         <CreateLabelModal
-          onClose={() => setShowCreateModal(false)}
+          mode={createMode}
+          onClose={() => setCreateMode(null)}
           onCreate={handleCreate}
         />
       )}

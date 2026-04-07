@@ -1382,5 +1382,40 @@
       }
     ],
     "fix_description": "Added a real workspace-members API and persistent invitation model, wired the settings page to load live members, send invitations, export CSV, and update roles, and updated invite acceptance so pending invitations are tracked through to membership."
+  },
+  {
+    "feature_id": "settings-007",
+    "attempt": 1,
+    "status": "pass",
+    "tested_steps": [
+      "Ran `make test`; the full Vitest suite passed before feature-specific fixes.",
+      "Ran `npx playwright test tests/e2e/smoke.spec.ts`; the authenticated smoke flow passed before manual QA.",
+      "Authenticated into the clone with Google OAuth in Ever and opened `/settings/issue-labels` with a real session.",
+      "Reproduced the main live failure: `GET /api/labels` crashed with `function max(uuid) does not exist`, so the page could not load existing workspace labels or refresh after creation.",
+      "Fixed the labels API and page error handling, then reloaded the real page and confirmed previously created label data loaded successfully.",
+      "Created a real label (`Alpha`) through the modal with a non-default blue color and description, then verified the persisted API response returned the saved color `#3b82f6` and description.",
+      "Edited the `Zulu` label description inline and confirmed the PATCH persisted after the server responded.",
+      "Verified the Name header toggles sorting by switching the live list from `Alpha, Zulu` to `Zulu, Alpha`.",
+      "Exercised the `New group` flow, created `Beta group`, then deleted it through the live UI and confirmed the row disappeared.",
+      "Saved a QA screenshot of the repaired page to `ralph/screenshots/qa/settings-007-attempt-1-issue-labels.png`.",
+      "Ran `make check && make test` after the fixes; typecheck, Biome, and the full Vitest suite all passed (`672` unit tests passed)."
+    ],
+    "bugs_found": [
+      {
+        "severity": "critical",
+        "description": "The issue-labels page could not load real workspace labels because the backend query called `max()` on a UUID column.",
+        "expected": "Opening `/settings/issue-labels` while authenticated should return the workspace-scoped label list and render the table.",
+        "actual": "Before the fix, `GET /api/labels` threw `function max(uuid) does not exist`, the page fetch rejected, and the list could not refresh after label creation.",
+        "reproduction": "1. Sign in and open `/settings/issue-labels`.\n2. Check the server log while the page requests `GET /api/labels`.\n3. Observe the Postgres error `function max(uuid) does not exist` and the broken label load."
+      },
+      {
+        "severity": "major",
+        "description": "The settings UI had missing management actions: `New group` was inert, sort by Name was not interactive, and labels could not be deleted from the page.",
+        "expected": "The screen should provide working create-group/create-label entry points, a usable Name sort control, and a deletion flow for label rows.",
+        "actual": "Before the fix, `New group` had no behavior, the Name header was static text, and no delete affordance was exposed in the UI.",
+        "reproduction": "1. Sign in and open `/settings/issue-labels`.\n2. Click `New group` and observe nothing happens.\n3. Click the Name header and observe the sort order does not change.\n4. Try to delete a label and observe there is no UI path."
+      }
+    ],
+    "fix_description": "Removed the invalid UUID aggregation from `GET /api/labels`, hardened the page against fetch/save failures, added working sort and delete interactions, and wired both `New label` and `New group` to live create flows that persist through the real labels API."
   }
 ]

@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
@@ -98,6 +104,15 @@ describe("formatCreatedDate", () => {
 
 const mockLabels = [
   {
+    id: "3",
+    name: "agent",
+    color: "#8b5cf6",
+    description: null,
+    issueCount: 20,
+    lastApplied: new Date(Date.now() - 13 * 86400000).toISOString(),
+    createdAt: "2025-09-01T00:00:00Z",
+  },
+  {
     id: "1",
     name: "bug",
     color: "#e5484d",
@@ -114,15 +129,6 @@ const mockLabels = [
     issueCount: 8,
     lastApplied: new Date(Date.now() - 26 * 86400000).toISOString(),
     createdAt: "2025-09-15T00:00:00Z",
-  },
-  {
-    id: "3",
-    name: "agent",
-    color: "#8b5cf6",
-    description: null,
-    issueCount: 20,
-    lastApplied: new Date(Date.now() - 13 * 86400000).toISOString(),
-    createdAt: "2025-09-01T00:00:00Z",
   },
 ];
 
@@ -163,7 +169,9 @@ describe("IssueLabelsPage", () => {
 
   it("renders table headers including Name, Description, Rules, Issues", async () => {
     await renderPage();
-    expect(screen.getByText("Name")).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: /order by name/i }),
+    ).toBeDefined();
     expect(screen.getByText("Description")).toBeDefined();
     expect(screen.getByText("Issues")).toBeDefined();
     expect(screen.getByText("Last applied")).toBeDefined();
@@ -241,5 +249,68 @@ describe("IssueLabelsPage", () => {
     // Check modal heading exists
     expect(screen.getByText("Cancel")).toBeDefined();
     expect(screen.getByPlaceholderText("Label name")).toBeDefined();
+    expect(
+      screen.getByPlaceholderText("Add label description..."),
+    ).toBeDefined();
+  });
+
+  it("opens create group modal when 'New group' is clicked", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByText("New group"));
+    const createGroups = screen.getAllByText("Create group");
+    expect(createGroups.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByPlaceholderText("Label name")).toBeDefined();
+    expect(
+      screen.getByPlaceholderText("Add label description..."),
+    ).toBeDefined();
+  });
+
+  it("toggles name sorting", async () => {
+    await renderPage();
+    const names = screen
+      .getAllByTestId("label-name")
+      .map((element) => element.textContent);
+    expect(names).toEqual(["agent", "bug", "frontend"]);
+
+    fireEvent.click(screen.getByRole("button", { name: /order by name/i }));
+
+    const reversedNames = screen
+      .getAllByTestId("label-name")
+      .map((element) => element.textContent);
+    expect(reversedNames).toEqual(["frontend", "bug", "agent"]);
+  });
+
+  it("deletes a label from the current list", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ labels: mockLabels }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+
+    const { default: IssueLabelsPage } = await import(
+      "@/app/(app)/settings/issue-labels/page"
+    );
+    render(<IssueLabelsPage />);
+
+    await screen.findByText("bug");
+    fireEvent.click(screen.getByRole("button", { name: "Delete bug" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("bug")).toBeNull();
+    });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/labels/1", {
+      method: "DELETE",
+    });
   });
 });
