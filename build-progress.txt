@@ -955,3 +955,50 @@ Date: 2026-04-07
 - Create modal is inline (not a separate route) for quick creation
 - Tab switching is client-side state only (Issues/Projects tabs)
 - API route validates name is non-empty string before creation
+
+## Iteration 30 — settings-001: Settings Layout Shell
+Date: 2026-04-07
+
+### What was built
+- Settings layout (`src/app/(app)/settings/layout.tsx`) with:
+  - Left sidebar (220px) with grouped navigation sections
+  - "Back to app" link at top pointing to /
+  - Settings heading
+  - 5 navigation sections: Account (6 items), Issues (3 items), Projects (4 items), Features (8 items), Administration (8 items)
+  - Section headers as non-clickable group labels
+  - Active page highlighting based on current pathname
+  - Content area on right with children rendering
+- Settings index page redirecting to /settings/account/preferences
+- Placeholder pages for Account Preferences, Profile, and Notifications
+
+### Test results
+- 9 unit tests passing (tests/settings-layout.test.tsx)
+  - Back to app link
+  - Settings heading
+  - All section headers
+  - Account section links
+  - Administration section links
+  - Active page highlighting
+  - Children content rendering
+  - Issues/Projects Labels links
+  - Features section links
+- 395 total tests passing (excluding pre-existing failures)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/app/(app)/settings/layout.tsx — new settings layout shell
+- src/app/(app)/settings/page.tsx — redirect to preferences
+- src/app/(app)/settings/account/preferences/page.tsx — placeholder
+- src/app/(app)/settings/account/profile/page.tsx — placeholder
+- src/app/(app)/settings/account/notifications/page.tsx — placeholder
+- tests/settings-layout.test.tsx — new unit test file (9 tests)
+- prd.json — marked settings-001 build_pass: true
+- qa-hints.json — added settings-001 QA hints
+
+### Decisions
+- Used Next.js App Router nested layout for settings (settings/layout.tsx wraps all settings pages)
+- Settings sidebar is 220px wide (slightly narrower than main app sidebar at 244px)
+- Placeholder pages created for sub-pages that will be built in later features
+- Section headers use uppercase tracking-wider style matching Linear's settings UI
+- Active state uses same CSS variable pattern as rest of app

@@ -556,5 +556,27 @@
       "View rendering with actual issue/project data",
       "Responsive layout on smaller screens"
     ]
+  },
+  {
+    "feature_id": "settings-001",
+    "tests_written": [
+      "Renders Back to app link pointing to /",
+      "Renders Settings heading",
+      "Renders all section headers (Account, Issues, Projects, Features, Administration)",
+      "Renders Account section navigation links (Preferences, Profile, Notifications)",
+      "Renders Administration section links (Workspace, Members, API)",
+      "Highlights active page in sidebar based on pathname",
+      "Renders children in content area",
+      "Renders Issues and Projects sections with Labels links",
+      "Renders Features section links (AI & Agents, Integrations)"
+    ],
+    "needs_deeper_qa": [
+      "Visual comparison with Linear's settings layout",
+      "Settings navigation with real page content loaded",
+      "Team settings section (dynamic based on user's teams)",
+      "Mobile/responsive settings layout",
+      "Dark/light theme consistency in settings",
+      "Sidebar scroll behavior with many sections"
+    ]
   }
 ]
