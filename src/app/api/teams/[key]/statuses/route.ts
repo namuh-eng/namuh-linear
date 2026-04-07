@@ -1,0 +1,118 @@
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import {
+  issue,
+  member,
+  team,
+  teamMember,
+  workflowState,
+} from "@/lib/db/schema";
+import { and, asc, count, eq } from "drizzle-orm";
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+
+const CATEGORY_ORDER = [
+  "triage",
+  "backlog",
+  "unstarted",
+  "started",
+  "completed",
+  "canceled",
+] as const;
+
+async function findAccessibleTeam(key: string, userId: string) {
+  const workspaceId = await resolveActiveWorkspaceId(userId);
+  if (!workspaceId) return null;
+
+  const [workspaceMember] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.workspaceId, workspaceId), eq(member.userId, userId)))
+    .limit(1);
+
+  if (!workspaceMember) return null;
+
+  const [teamRecord] = await db
+    .select({ id: team.id })
+    .from(team)
+    .innerJoin(teamMember, eq(teamMember.teamId, team.id))
+    .where(and(eq(team.key, key), eq(team.workspaceId, workspaceId)))
+    .limit(1);
+
+  return teamRecord ?? null;
+}
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ key: string }> },
+) {
+  const { key } = await params;
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const teamRecord = await findAccessibleTeam(key, session.user.id);
+  if (!teamRecord) {
+    return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+
+  const states = await db
+    .select({
+      id: workflowState.id,
+      name: workflowState.name,
+      category: workflowState.category,
+      color: workflowState.color,
+      description: workflowState.description,
+      position: workflowState.position,
+      isDefault: workflowState.isDefault,
+    })
+    .from(workflowState)
+    .where(eq(workflowState.teamId, teamRecord.id))
+    .orderBy(asc(workflowState.position));
+
+  // Count issues per status
+  const issueCounts = await db
+    .select({
+      stateId: issue.stateId,
+      count: count(),
+    })
+    .from(issue)
+    .where(eq(issue.teamId, teamRecord.id))
+    .groupBy(issue.stateId);
+
+  const countMap = new Map(issueCounts.map((ic) => [ic.stateId, ic.count]));
+
+  // Group by category
+  const grouped: Record<
+    string,
+    Array<{
+      id: string;
+      name: string;
+      issueCount: number;
+      description: string | null;
+      color: string;
+      isDefault: boolean | null;
+    }>
+  > = {};
+
+  for (const cat of CATEGORY_ORDER) {
+    grouped[cat] = [];
+  }
+
+  for (const state of states) {
+    const cat = state.category;
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push({
+      id: state.id,
+      name: state.name,
+      issueCount: countMap.get(state.id) ?? 0,
+      description: state.description,
+      color: state.color,
+      isDefault: state.isDefault,
+    });
+  }
+
+  return NextResponse.json({ statuses: grouped });
+}
