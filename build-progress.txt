@@ -587,3 +587,43 @@ Date: 2026-04-07
 - Health hardcoded as "No updates" for now (matches Linear's default when no project updates exist)
 - Project rows link to /project/{slug}/overview for future detail page
 - Progress ring uses SVG circles with stroke-dasharray for smooth rendering
+
+## Iteration 17 — feature-011: Project Detail Page
+Date: 2026-04-07
+
+### What was built
+- API route `GET /api/projects/[slug]` — fetches full project detail by slug with lead, members, teams, milestones, issues (grouped by state), and progress
+- ProjectProperties component (`src/components/project-properties.tsx`) — properties sidebar with Status, Priority, Lead, Members, Dates, Teams, Labels
+- MilestoneRow component (`src/components/milestone-row.tsx`) — milestone with name, progress bar, percentage, and issue count
+- Project detail page (`src/app/(app)/project/[slug]/page.tsx`) — full detail view:
+  - Overview/Activity/Issues tabs
+  - Large emoji icon + title + description
+  - Properties sidebar
+  - Resources section with add CTA
+  - "Write first project update" CTA
+  - Milestones list with progress bars
+  - Progress summary (completed/total)
+  - Issues tab with issues grouped by workflow state
+
+### Test results
+- 12 unit tests passing (tests/project-detail.test.tsx)
+  - 8 ProjectProperties tests (status, priority, lead, teams, dates, labels)
+  - 4 MilestoneRow tests (name, progress, count, bar)
+- 301 total tests passing (excluding pre-existing onboard-validation failures)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/app/api/projects/[slug]/route.ts — new API route
+- src/components/project-properties.tsx — new ProjectProperties component
+- src/components/milestone-row.tsx — new MilestoneRow component
+- src/app/(app)/project/[slug]/page.tsx — new project detail page
+- tests/project-detail.test.tsx — new unit test file (12 tests)
+- prd.json — marked feature-011 build_pass: true
+- qa-hints.json — added feature-011 QA hints
+
+### Decisions
+- Related data (lead, milestones, teams, members, issues) fetched in parallel with Promise.all
+- Issues grouped by workflow state for Issues tab, reusing IssueRow/IssuesGroupHeader components
+- Milestones show progress based on all project issues (simplified; real Linear tracks per-milestone issues)
+- Activity tab is placeholder text for now

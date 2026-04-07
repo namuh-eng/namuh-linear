@@ -355,5 +355,32 @@
       "Progress ring SVG rendering at various percentages",
       "Empty state shows correctly when no projects exist"
     ]
+  },
+  {
+    "feature_id": "feature-011",
+    "tests_written": [
+      "ProjectProperties renders status property",
+      "ProjectProperties renders priority property",
+      "ProjectProperties renders lead when provided",
+      "ProjectProperties shows Add lead when no lead",
+      "ProjectProperties renders team names",
+      "ProjectProperties renders dates section",
+      "ProjectProperties renders labels",
+      "ProjectProperties shows Add label when no labels",
+      "MilestoneRow renders name",
+      "MilestoneRow renders progress percentage",
+      "MilestoneRow renders issue count",
+      "MilestoneRow renders progress bar"
+    ],
+    "needs_deeper_qa": [
+      "E2E: navigate from projects list to project detail page",
+      "Overview/Activity/Issues tab switching",
+      "Milestones with real data — progress calculation",
+      "Issues tab grouped by status with real data",
+      "Visual comparison with Linear's actual project detail layout",
+      "Project update CTA interaction",
+      "Resources section — add document/link",
+      "Properties sidebar editing (status, priority, lead, etc.)"
+    ]
   }
 ]
