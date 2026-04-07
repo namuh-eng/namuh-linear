@@ -17,6 +17,10 @@ interface EmailOptions {
   text?: string;
 }
 
+interface SendEmailConfig {
+  allowPreviewFallback?: boolean;
+}
+
 async function writeEmailPreview(
   options: EmailOptions,
   error: unknown,
@@ -42,7 +46,11 @@ async function writeEmailPreview(
 /**
  * Send an email via SES.
  */
-export async function sendEmail(options: EmailOptions): Promise<void> {
+export async function sendEmail(
+  options: EmailOptions,
+  config: SendEmailConfig = {},
+): Promise<"ses" | "preview"> {
+  const { allowPreviewFallback = true } = config;
   const command = new SendEmailCommand({
     FromEmailAddress: senderEmail,
     Destination: {
@@ -61,12 +69,14 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
 
   try {
     await ses.send(command);
+    return "ses";
   } catch (error) {
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production" || !allowPreviewFallback) {
       throw error;
     }
 
     await writeEmailPreview(options, error);
+    return "preview";
   }
 }
 
@@ -101,12 +111,15 @@ export async function sendMagicLinkEmail(
 
   const text = `Your sign-in code is: ${code}\n\nOr use this link: ${magicLinkUrl}\n\nThis code expires in 10 minutes.`;
 
-  await sendEmail({
-    to,
-    subject: `Your sign-in code: ${code}`,
-    html,
-    text,
-  });
+  await sendEmail(
+    {
+      to,
+      subject: `Your sign-in code: ${code}`,
+      html,
+      text,
+    },
+    { allowPreviewFallback: true },
+  );
 }
 
 /**
@@ -135,12 +148,15 @@ export async function sendInvitationEmail(
 
   const text = `${inviterName} has invited you to join ${workspaceName} on namuh-linear.\n\nAccept: ${inviteUrl}`;
 
-  await sendEmail({
-    to,
-    subject: `${inviterName} invited you to ${workspaceName}`,
-    html,
-    text,
-  });
+  await sendEmail(
+    {
+      to,
+      subject: `${inviterName} invited you to ${workspaceName}`,
+      html,
+      text,
+    },
+    { allowPreviewFallback: false },
+  );
 }
 
 /**

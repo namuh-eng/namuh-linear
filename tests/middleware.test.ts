@@ -17,15 +17,14 @@ vi.mock("next/server", () => ({
   },
 }));
 
-function createMockRequest(
-  pathname: string,
-  cookies: Record<string, string> = {},
-) {
+function createMockRequest(path: string, cookies: Record<string, string> = {}) {
+  const url = new URL(`http://localhost:3015${path}`);
   return {
     nextUrl: {
-      pathname,
+      pathname: url.pathname,
+      search: url.search,
     },
-    url: `http://localhost:3015${pathname}`,
+    url: url.toString(),
     cookies: {
       get: (name: string) =>
         cookies[name] ? { value: cookies[name] } : undefined,
@@ -127,6 +126,17 @@ describe("Auth middleware", () => {
     await middleware(req as never);
     const redirectUrl = mockRedirect.mock.calls[0][0] as URL;
     expect(redirectUrl.searchParams.get("callbackUrl")).toBe("/team/ENG/board");
+  });
+
+  it("preserves query params in callback URL redirects", async () => {
+    mockRedirect.mockClear();
+    const { middleware } = await import("@/middleware");
+    const req = createMockRequest("/accept-invite?token=signed-token");
+    await middleware(req as never);
+    const redirectUrl = mockRedirect.mock.calls[0][0] as URL;
+    expect(redirectUrl.searchParams.get("callbackUrl")).toBe(
+      "/accept-invite?token=signed-token",
+    );
   });
 
   it("exports matcher config", async () => {

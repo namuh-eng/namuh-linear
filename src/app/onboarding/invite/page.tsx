@@ -12,6 +12,8 @@ export default function InviteTeamPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const workspaceId = searchParams.get("workspaceId") ?? "";
+  const teamKey = searchParams.get("teamKey") ?? "";
+  const redirectPath = teamKey ? `/team/${teamKey}/all` : "/";
 
   const [invites, setInvites] = useState<InviteEntry[]>([
     { email: "", role: "member" },
@@ -63,8 +65,31 @@ export default function InviteTeamPage() {
         return;
       }
 
+      const data = (await res.json()) as {
+        results?: {
+          email: string;
+          status: "sent" | "failed";
+          error?: string;
+        }[];
+      };
+      const failures =
+        data.results?.filter((result) => result.status === "failed") ?? [];
+
+      if (failures.length > 0) {
+        setError(
+          failures
+            .map((result) =>
+              result.error
+                ? `${result.email}: ${result.error}`
+                : `${result.email}: Failed to send`,
+            )
+            .join(" "),
+        );
+        return;
+      }
+
       setSent(true);
-      setTimeout(() => router.push("/"), 2000);
+      setTimeout(() => router.push(redirectPath), 2000);
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -73,7 +98,7 @@ export default function InviteTeamPage() {
   }
 
   function handleSkip() {
-    router.push("/");
+    router.push(redirectPath);
   }
 
   if (sent) {

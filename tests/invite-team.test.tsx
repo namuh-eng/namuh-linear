@@ -9,11 +9,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
 const mockPush = vi.fn();
+const mockSearchParams = {
+  get: (key: string) => {
+    if (key === "workspaceId") return "ws-123";
+    if (key === "teamKey") return "ABC";
+    return null;
+  },
+};
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
-  useSearchParams: () => ({
-    get: (key: string) => (key === "workspaceId" ? "ws-123" : null),
-  }),
+  useSearchParams: () => mockSearchParams,
 }));
 
 import InviteTeamPage from "@/app/onboarding/invite/page";
@@ -75,10 +81,10 @@ describe("Invite Team page", () => {
     expect(screen.queryByLabelText("Remove invite")).toBeNull();
   });
 
-  it("navigates to / when Skip button is clicked", () => {
+  it("navigates to the invited team when Skip button is clicked", () => {
     render(<InviteTeamPage />);
     fireEvent.click(screen.getByText("Skip for now"));
-    expect(mockPush).toHaveBeenCalledWith("/");
+    expect(mockPush).toHaveBeenCalledWith("/team/ABC/all");
   });
 
   it("disables Send button when all emails are empty", () => {
@@ -126,6 +132,43 @@ describe("Invite Team page", () => {
     await waitFor(() => {
       expect(screen.getByText("Invitations sent!")).toBeDefined();
     });
+  });
+
+  it("shows per-email failures instead of success when any invite fails", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          results: [
+            { email: "good@example.com", status: "sent" },
+            {
+              email: "bad@example.com",
+              status: "failed",
+              error: "Invalid email",
+            },
+          ],
+        }),
+    });
+    globalThis.fetch = mockFetch;
+
+    render(<InviteTeamPage />);
+    fireEvent.change(screen.getByPlaceholderText("teammate@company.com"), {
+      target: { value: "good@example.com" },
+    });
+    fireEvent.click(screen.getByText("Add another"));
+    fireEvent.change(
+      screen.getAllByPlaceholderText("teammate@company.com")[1],
+      {
+        target: { value: "bad@example.com" },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Send invitations" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/bad@example.com: Invalid email/)).toBeDefined();
+    });
+
+    expect(screen.queryByText("Invitations sent!")).toBeNull();
   });
 
   it("displays error message on API failure", async () => {

@@ -39,12 +39,14 @@ describe("Email utilities", () => {
   });
 
   it("sendEmail sends via SES with correct structure", async () => {
-    await emailModule.sendEmail({
-      to: "user@example.com",
-      subject: "Test Subject",
-      html: "<p>Hello</p>",
-      text: "Hello",
-    });
+    await expect(
+      emailModule.sendEmail({
+        to: "user@example.com",
+        subject: "Test Subject",
+        html: "<p>Hello</p>",
+        text: "Hello",
+      }),
+    ).resolves.toBe("ses");
 
     expect(sendMock).toHaveBeenCalledOnce();
     expect(getLastSentCommand()).toMatchObject({
@@ -63,11 +65,13 @@ describe("Email utilities", () => {
   });
 
   it("sendEmail works without text body", async () => {
-    await emailModule.sendEmail({
-      to: "user@example.com",
-      subject: "HTML Only",
-      html: "<p>Hello</p>",
-    });
+    await expect(
+      emailModule.sendEmail({
+        to: "user@example.com",
+        subject: "HTML Only",
+        html: "<p>Hello</p>",
+      }),
+    ).resolves.toBe("ses");
 
     expect(sendMock).toHaveBeenCalledOnce();
     const cmd = getLastSentCommand() as {
@@ -83,11 +87,13 @@ describe("Email utilities", () => {
     vi.resetModules();
     emailModule = await import("@/lib/email");
 
-    await emailModule.sendEmail({
-      to: "user@example.com",
-      subject: "Fallback Sender",
-      html: "<p>Hello</p>",
-    });
+    await expect(
+      emailModule.sendEmail({
+        to: "user@example.com",
+        subject: "Fallback Sender",
+        html: "<p>Hello</p>",
+      }),
+    ).resolves.toBe("ses");
 
     expect(sendMock).toHaveBeenCalledOnce();
     expect(getLastSentCommand()).toMatchObject({
@@ -125,7 +131,7 @@ describe("Email utilities", () => {
         html: "<p>Hello</p>",
         text: "Hello",
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe("preview");
 
     const preview = JSON.parse(
       fs.readFileSync(path.join(previewDir, "latest.json"), "utf8"),
@@ -140,6 +146,21 @@ describe("Email utilities", () => {
     expect(preview.to).toBe("user@example.com");
     expect(preview.subject).toBe("Preview me");
     expect(preview.error).toContain("session expired");
+  });
+
+  it("supports disabling preview fallback in non-production", async () => {
+    sendMock.mockRejectedValueOnce(new Error("ses unavailable"));
+
+    await expect(
+      emailModule.sendEmail(
+        {
+          to: "user@example.com",
+          subject: "Must fail locally",
+          html: "<p>Hello</p>",
+        },
+        { allowPreviewFallback: false },
+      ),
+    ).rejects.toThrow("ses unavailable");
   });
 
   it("still throws SES errors in production", async () => {
@@ -177,6 +198,19 @@ describe("Email utilities", () => {
     expect(cmd.Content.Simple.Body.Html.Data).toContain(
       "https://app.example.com/invite/xyz",
     );
+  });
+
+  it("sendInvitationEmail fails when SES delivery fails", async () => {
+    sendMock.mockRejectedValueOnce(new Error("invite delivery failed"));
+
+    await expect(
+      emailModule.sendInvitationEmail(
+        "invitee@example.com",
+        "Acme Corp",
+        "John",
+        "https://app.example.com/invite/xyz",
+      ),
+    ).rejects.toThrow("invite delivery failed");
   });
 
   it("sendNotificationEmail includes body and action link", async () => {

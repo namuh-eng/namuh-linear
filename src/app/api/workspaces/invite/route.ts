@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member, workspace } from "@/lib/db/schema";
 import { sendInvitationEmail } from "@/lib/email";
+import { createInviteToken } from "@/lib/invite-tokens";
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
 
   // Get workspace info for the email
   const [ws] = await db
-    .select({ name: workspace.name, urlSlug: workspace.urlSlug })
+    .select({ name: workspace.name })
     .from(workspace)
     .where(eq(workspace.id, workspaceId))
     .limit(1);
@@ -76,11 +77,18 @@ export async function POST(request: Request) {
     }
 
     try {
-      const inviteUrl = `${baseUrl}/login?workspace=${ws.urlSlug}`;
+      const inviteToken = createInviteToken({
+        workspaceId,
+        email,
+        role: invite.role,
+      });
+      const inviteUrl = `${baseUrl}/accept-invite?token=${encodeURIComponent(inviteToken)}`;
       await sendInvitationEmail(email, ws.name, session.user.name, inviteUrl);
       results.push({ email, status: "sent" });
-    } catch {
-      results.push({ email, status: "failed", error: "Failed to send email" });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to send email";
+      results.push({ email, status: "failed", error: message });
     }
   }
 

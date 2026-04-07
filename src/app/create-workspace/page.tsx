@@ -43,7 +43,11 @@ export default function CreateWorkspacePage() {
 
       const data = await res.json();
       // Redirect to invite team members step
-      router.push(`/onboarding/invite?workspaceId=${data.workspace.id}`);
+      const inviteParams = new URLSearchParams({
+        workspaceId: data.workspace.id,
+        teamKey: data.team.key,
+      });
+      router.push(`/onboarding/invite?${inviteParams.toString()}`);
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {

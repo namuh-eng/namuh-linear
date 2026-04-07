@@ -128,7 +128,7 @@ describe("Create Workspace page", () => {
 
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/onboarding/invite?workspaceId=ws-1",
+        "/onboarding/invite?workspaceId=ws-1&teamKey=TES",
       );
     });
   });
