@@ -111,5 +111,30 @@
       "CTA buttons wire up correctly to create modals (once built)",
       "Responsive layout on mobile screens"
     ]
+  },
+  {
+    "feature_id": "layout-001",
+    "tests_written": [
+      "renders workspace name and initials",
+      "renders personal nav links (Inbox, My Issues)",
+      "renders workspace section (Projects, Views)",
+      "renders team section with team name",
+      "renders team sub-nav (Triage, Issues, Projects, Views)",
+      "renders Initiatives and Cycles",
+      "has search, create issue, help buttons",
+      "toggles team section collapse",
+      "links point to correct routes",
+      "AppShell renders sidebar and content",
+      "AppShell renders children",
+      "content has rounded container"
+    ],
+    "needs_deeper_qa": [
+      "Visual comparison with Linear's actual sidebar layout",
+      "Sidebar scroll behavior with many teams",
+      "Active state highlighting accuracy across all routes",
+      "Responsive behavior / sidebar collapse on mobile",
+      "Dark/light theme switching",
+      "Workspace switcher interaction"
+    ]
   }
 ]

@@ -197,3 +197,41 @@ Date: 2026-04-07
 - Used `(app)` route group to separate app pages from auth/onboarding pages
 - EmptyState component is generic and reusable — will be replaced by real content as features are built
 - Pages are client components for now; will be converted to server components when data fetching is added
+
+## Iteration 7 — layout-001: App Shell Layout
+Date: 2026-04-07
+
+### What was built
+- Sidebar component (`src/components/sidebar.tsx`) — 244px fixed width, dark theme (#090909)
+  - Workspace header: initials avatar + name, search button, create issue (+) button
+  - Personal section: Inbox, My Issues links with active state highlighting
+  - Workspace section: Projects, Views
+  - Your teams section: collapsible, team icon + name, sub-nav (Triage, Issues, Projects, Views)
+  - Try section: Initiatives, Cycles
+  - Bottom: Help button
+- AppShell component (`src/app/(app)/app-shell.tsx`) — flex layout with sidebar + content area
+- App layout (`src/app/(app)/layout.tsx`) — server component that fetches workspace/team data, protects routes
+- Content area: rounded-xl corners, #0f0f11 background, border, 8px margin from sidebar
+- Active link highlighting based on current pathname
+- Collapsible team section with toggle animation
+
+### Test results
+- 15 unit tests passing (tests/app-shell.test.tsx)
+  - 12 tests for Sidebar (workspace name, initials, links, team section, collapse toggle, buttons)
+  - 3 tests for AppShell (renders sidebar + content, children, rounded container)
+- 157 total tests passing (excluding pre-existing onboard-validation failures)
+- TypeScript typecheck: clean
+- Biome lint/format: clean
+
+### Files changed
+- src/components/sidebar.tsx — new sidebar component
+- src/app/(app)/app-shell.tsx — new client shell component
+- src/app/(app)/layout.tsx — new server layout with auth + workspace data
+- tests/app-shell.test.tsx — new unit test file (15 tests)
+- prd.json — marked layout-001 build_pass: true
+
+### Decisions
+- Split into server layout (data fetching, auth) and client AppShell (interactivity)
+- Sidebar uses `usePathname()` for active state instead of server-side props
+- Team section is collapsible to match Linear's UX
+- SVGs inside labeled buttons use `aria-hidden` instead of duplicate aria-labels
