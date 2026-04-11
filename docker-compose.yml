@@ -12,8 +12,8 @@ x-environment: &environment
   DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:${DB_PASSWORD:-password}@postgres:5432/namuh_linear}
   REDIS_URL: ${REDIS_URL:-redis://redis:6379}
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3015}
-  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3015}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
   AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID}
   AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET}
   AWS_REGION: ${AWS_REGION:-us-east-1}
@@ -23,13 +23,13 @@ x-environment: &environment
 
 services:
   # ---------------------------------------------------------------------------
-  # Application — Next.js 16 App Router (port 3015)
+  # Application — Next.js 16 App Router
   # ---------------------------------------------------------------------------
   app:
     image: ghcr.io/namuh-eng/namuh-linear:latest
     restart: unless-stopped
     ports:
-      - "3015:3000"
+      - "3000:3000"
     environment:
       <<: *environment
     env_file:

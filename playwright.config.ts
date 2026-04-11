@@ -7,7 +7,7 @@ export default defineConfig({
   timeout: 30000,
   retries: 1,
   use: {
-    baseURL: "http://localhost:3015",
+    baseURL: "http://localhost:3000",
     headless: true,
     screenshot: "only-on-failure",
   },
@@ -27,7 +27,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "PLAYWRIGHT_TEST=true npm run dev",
-    port: 3015,
+    port: 3000,
     reuseExistingServer: false,
   },
 });

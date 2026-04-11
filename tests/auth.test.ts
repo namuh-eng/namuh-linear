@@ -42,9 +42,9 @@ vi.mock("better-auth/client/plugins", () => ({
 
 vi.stubEnv("AUTH_GOOGLE_ID", "test-google-id");
 vi.stubEnv("AUTH_GOOGLE_SECRET", "test-google-secret");
-vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3015");
+vi.stubEnv("BETTER_AUTH_URL", "http://localhost:3000");
 vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
-vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3015");
+vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
 vi.stubEnv("DATABASE_URL", "postgresql://test@localhost/test");
 
 describe("Auth configuration", () => {
@@ -116,13 +116,13 @@ describe("Auth configuration", () => {
     await mlPlugin?.options?.sendMagicLink({
       email: "hello@example.com",
       token: "123456",
-      url: "http://localhost:3015/api/auth/magic-link/verify?token=123456",
+      url: "http://localhost:3000/api/auth/magic-link/verify?token=123456",
     });
 
     expect(sendMagicLinkEmail).toHaveBeenCalledWith(
       "hello@example.com",
       "123456",
-      "http://localhost:3015/api/auth/magic-link/verify?token=123456",
+      "http://localhost:3000/api/auth/magic-link/verify?token=123456",
     );
   });
 

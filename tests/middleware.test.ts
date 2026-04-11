@@ -18,7 +18,7 @@ vi.mock("next/server", () => ({
 }));
 
 function createMockRequest(path: string, cookies: Record<string, string> = {}) {
-  const url = new URL(`http://localhost:3015${path}`);
+  const url = new URL(`http://localhost:3000${path}`);
   return {
     nextUrl: {
       pathname: url.pathname,

@@ -60,7 +60,7 @@ make dev-services
 npm run dev
 ```
 
-The app is now running at `http://localhost:3015`.
+The app is now running at `http://localhost:3000`.
 
 ---
 
@@ -262,7 +262,7 @@ npm run test:e2e
 import { test, expect } from '@playwright/test';
 
 test('should create a new issue', async ({ page }) => {
-  await page.goto('http://localhost:3015/team/eng');
+  await page.goto('http://localhost:3000/team/eng');
   await page.click('button:has-text("New issue")');
   await page.fill('input[placeholder="Issue title"]', 'Fix login bug');
   await page.click('button:has-text("Create")');
