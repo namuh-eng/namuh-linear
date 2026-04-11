@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
   }
 
-  const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3015";
+  const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
   const results: {
     email: string;
     status: "sent" | "failed";

@@ -4,8 +4,8 @@
 # Differences from production:
 #   - app: built from local Dockerfile instead of pulling from GHCR
 #   - app: source code mounted for hot reload
-#   - postgres: port 5432 exposed to host for direct access (e.g. psql, TablePlus)
-#   - redis: port 6379 exposed to host for direct access (e.g. redis-cli)
+#   - postgres: exposed to host (default 5432, override with PG_PORT)
+#   - redis: exposed to host (default 6379, override with REDIS_PORT)
 
 services:
   # ---------------------------------------------------------------------------
@@ -26,15 +26,15 @@ services:
       - /app/.next
 
   # ---------------------------------------------------------------------------
-  # Postgres — expose port 5432 for local tooling
+  # Postgres — expose to host (PG_PORT, default 5432)
   # ---------------------------------------------------------------------------
   postgres:
     ports:
-      - "5432:5432"
+      - "${PG_PORT:-5432}:5432"
 
   # ---------------------------------------------------------------------------
-  # Redis — expose port 6379 for local tooling
+  # Redis — expose to host (REDIS_PORT, default 6379)
   # ---------------------------------------------------------------------------
   redis:
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"

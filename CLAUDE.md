@@ -24,7 +24,7 @@ Built with the Ralph-to-Ralph autonomous cloning system.
 - `make test` — run unit tests (Vitest)
 - `make test-e2e` — run E2E tests (Playwright, requires dev server)
 - `make all` — check + test
-- `npm run dev` — start dev server on port 3015
+- `npm run dev` — start dev server (default port 3000)
 - `npm run build` — production build
 - `npm run db:push` — push Drizzle schema to Postgres
 

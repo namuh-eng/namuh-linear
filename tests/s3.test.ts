@@ -1,27 +1,58 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock AWS SDK modules
-vi.mock("@aws-sdk/client-s3", () => {
+const {
+  sendMock,
+  S3ClientMock,
+  PutObjectCommandMock,
+  GetObjectCommandMock,
+  DeleteObjectCommandMock,
+  getSignedUrlMock,
+} = vi.hoisted(() => {
   const sendMock = vi.fn(() => Promise.resolve({}));
+  // biome-ignore lint/complexity/noStaticOnlyClass: vitest 4 requires class-based mocks for `new` calls
+  class S3ClientMock {
+    send = sendMock;
+  }
+  class PutObjectCommandMock {
+    _type = "PutObject";
+    constructor(input: Record<string, unknown>) {
+      Object.assign(this, input);
+    }
+  }
+  class GetObjectCommandMock {
+    _type = "GetObject";
+    constructor(input: Record<string, unknown>) {
+      Object.assign(this, input);
+    }
+  }
+  class DeleteObjectCommandMock {
+    _type = "DeleteObject";
+    constructor(input: Record<string, unknown>) {
+      Object.assign(this, input);
+    }
+  }
+  const getSignedUrlMock = vi.fn(() =>
+    Promise.resolve("https://s3.example.com/signed-url"),
+  );
   return {
-    S3Client: vi.fn().mockImplementation(() => ({ send: sendMock })),
-    PutObjectCommand: vi
-      .fn()
-      .mockImplementation((input) => ({ ...input, _type: "PutObject" })),
-    GetObjectCommand: vi
-      .fn()
-      .mockImplementation((input) => ({ ...input, _type: "GetObject" })),
-    DeleteObjectCommand: vi.fn().mockImplementation((input) => ({
-      ...input,
-      _type: "DeleteObject",
-    })),
+    sendMock,
+    S3ClientMock,
+    PutObjectCommandMock,
+    GetObjectCommandMock,
+    DeleteObjectCommandMock,
+    getSignedUrlMock,
   };
 });
 
+vi.mock("@aws-sdk/client-s3", () => ({
+  S3Client: S3ClientMock,
+  PutObjectCommand: PutObjectCommandMock,
+  GetObjectCommand: GetObjectCommandMock,
+  DeleteObjectCommand: DeleteObjectCommandMock,
+}));
+
 vi.mock("@aws-sdk/s3-request-presigner", () => ({
-  getSignedUrl: vi.fn(() =>
-    Promise.resolve("https://s3.example.com/signed-url"),
-  ),
+  getSignedUrl: getSignedUrlMock,
 }));
 
 vi.stubEnv("S3_BUCKET", "test-bucket");

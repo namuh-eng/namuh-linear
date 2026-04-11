@@ -1,24 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const store = new Map<string, string>();
-let messageHandler: ((channel: string, message: string) => void) | undefined;
+const { store, setMessageHandler, RedisMock } = vi.hoisted(() => {
+  const store = new Map<string, string>();
+  let messageHandler: ((channel: string, message: string) => void) | undefined;
 
-// Mock ioredis before importing the module
-vi.mock("ioredis", () => {
-  const RedisMock = vi.fn().mockImplementation(() => ({
-    get: vi.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
-    set: vi.fn((key: string, value: string, _mode?: string, _ttl?: number) => {
+  class RedisMock {
+    get = vi.fn((key: string) => Promise.resolve(store.get(key) ?? null));
+    set = vi.fn((key: string, value: string, _mode?: string, _ttl?: number) => {
       store.set(key, value);
       return Promise.resolve("OK");
-    }),
-    del: vi.fn((...keys: string[]) => {
+    });
+    del = vi.fn((...keys: string[]) => {
       let count = 0;
       for (const key of keys) {
         if (store.delete(key)) count++;
       }
       return Promise.resolve(count);
-    }),
-    scan: vi.fn(
+    });
+    scan = vi.fn(
       (
         cursor: string,
         _match: string,
@@ -26,36 +25,43 @@ vi.mock("ioredis", () => {
         _count: string,
         _countValue: number,
       ) => {
-        if (cursor !== "0") {
-          return Promise.resolve(["0", []]);
-        }
-
+        if (cursor !== "0") return Promise.resolve(["0", []]);
         const prefix = pattern.replace("*", "");
         const matched = [...store.keys()].filter((key) =>
           key.startsWith(prefix),
         );
         return Promise.resolve(["0", matched]);
       },
-    ),
-    publish: vi.fn(() => Promise.resolve(1)),
-    subscribe: vi.fn(() => Promise.resolve()),
-    unsubscribe: vi.fn(() => Promise.resolve()),
-    on: vi.fn(
+    );
+    publish = vi.fn(() => Promise.resolve(1));
+    subscribe = vi.fn(() => Promise.resolve());
+    unsubscribe = vi.fn(() => Promise.resolve());
+    on = vi.fn(
       (event: string, handler: (channel: string, message: string) => void) => {
         if (event === "message") {
           messageHandler = handler;
         }
       },
-    ),
-    connect: vi.fn(() => Promise.resolve()),
-    disconnect: vi.fn(() => Promise.resolve()),
-    _emitMessage: (channel: string, message: string) => {
+    );
+    connect = vi.fn(() => Promise.resolve());
+    disconnect = vi.fn(() => Promise.resolve());
+    _emitMessage(channel: string, message: string) {
       messageHandler?.(channel, message);
-    },
-  }));
+    }
+  }
 
-  return { default: RedisMock };
+  return {
+    store,
+    setMessageHandler: (
+      h: ((channel: string, message: string) => void) | undefined,
+    ) => {
+      messageHandler = h;
+    },
+    RedisMock,
+  };
 });
+
+vi.mock("ioredis", () => ({ default: RedisMock }));
 
 // Set env before importing module
 vi.stubEnv("REDIS_URL", "redis://localhost:6379");
@@ -65,7 +71,7 @@ describe("Redis utilities", () => {
 
   beforeEach(async () => {
     store.clear();
-    messageHandler = undefined;
+    setMessageHandler(undefined);
     vi.clearAllMocks();
     vi.resetModules();
     vi.stubEnv("REDIS_URL", "redis://localhost:6379");

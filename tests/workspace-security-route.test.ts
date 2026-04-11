@@ -79,7 +79,7 @@ describe("workspace security route", () => {
 
     const { GET } = await import("@/app/api/workspaces/current/security/route");
     const response = await GET(
-      new Request("http://localhost:3015/api/workspaces/current/security"),
+      new Request("http://localhost:3000/api/workspaces/current/security"),
     );
 
     expect(response.status).toBe(200);
@@ -92,7 +92,7 @@ describe("workspace security route", () => {
       security: {
         inviteLinkEnabled: true,
         inviteUrl: expect.stringMatching(
-          /^http:\/\/localhost:3015\/accept-invite\?token=[a-f0-9]{48}$/,
+          /^http:\/\/localhost:3000\/accept-invite\?token=[a-f0-9]{48}$/,
         ),
         approvedEmailDomains: ["example.com"],
         authentication: {
@@ -132,7 +132,7 @@ describe("workspace security route", () => {
       "@/app/api/workspaces/current/security/route"
     );
     const response = await PATCH(
-      new Request("http://localhost:3015/api/workspaces/current/security", {
+      new Request("http://localhost:3000/api/workspaces/current/security", {
         method: "PATCH",
         body: JSON.stringify({
           inviteLinkEnabled: false,
@@ -185,7 +185,7 @@ describe("workspace security route", () => {
     await expect(response.json()).resolves.toEqual({
       security: {
         inviteLinkEnabled: false,
-        inviteUrl: "http://localhost:3015/accept-invite?token=saved-token",
+        inviteUrl: "http://localhost:3000/accept-invite?token=saved-token",
         approvedEmailDomains: ["example.com", "docs.example.com"],
         authentication: {
           google: false,

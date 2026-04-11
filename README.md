@@ -59,7 +59,7 @@ cp .env.example .env
 # Run database migrations
 npm run db:push
 
-# Start the dev server (runs on http://localhost:3015)
+# Start the dev server (runs on http://localhost:3000)
 npm run dev
 ```
 
@@ -72,7 +72,7 @@ cd namuh-linear
 docker compose up
 ```
 
-The app will be available at `http://localhost:3015`.
+The app will be available at `http://localhost:3000`.
 
 ### Option 3: Cloud Deployment (Coming Soon)
 

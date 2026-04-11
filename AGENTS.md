@@ -27,7 +27,7 @@ Run `make test-e2e` first. This catches obvious breakage in seconds.
 ### Step 3: Real API testing
 Test the clone's API directly:
 ```bash
-curl -X POST http://localhost:3015/api/<endpoint> \
+curl -X POST http://localhost:3000/api/<endpoint> \
   -H "Authorization: Bearer <dev-api-key>" \
   -H "Content-Type: application/json" \
   -d '{"<request body>"}'

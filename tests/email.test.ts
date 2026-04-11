@@ -3,13 +3,25 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const sendMock = vi.fn<(cmd: unknown) => Promise<unknown>>(() =>
-  Promise.resolve({ MessageId: "test-msg-id" }),
-);
+const { sendMock, SESv2ClientMock, SendEmailCommandMock } = vi.hoisted(() => {
+  const sendMock = vi.fn<(cmd: unknown) => Promise<unknown>>(() =>
+    Promise.resolve({ MessageId: "test-msg-id" }),
+  );
+  // biome-ignore lint/complexity/noStaticOnlyClass: vitest 4 requires class-based mocks for `new` calls
+  class SESv2ClientMock {
+    send = sendMock;
+  }
+  class SendEmailCommandMock {
+    constructor(input: unknown) {
+      Object.assign(this, input as Record<string, unknown>);
+    }
+  }
+  return { sendMock, SESv2ClientMock, SendEmailCommandMock };
+});
 
 vi.mock("@aws-sdk/client-sesv2", () => ({
-  SESv2Client: vi.fn().mockImplementation(() => ({ send: sendMock })),
-  SendEmailCommand: vi.fn().mockImplementation((input) => input),
+  SESv2Client: SESv2ClientMock,
+  SendEmailCommand: SendEmailCommandMock,
 }));
 
 vi.stubEnv("AWS_REGION", "us-east-1");
