@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { cycleRangesOverlap, parseCycleDateInput } from "@/lib/cycle-utils";
 import { db } from "@/lib/db";
 import { cycle, issue, team, workflowState } from "@/lib/db/schema";
+import { getTeamIdByKey } from "@/lib/teams";
 import { and, count, desc, eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -122,17 +123,11 @@ export async function POST(
 
   const { key } = await params;
 
-  const teams = await db
-    .select({ id: team.id })
-    .from(team)
-    .where(eq(team.key, key))
-    .limit(1);
-
-  if (teams.length === 0) {
+  const teamId = await getTeamIdByKey(key);
+  if (!teamId) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  const teamRecord = teams[0];
   const body = await request.json();
   const startDate =
     typeof body.startDate === "string"
@@ -159,7 +154,7 @@ export async function POST(
   const lastCycle = await db
     .select({ number: cycle.number })
     .from(cycle)
-    .where(eq(cycle.teamId, teamRecord.id))
+    .where(eq(cycle.teamId, teamId))
     .orderBy(desc(cycle.number))
     .limit(1);
 
@@ -171,7 +166,7 @@ export async function POST(
       endDate: cycle.endDate,
     })
     .from(cycle)
-    .where(eq(cycle.teamId, teamRecord.id));
+    .where(eq(cycle.teamId, teamId));
 
   const overlappingCycle = existingCycles.find((existingCycle) =>
     cycleRangesOverlap(
@@ -194,7 +189,7 @@ export async function POST(
     .values({
       name: body.name ?? null,
       number: nextNumber,
-      teamId: teamRecord.id,
+      teamId,
       startDate,
       endDate,
       autoRollover: body.autoRollover ?? true,

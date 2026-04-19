@@ -3,14 +3,13 @@ import { db } from "@/lib/db";
 import {
   comment,
   issue,
-  issueLabel,
-  label,
   member,
   project,
   team,
   user,
   workflowState,
 } from "@/lib/db/schema";
+import { getLabelsForIssues } from "@/lib/issue-labels";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -84,29 +83,7 @@ export async function GET(request: Request) {
 
   // Get labels for all issues
   const issueIds = issues.map((i) => i.id);
-  const labelsMap: Record<string, { name: string; color: string }[]> = {};
-
-  if (issueIds.length > 0) {
-    const issueLabelRows = await db
-      .select({
-        issueId: issueLabel.issueId,
-        labelName: label.name,
-        labelColor: label.color,
-      })
-      .from(issueLabel)
-      .innerJoin(label, eq(issueLabel.labelId, label.id))
-      .where(inArray(issueLabel.issueId, issueIds));
-
-    for (const row of issueLabelRows) {
-      if (!labelsMap[row.issueId]) {
-        labelsMap[row.issueId] = [];
-      }
-      labelsMap[row.issueId].push({
-        name: row.labelName,
-        color: row.labelColor,
-      });
-    }
-  }
+  const labelsMap = await getLabelsForIssues(issueIds);
 
   // Build team lookup
   const teamMap = new Map(teams.map((t) => [t.id, t]));

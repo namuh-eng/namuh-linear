@@ -1,13 +1,8 @@
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import {
-  issue,
-  issueLabel,
-  label,
-  team,
-  user,
-  workflowState,
-} from "@/lib/db/schema";
+import { issue, user, workflowState } from "@/lib/db/schema";
+import { getLabelsForIssues } from "@/lib/issue-labels";
+import { getTeamByKey } from "@/lib/teams";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -23,17 +18,10 @@ export async function GET(
 
   const { key } = await params;
 
-  const teams = await db
-    .select({ id: team.id, name: team.name, key: team.key })
-    .from(team)
-    .where(eq(team.key, key))
-    .limit(1);
-
-  if (teams.length === 0) {
+  const teamRecord = await getTeamByKey(key);
+  if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
-
-  const teamRecord = teams[0];
 
   // Find triage workflow states
   const triageStates = await db
@@ -91,33 +79,7 @@ export async function GET(
 
   // Get labels for issues
   const issueIds = issues.map((i) => i.id);
-  let labelsMap: Record<string, { id: string; name: string; color: string }[]> =
-    {};
-
-  if (issueIds.length > 0) {
-    const issueLabelRows = await db
-      .select({
-        issueId: issueLabel.issueId,
-        labelId: label.id,
-        labelName: label.name,
-        labelColor: label.color,
-      })
-      .from(issueLabel)
-      .innerJoin(label, eq(issueLabel.labelId, label.id))
-      .where(inArray(issueLabel.issueId, issueIds));
-
-    labelsMap = {};
-    for (const row of issueLabelRows) {
-      if (!labelsMap[row.issueId]) {
-        labelsMap[row.issueId] = [];
-      }
-      labelsMap[row.issueId].push({
-        id: row.labelId,
-        name: row.labelName,
-        color: row.labelColor,
-      });
-    }
-  }
+  const labelsMap = await getLabelsForIssues(issueIds);
 
   const formattedIssues = issues.map((i) => ({
     id: i.id,

@@ -1,13 +1,7 @@
-import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import {
-  label,
-  member,
-  team,
-  teamMember,
-  workflowState,
-} from "@/lib/db/schema";
+import { label, team, teamMember, workflowState } from "@/lib/db/schema";
+import { findAccessibleTeam } from "@/lib/teams";
 import { and, count, eq, ne } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -29,44 +23,6 @@ function readTeamSettings(settings: unknown): TeamSettingsFlags {
     emailEnabled: parsed.emailEnabled === true,
     detailedHistory: parsed.detailedHistory === true,
   };
-}
-
-async function findAccessibleTeam(key: string, userId: string) {
-  const workspaceId = await resolveActiveWorkspaceId(userId);
-  if (!workspaceId) {
-    return null;
-  }
-
-  const [workspaceMember] = await db
-    .select({ id: member.id })
-    .from(member)
-    .where(and(eq(member.workspaceId, workspaceId), eq(member.userId, userId)))
-    .limit(1);
-
-  if (!workspaceMember) {
-    return null;
-  }
-
-  const [teamRecord] = await db
-    .select({
-      id: team.id,
-      workspaceId: team.workspaceId,
-      name: team.name,
-      key: team.key,
-      icon: team.icon,
-      timezone: team.timezone,
-      estimateType: team.estimateType,
-      triageEnabled: team.triageEnabled,
-      cyclesEnabled: team.cyclesEnabled,
-      cycleStartDay: team.cycleStartDay,
-      cycleDurationWeeks: team.cycleDurationWeeks,
-      settings: team.settings,
-    })
-    .from(team)
-    .where(and(eq(team.key, key), eq(team.workspaceId, workspaceId)))
-    .limit(1);
-
-  return teamRecord ?? null;
 }
 
 async function getTeamMembership(teamId: string, userId: string) {

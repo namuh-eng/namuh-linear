@@ -1,4 +1,4 @@
-.PHONY: check test test-e2e typecheck lint format fix all dev build clean
+.PHONY: check test test-e2e typecheck lint format fix all dev build clean cpd
 .PHONY: check-header test-header check-verbose test-verbose
 .PHONY: dev-services dev-services-down
 
@@ -50,6 +50,10 @@ check-verbose:
 
 test-verbose:
 	@VERBOSE=1 $(MAKE) test
+
+# Copy-paste detection (jscpd)
+cpd:
+	npx jscpd
 
 # Dev server
 dev:

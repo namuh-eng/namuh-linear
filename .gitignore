@@ -29,3 +29,11 @@ qa-report.json
 test-a.txt
 test-b.txt
 test.txt
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# jscpd reports (generated)
+.cpd-raw-output.txt
+.cpd-report/
+cpd-checklist.md

@@ -1,0 +1,14 @@
+{
+  "threshold": 5,
+  "reporters": ["console"],
+  "ignore": [
+    "node_modules",
+    ".next",
+    "dist",
+    "drizzle",
+    "package-lock.json",
+    "tests/e2e"
+  ],
+  "format": ["typescript", "typescriptx"],
+  "path": ["src/"]
+}

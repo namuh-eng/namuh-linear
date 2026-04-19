@@ -1,14 +1,8 @@
-import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import {
-  issue,
-  member,
-  team,
-  teamMember,
-  workflowState,
-} from "@/lib/db/schema";
-import { and, asc, count, eq } from "drizzle-orm";
+import { issue, workflowState } from "@/lib/db/schema";
+import { findAccessibleTeam } from "@/lib/teams";
+import { asc, count, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -20,28 +14,6 @@ const CATEGORY_ORDER = [
   "completed",
   "canceled",
 ] as const;
-
-async function findAccessibleTeam(key: string, userId: string) {
-  const workspaceId = await resolveActiveWorkspaceId(userId);
-  if (!workspaceId) return null;
-
-  const [workspaceMember] = await db
-    .select({ id: member.id })
-    .from(member)
-    .where(and(eq(member.workspaceId, workspaceId), eq(member.userId, userId)))
-    .limit(1);
-
-  if (!workspaceMember) return null;
-
-  const [teamRecord] = await db
-    .select({ id: team.id })
-    .from(team)
-    .innerJoin(teamMember, eq(teamMember.teamId, team.id))
-    .where(and(eq(team.key, key), eq(team.workspaceId, workspaceId)))
-    .limit(1);
-
-  return teamRecord ?? null;
-}
 
 export async function GET(
   _req: Request,

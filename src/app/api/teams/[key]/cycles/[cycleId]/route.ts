@@ -1,16 +1,10 @@
 import { auth } from "@/lib/auth";
 import { cycleRangesOverlap, parseCycleDateInput } from "@/lib/cycle-utils";
 import { db } from "@/lib/db";
-import {
-  cycle,
-  issue,
-  issueLabel,
-  label,
-  team,
-  user,
-  workflowState,
-} from "@/lib/db/schema";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { cycle, issue, user, workflowState } from "@/lib/db/schema";
+import { getLabelsForIssues } from "@/lib/issue-labels";
+import { getTeamByKey, getTeamIdByKey } from "@/lib/teams";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -25,17 +19,10 @@ export async function GET(
 
   const { key, cycleId } = await params;
 
-  const teams = await db
-    .select({ id: team.id, name: team.name, key: team.key })
-    .from(team)
-    .where(eq(team.key, key))
-    .limit(1);
-
-  if (teams.length === 0) {
+  const teamRecord = await getTeamByKey(key);
+  if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
-
-  const teamRecord = teams[0];
 
   const cycles = await db
     .select()
@@ -80,30 +67,7 @@ export async function GET(
 
   // Get labels for issues
   const issueIds = issues.map((i) => i.id);
-  let labelsMap: Record<string, { name: string; color: string }[]> = {};
-
-  if (issueIds.length > 0) {
-    const issueLabelRows = await db
-      .select({
-        issueId: issueLabel.issueId,
-        labelName: label.name,
-        labelColor: label.color,
-      })
-      .from(issueLabel)
-      .innerJoin(label, eq(issueLabel.labelId, label.id))
-      .where(inArray(issueLabel.issueId, issueIds));
-
-    labelsMap = {};
-    for (const row of issueLabelRows) {
-      if (!labelsMap[row.issueId]) {
-        labelsMap[row.issueId] = [];
-      }
-      labelsMap[row.issueId].push({
-        name: row.labelName,
-        color: row.labelColor,
-      });
-    }
-  }
+  const labelsMap = await getLabelsForIssues(issueIds);
 
   // Group issues by workflow state
   const completedStates = states.filter((s) => s.category === "completed");
@@ -163,13 +127,8 @@ export async function PATCH(
   const { key, cycleId } = await params;
   const body = await request.json();
 
-  const teams = await db
-    .select({ id: team.id })
-    .from(team)
-    .where(eq(team.key, key))
-    .limit(1);
-
-  if (teams.length === 0) {
+  const teamId = await getTeamIdByKey(key);
+  if (!teamId) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
@@ -180,7 +139,7 @@ export async function PATCH(
       endDate: cycle.endDate,
     })
     .from(cycle)
-    .where(and(eq(cycle.id, cycleId), eq(cycle.teamId, teams[0].id)))
+    .where(and(eq(cycle.id, cycleId), eq(cycle.teamId, teamId)))
     .limit(1);
 
   if (existingCycles.length === 0) {
@@ -218,7 +177,7 @@ export async function PATCH(
       endDate: cycle.endDate,
     })
     .from(cycle)
-    .where(eq(cycle.teamId, teams[0].id));
+    .where(eq(cycle.teamId, teamId));
 
   const overlappingCycle = allTeamCycles.find(
     (teamCycle) =>
@@ -250,7 +209,7 @@ export async function PATCH(
   const updated = await db
     .update(cycle)
     .set(updateData)
-    .where(and(eq(cycle.id, cycleId), eq(cycle.teamId, teams[0].id)))
+    .where(and(eq(cycle.id, cycleId), eq(cycle.teamId, teamId)))
     .returning();
 
   if (updated.length === 0) {
@@ -271,13 +230,8 @@ export async function DELETE(
 
   const { key, cycleId } = await params;
 
-  const teams = await db
-    .select({ id: team.id })
-    .from(team)
-    .where(eq(team.key, key))
-    .limit(1);
-
-  if (teams.length === 0) {
+  const teamId = await getTeamIdByKey(key);
+  if (!teamId) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
@@ -289,7 +243,7 @@ export async function DELETE(
 
   const deleted = await db
     .delete(cycle)
-    .where(and(eq(cycle.id, cycleId), eq(cycle.teamId, teams[0].id)))
+    .where(and(eq(cycle.id, cycleId), eq(cycle.teamId, teamId)))
     .returning();
 
   if (deleted.length === 0) {
