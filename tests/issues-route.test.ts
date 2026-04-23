@@ -1,0 +1,263 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const getSessionMock = vi.fn();
+const teamLimitMock = vi.fn();
+const maxWhereMock = vi.fn();
+const defaultStateLimitMock = vi.fn();
+const insertIssueValuesMock = vi.fn();
+const insertLabelsValuesMock = vi.fn();
+const buildNotificationValuesMock = vi.fn();
+const insertNotificationsMock = vi.fn();
+const normalizeIssueDescriptionHtmlMock = vi.fn();
+let selectCallCount = 0;
+
+vi.mock("@/lib/auth", () => ({
+  auth: {
+    api: {
+      getSession: getSessionMock,
+    },
+  },
+}));
+
+vi.mock("@/lib/issue-description", () => ({
+  normalizeIssueDescriptionHtml: normalizeIssueDescriptionHtmlMock,
+}));
+
+vi.mock("@/lib/notifications", () => ({
+  buildNotificationValues: buildNotificationValuesMock,
+  insertNotifications: insertNotificationsMock,
+}));
+
+vi.mock("@/lib/db", () => ({
+  db: {
+    select: vi.fn((selection: Record<string, unknown>) => {
+      selectCallCount += 1;
+
+      if ("key" in selection) {
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: teamLimitMock,
+            }),
+          }),
+        };
+      }
+
+      if ("maxNum" in selection) {
+        return {
+          from: vi.fn().mockReturnValue({
+            where: maxWhereMock,
+          }),
+        };
+      }
+
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: defaultStateLimitMock,
+          }),
+        }),
+      };
+    }),
+    transaction: vi.fn(
+      async (
+        callback: (tx: {
+          insert: (table: unknown) => unknown;
+        }) => Promise<unknown>,
+      ) => {
+        const tx = {
+          insert: (table: unknown) => {
+            const typedTable = table as { __name?: string };
+            if (typedTable.__name === "issueLabel") {
+              return {
+                values: (...valuesArgs: unknown[]) => {
+                  insertLabelsValuesMock(...valuesArgs);
+                  return Promise.resolve();
+                },
+              };
+            }
+
+            return {
+              values: (...valuesArgs: unknown[]) => {
+                insertIssueValuesMock(...valuesArgs);
+                return {
+                  returning: vi.fn().mockResolvedValue([
+                    {
+                      id: "issue-1",
+                      number: 8,
+                      identifier: "ENG-8",
+                      title: "Ship this",
+                      description: "<p>normalized</p>",
+                      teamId: "team-1",
+                      stateId: "state-backlog",
+                      creatorId: "user-1",
+                      priority: "high",
+                      assigneeId: "user-2",
+                      projectId: "project-1",
+                      parentIssueId: null,
+                    },
+                  ]),
+                };
+              },
+            };
+          },
+        };
+
+        return callback(tx);
+      },
+    ),
+  },
+}));
+
+vi.mock("@/lib/db/schema", () => ({
+  issue: { __name: "issue" },
+  issueLabel: { __name: "issueLabel" },
+  team: {},
+  workflowState: {},
+}));
+
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers(),
+}));
+
+describe("issues route", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    selectCallCount = 0;
+    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    teamLimitMock.mockResolvedValue([{ id: "team-1", key: "ENG" }]);
+    maxWhereMock.mockResolvedValue([{ maxNum: 7 }]);
+    defaultStateLimitMock.mockResolvedValue([{ id: "state-backlog" }]);
+    normalizeIssueDescriptionHtmlMock.mockReturnValue("<p>normalized</p>");
+    buildNotificationValuesMock.mockReturnValue([
+      { type: "assigned", userId: "user-2" },
+    ]);
+    insertNotificationsMock.mockResolvedValue(undefined);
+  });
+
+  it("returns 401 without a session", async () => {
+    getSessionMock.mockResolvedValue(null);
+    const { POST } = await import("@/app/api/issues/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/issues", {
+        method: "POST",
+        body: JSON.stringify({ title: "Ship this", teamId: "team-1" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("requires title and teamId", async () => {
+    const { POST } = await import("@/app/api/issues/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/issues", {
+        method: "POST",
+        body: JSON.stringify({ title: "   " }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Title and teamId are required",
+    });
+  });
+
+  it("returns 404 when the team is missing", async () => {
+    teamLimitMock.mockResolvedValue([]);
+    const { POST } = await import("@/app/api/issues/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/issues", {
+        method: "POST",
+        body: JSON.stringify({ title: "Ship this", teamId: "team-1" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "Team not found" });
+  });
+
+  it("returns 400 when no default workflow state exists", async () => {
+    defaultStateLimitMock.mockResolvedValue([]);
+    const { POST } = await import("@/app/api/issues/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/issues", {
+        method: "POST",
+        body: JSON.stringify({ title: "Ship this", teamId: "team-1" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "No default workflow state found",
+    });
+  });
+
+  it("creates an issue with deduped labels and assignment notification", async () => {
+    const { POST } = await import("@/app/api/issues/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/issues", {
+        method: "POST",
+        body: JSON.stringify({
+          title: " Ship this ",
+          description: "raw description",
+          teamId: "team-1",
+          priority: "high",
+          assigneeId: "user-2",
+          projectId: "project-1",
+          labelIds: ["label-1", "label-1", "label-2", ""],
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(normalizeIssueDescriptionHtmlMock).toHaveBeenCalledWith(
+      "raw description",
+    );
+    expect(insertIssueValuesMock).toHaveBeenCalledWith({
+      number: 8,
+      identifier: "ENG-8",
+      title: "Ship this",
+      description: "<p>normalized</p>",
+      teamId: "team-1",
+      stateId: "state-backlog",
+      creatorId: "user-1",
+      priority: "high",
+      assigneeId: "user-2",
+      projectId: "project-1",
+      parentIssueId: null,
+    });
+    expect(insertLabelsValuesMock).toHaveBeenCalledWith([
+      { issueId: "issue-1", labelId: "label-1" },
+      { issueId: "issue-1", labelId: "label-2" },
+    ]);
+    expect(insertNotificationsMock).toHaveBeenCalledWith([
+      { type: "assigned", userId: "user-2" },
+    ]);
+    await expect(response.json()).resolves.toEqual({
+      id: "issue-1",
+      number: 8,
+      identifier: "ENG-8",
+      title: "Ship this",
+      description: "<p>normalized</p>",
+      teamId: "team-1",
+      stateId: "state-backlog",
+      creatorId: "user-1",
+      priority: "high",
+      assigneeId: "user-2",
+      projectId: "project-1",
+      parentIssueId: null,
+    });
+  });
+});
