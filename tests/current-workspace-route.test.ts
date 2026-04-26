@@ -160,6 +160,7 @@ describe("current workspace route", () => {
         logo: "https://img.test/logo.png",
         region: "Korea",
         fiscalMonth: "april",
+        plan: "free",
       },
     });
   });
@@ -234,6 +235,7 @@ describe("current workspace route", () => {
         logo: null,
         region: "Korea",
         fiscalMonth: "october",
+        plan: "free",
       },
     });
   });
