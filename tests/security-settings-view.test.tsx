@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SecurityPage from "../src/app/(app)/settings/security/page";
@@ -71,7 +71,7 @@ describe("SecurityPage component", () => {
     await waitFor(() => screen.getByText("example.com"));
 
     const toggle = screen.getByLabelText("Enable invite links");
-    await userEvent.click(toggle);
+    fireEvent.click(toggle);
 
     expect(fetch).toHaveBeenCalledWith("/api/workspaces/current/security", expect.objectContaining({
       method: "PATCH",
@@ -101,7 +101,7 @@ describe("SecurityPage component", () => {
 
     // Remove domain
     const removeButton = screen.getByLabelText("Remove example.com");
-    await userEvent.click(removeButton);
+    fireEvent.click(removeButton);
 
     expect(fetch).toHaveBeenCalledWith("/api/workspaces/current/security", expect.objectContaining({
       method: "PATCH",
@@ -137,9 +137,11 @@ describe("SecurityPage component", () => {
     await waitFor(() => screen.getByText("example.com"));
 
     const copyButton = screen.getByRole("button", { name: /copy/i });
-    await userEvent.click(copyButton);
+    fireEvent.click(copyButton);
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("https://linear.app/i/abc-123");
-    expect(screen.getByText("Copied!")).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByText("Copied!")).toBeDefined();
+    });
   });
 });
