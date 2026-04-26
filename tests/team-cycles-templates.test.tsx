@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TeamCyclesSettingsPage from "@/app/(app)/settings/teams/[key]/cycles/page";
 import TeamTemplatesSettingsPage from "@/app/(app)/settings/teams/[key]/templates/page";
+import TeamSlackSettingsPage from "@/app/(app)/settings/teams/[key]/slack-notifications/page";
 import { useParams } from "next/navigation";
 
 vi.mock("next/navigation", () => ({
@@ -37,6 +38,15 @@ describe("Team Cycles & Templates Settings", () => {
       { id: "temp-1", name: "Bug Report", description: "Standard bug report" },
     ],
   };
+
+  it("renders team slack settings correctly", () => {
+    vi.mocked(useParams).mockReturnValue({ key: "ENG" });
+    render(<TeamSlackSettingsPage />);
+
+    expect(screen.getByText("Slack notifications")).toBeInTheDocument();
+    expect(screen.getByText("Slack is not connected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect Slack" })).toBeInTheDocument();
+  });
 
   it("renders team cycles settings with data", async () => {
     vi.mocked(useParams).mockReturnValue({ key: "ENG" });
