@@ -233,6 +233,7 @@ export async function PATCH(request: Request) {
       logo,
       region: currentWorkspace.region,
       fiscalMonth,
+      plan: (currentWorkspace.settings as any)?.plan ?? "free",
     },
   });
 }
