@@ -1,97 +1,162 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import TeamGeneralSettingsPage from "@/app/(app)/settings/teams/[key]/general/page";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it, vi } from "vitest";
 
-const mockTeamGeneral = {
-  name: "Engineering",
-  key: "ENG",
+// Mock next/navigation
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ key: "TEAM" }),
+  useRouter: () => ({
+    replace: vi.fn(),
+  }),
+}));
+
+const mockTeam = {
+  name: "Team Name",
+  key: "TEAM",
   icon: "🚀",
-  timezone: "America/Los_Angeles",
+  timezone: "UTC",
   estimateType: "linear",
   emailEnabled: true,
-  detailedHistory: false,
+  detailedHistory: true,
   cyclesEnabled: true,
   cycleStartDay: 1,
   cycleDurationWeeks: 2,
 };
 
-// Mock next/navigation
-vi.mock("next/navigation", () => ({
-  useParams: () => ({ key: "ENG" }),
-  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
-}));
-
-describe("TeamGeneralSettingsPage component", () => {
-  afterEach(() => {
-    cleanup();
-    vi.restoreAllMocks();
+describe("TeamGeneralSettingsPage", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url, options) => {
+        if (url === "/api/teams/TEAM/settings" && !options) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ team: mockTeam }),
+          });
+        }
+        if (url === "/api/teams/TEAM/settings" && options?.method === "PATCH") {
+          const body = JSON.parse(options.body);
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ team: { ...mockTeam, ...body } }),
+          });
+        }
+        return Promise.reject(new Error("Unhandled fetch"));
+      }),
+    );
   });
 
-  it("renders loading state then team details", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ team: mockTeamGeneral }),
-    }));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    cleanup();
+  });
 
+  it("renders loading state then team general settings", async () => {
     render(<TeamGeneralSettingsPage />);
     expect(screen.getByText("Loading...")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+      expect(screen.getByText("General")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("General")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Engineering")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("ENG")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Team Name")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("TEAM")).toBeInTheDocument();
   });
 
-  it("updates team name and saves changes", async () => {
-    vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ team: mockTeamGeneral }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ team: { ...mockTeamGeneral, name: "Platform" } }),
-      })
+  it("handles basic field updates and saving", async () => {
+    render(<TeamGeneralSettingsPage />);
+    await waitFor(() => screen.getByDisplayValue("Team Name"));
+
+    const nameInput = screen.getByDisplayValue("Team Name");
+    fireEvent.change(nameInput, { target: { value: "Updated Team" } });
+
+    const saveButton = screen.getByText("Save changes");
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Changes saved")).toBeInTheDocument();
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/teams/TEAM/settings",
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"name":"Updated Team"'),
+      }),
     );
+  });
+
+  it("handles icon picker flow", async () => {
+    render(<TeamGeneralSettingsPage />);
+    await waitFor(() => screen.getByText("🚀"));
+
+    const iconButton = screen.getByLabelText("Change team icon");
+    fireEvent.click(iconButton);
+
+    // Should show picker
+    expect(screen.getByText("Choose an icon")).toBeInTheDocument();
+
+    // Select new emoji
+    const emojiButton = screen.getByLabelText("Choose ⚡ icon");
+    fireEvent.click(emojiButton);
+
+    // Picker should close and icon update
+    expect(screen.queryByText("Choose an icon")).not.toBeInTheDocument();
+    expect(screen.getByText("⚡")).toBeInTheDocument();
+  });
+
+  it("handles cycle settings toggling", async () => {
+    render(<TeamGeneralSettingsPage />);
+    await waitFor(() => screen.getByLabelText("Enable cycles"));
+
+    const cyclesToggle = screen.getByLabelText("Enable cycles");
+    const startDaySelect = screen.getByLabelText("Cycle start day");
+
+    // Initially enabled in mockTeam
+    expect(cyclesToggle).toHaveAttribute("aria-checked", "true");
+    expect(startDaySelect).not.toBeDisabled();
+
+    // Disable cycles
+    fireEvent.click(cyclesToggle);
+    expect(cyclesToggle).toHaveAttribute("aria-checked", "false");
+    expect(startDaySelect).toBeDisabled();
+  });
+
+  it("shows error message when save fails", async () => {
+    vi.mocked(global.fetch).mockImplementation((url, options) => {
+      if (url === "/api/teams/TEAM/settings" && options?.method === "PATCH") {
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({ error: "Conflict on identifier" }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ team: mockTeam }),
+      });
+    });
 
     render(<TeamGeneralSettingsPage />);
-    await waitFor(() => screen.getByDisplayValue("Engineering"));
-
-    const nameInput = screen.getByDisplayValue("Engineering");
-    fireEvent.change(nameInput, { target: { value: "Platform" } });
+    await waitFor(() => screen.getByText("Save changes"));
 
     fireEvent.click(screen.getByText("Save changes"));
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith("/api/teams/ENG/settings", expect.objectContaining({
-        method: "PATCH",
-        body: expect.stringContaining('"name":"Platform"'),
-      }));
+      expect(screen.getByText("Conflict on identifier")).toBeInTheDocument();
     });
-
-    expect(screen.getByText("Changes saved")).toBeInTheDocument();
   });
 
-  it("toggles cycles and updates start day", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ team: mockTeamGeneral }),
-    }));
+  it("shows team not found when API returns error", async () => {
+    vi.mocked(global.fetch).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: false,
+      }),
+    );
 
     render(<TeamGeneralSettingsPage />);
-    await waitFor(() => screen.getByLabelText("Enable cycles"));
-
-    const toggle = screen.getByLabelText("Enable cycles");
-    // It's enabled in mock
-    expect(toggle).toHaveAttribute("aria-checked", "true");
-
-    const startDaySelect = screen.getByLabelText("Cycle start day");
-    fireEvent.change(startDaySelect, { target: { value: "2" } }); // Tuesday
-    expect(startDaySelect).toHaveValue("2");
+    await waitFor(() => {
+      expect(screen.getByText("Team not found")).toBeInTheDocument();
+    });
   });
 });
-
-import TeamGeneralSettingsPage from "@/app/(app)/settings/teams/[key]/general/page";
