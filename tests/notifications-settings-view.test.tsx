@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
   useParams: () => ({}),
 }));
 
-import { NotificationsOverviewPage } from "@/app/(app)/settings/account/notifications/notifications-client";
+import { NotificationsOverviewPage, NotificationChannelPage } from "@/app/(app)/settings/account/notifications/notifications-client";
 
 const mockNotificationSettings = {
   accountNotifications: {
@@ -88,5 +88,39 @@ describe("NotificationsOverviewPage UI", () => {
     
     // Email: enabled but some events false -> "Enabled for mentions" (based on mock events)
     expect(screen.getByText("Enabled for mentions")).toBeInTheDocument();
+  });
+});
+
+describe("NotificationChannelPage UI", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("renders channel settings and updates an event preference", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+        if (url.toString().includes("/api/account/notifications")) {
+            return Promise.resolve({
+                ok: true,
+                json: async () => mockNotificationSettings,
+            } as Response);
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
+    });
+
+    render(<NotificationChannelPage channel="desktop" />);
+
+    // Wait for data
+    expect(await screen.findByText("Desktop")).toBeInTheDocument();
+    expect(screen.getByText("Configure desktop alerts for activity in your workspace.")).toBeInTheDocument();
+
+    const assignmentsToggle = screen.getByLabelText("Assignments");
+    expect(assignmentsToggle).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(assignmentsToggle);
+
+    await waitFor(() => {
+        expect(assignmentsToggle).toHaveAttribute("aria-checked", "false");
+    });
   });
 });
