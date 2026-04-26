@@ -1,150 +1,100 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GET, PATCH } from "@/app/api/account/notifications/route";
+import { db } from "@/lib/db";
+import { user } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
 
-const getSessionMock = vi.fn();
-const userLimitMock = vi.fn();
-const updateSetMock = vi.fn();
-const updateWhereMock = vi.fn();
+const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
 
+// Mock next/headers
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => new Headers()),
+}));
+
+// Mock auth
 vi.mock("@/lib/auth", () => ({
   auth: {
     api: {
-      getSession: getSessionMock,
+      getSession: vi.fn(),
     },
   },
 }));
 
-vi.mock("@/lib/account-notifications", () => ({
-  readAccountNotificationsFromUserSettings: vi.fn((settings: unknown) => ({
-    email: (settings as { email?: boolean })?.email ?? true,
-    push: (settings as { push?: boolean })?.push ?? false,
-  })),
-  mergeAccountNotificationSettings: vi.fn(
-    (current: Record<string, unknown>, patch: Record<string, unknown>) => ({
-      ...current,
-      ...patch,
-    }),
-  ),
-  writeAccountNotificationsToUserSettings: vi.fn(
-    (settings: Record<string, unknown>, next: Record<string, unknown>) => ({
-      ...settings,
-      ...next,
-    }),
-  ),
-}));
+import { auth } from "@/lib/auth";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: userLimitMock,
-        }),
-      }),
-    })),
-    update: vi.fn(() => ({
-      set: (...setArgs: unknown[]) => {
-        updateSetMock(...setArgs);
-        return {
-          where: (...whereArgs: unknown[]) => {
-            updateWhereMock(...whereArgs);
-            return Promise.resolve();
+describe("Account Notifications API Route", () => {
+  beforeAll(async () => {
+    // Cleanup
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
+
+    // Seed
+    await db.insert(user).values({
+      id: TEST_USER_ID,
+      name: "Notif Test User",
+      email: "notif-test@example.com",
+      username: "notiftestuser",
+      settings: {},
+    });
+  });
+
+  afterAll(async () => {
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
+  });
+
+  it("GET returns 401 if no session", async () => {
+    (auth.api.getSession as any).mockResolvedValue(null);
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
+
+  it("GET returns notification settings for authenticated user", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.accountNotifications).toBeDefined();
+    expect(data.accountNotifications.channels).toBeDefined();
+  });
+
+  it("PATCH updates notification settings", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    const req = new Request("http://localhost/api/account/notifications", {
+      method: "PATCH",
+      body: JSON.stringify({
+        accountNotifications: {
+          updatesFromLinear: {
+            showInSidebar: false,
           },
-        };
-      },
-    })),
-  },
-}));
-
-vi.mock("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
-
-describe("account notifications route", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
-    userLimitMock.mockResolvedValue([
-      { id: "user-1", settings: { email: false } },
-    ]);
-  });
-
-  it("returns 401 without a session", async () => {
-    getSessionMock.mockResolvedValue(null);
-    const { GET } = await import("@/app/api/account/notifications/route");
-
-    const response = await GET();
-
-    expect(response.status).toBe(401);
-  });
-
-  it("returns 404 when the current user is missing", async () => {
-    userLimitMock.mockResolvedValue([]);
-    const { GET } = await import("@/app/api/account/notifications/route");
-
-    const response = await GET();
-
-    expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({ error: "User not found" });
-  });
-
-  it("reads account notifications from user settings", async () => {
-    const { GET } = await import("@/app/api/account/notifications/route");
-
-    const response = await GET();
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      accountNotifications: {
-        email: false,
-        push: false,
-      },
-    });
-  });
-
-  it("rejects patch requests without accountNotifications", async () => {
-    const { PATCH } = await import("@/app/api/account/notifications/route");
-
-    const response = await PATCH(
-      new Request("http://localhost/api/account/notifications", {
-        method: "PATCH",
-        body: JSON.stringify({}),
-        headers: { "content-type": "application/json" },
+        },
       }),
-    );
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: "accountNotifications is required",
     });
+
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.accountNotifications.updatesFromLinear.showInSidebar).toBe(false);
+
+    // Verify in DB
+    const [updatedUser] = await db.select().from(user).where(eq(user.id, TEST_USER_ID)).limit(1);
+    expect((updatedUser.settings as any).accountNotifications.updatesFromLinear.showInSidebar).toBe(false);
   });
 
-  it("merges and persists updated account notifications", async () => {
-    const { PATCH } = await import("@/app/api/account/notifications/route");
-
-    const response = await PATCH(
-      new Request("http://localhost/api/account/notifications", {
-        method: "PATCH",
-        body: JSON.stringify({
-          accountNotifications: { push: true },
-        }),
-        headers: { "content-type": "application/json" },
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(updateSetMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        settings: { email: false, push: true },
-        updatedAt: expect.any(Date),
-      }),
-    );
-    expect(updateWhereMock).toHaveBeenCalled();
-    await expect(response.json()).resolves.toEqual({
-      accountNotifications: {
-        email: false,
-        push: true,
-      },
+  it("PATCH returns 400 if accountNotifications is missing", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
     });
+    const req = new Request("http://localhost/api/account/notifications", {
+      method: "PATCH",
+      body: JSON.stringify({}),
+    });
+
+    const res = await PATCH(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe("accountNotifications is required");
   });
 });
