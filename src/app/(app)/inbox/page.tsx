@@ -42,38 +42,49 @@ export default function InboxPage() {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [sortMode, setSortMode] = useState<"latest" | "priority">("latest");
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      const response = await fetch("/api/notifications");
+      const data = await response.json();
+
+      const nextNotifications = data.notifications ?? [];
+      const nextUnreadCount = data.unreadCount ?? 0;
+
+      setNotifications(nextNotifications);
+      setUnreadCount(nextUnreadCount);
+      emitNotificationChange(nextUnreadCount);
+
+      return nextNotifications;
+    } catch {
+      return [];
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
-    async function loadNotifications() {
-      try {
-        const response = await fetch("/api/notifications");
-        const data = await response.json();
-
-        if (cancelled) {
-          return;
-        }
-
-        const nextNotifications = data.notifications ?? [];
-        const nextUnreadCount = data.unreadCount ?? 0;
-
-        setNotifications(nextNotifications);
-        setUnreadCount(nextUnreadCount);
+    loadNotifications().then((nextNotifications) => {
+      if (!cancelled) {
         setSelectedId(nextNotifications[0]?.id ?? null);
-        emitNotificationChange(nextUnreadCount);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
+    });
+
+    // Listen for real-time notification events
+    function handleNotificationEvent() {
+      void loadNotifications();
     }
 
-    void loadNotifications();
+    window.addEventListener("notifications:changed", handleNotificationEvent);
 
     return () => {
       cancelled = true;
+      window.removeEventListener(
+        "notifications:changed",
+        handleNotificationEvent,
+      );
     };
-  }, []);
+  }, [loadNotifications]);
 
   const handleSelect = useCallback(
     async (id: string) => {
