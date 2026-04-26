@@ -111,6 +111,7 @@ export async function GET() {
       logo: currentWorkspace.logoUrl,
       region: currentWorkspace.region,
       fiscalMonth: currentWorkspace.fiscalMonth,
+      plan: (currentWorkspace.settings as any)?.plan ?? "free",
     },
   });
 }
