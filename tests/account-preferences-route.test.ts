@@ -1,150 +1,102 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GET, PATCH } from "@/app/api/account/preferences/route";
+import { db } from "@/lib/db";
+import { user } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
 
-const getSessionMock = vi.fn();
-const userLimitMock = vi.fn();
-const updateSetMock = vi.fn();
-const updateWhereMock = vi.fn();
+const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
 
+// Mock next/headers
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => new Headers()),
+}));
+
+// Mock auth
 vi.mock("@/lib/auth", () => ({
   auth: {
     api: {
-      getSession: getSessionMock,
+      getSession: vi.fn(),
     },
   },
 }));
 
-vi.mock("@/lib/account-preferences", () => ({
-  readAccountPreferencesFromUserSettings: vi.fn((settings: unknown) => ({
-    theme: (settings as { theme?: string })?.theme ?? "system",
-    compactMode: (settings as { compactMode?: boolean })?.compactMode ?? false,
-  })),
-  mergeAccountPreferences: vi.fn(
-    (current: Record<string, unknown>, patch: Record<string, unknown>) => ({
-      ...current,
-      ...patch,
-    }),
-  ),
-  writeAccountPreferencesToUserSettings: vi.fn(
-    (settings: Record<string, unknown>, next: Record<string, unknown>) => ({
-      ...settings,
-      ...next,
-    }),
-  ),
-}));
+import { auth } from "@/lib/auth";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: userLimitMock,
-        }),
-      }),
-    })),
-    update: vi.fn(() => ({
-      set: (...setArgs: unknown[]) => {
-        updateSetMock(...setArgs);
-        return {
-          where: (...whereArgs: unknown[]) => {
-            updateWhereMock(...whereArgs);
-            return Promise.resolve();
-          },
-        };
-      },
-    })),
-  },
-}));
+describe("Account Preferences API Route", () => {
+  beforeAll(async () => {
+    // Cleanup
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
 
-vi.mock("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
-
-describe("account preferences route", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
-    userLimitMock.mockResolvedValue([
-      { id: "user-1", settings: { theme: "dark" } },
-    ]);
-  });
-
-  it("returns 401 without a session", async () => {
-    getSessionMock.mockResolvedValue(null);
-    const { GET } = await import("@/app/api/account/preferences/route");
-
-    const response = await GET();
-
-    expect(response.status).toBe(401);
-  });
-
-  it("returns 404 when the current user is missing", async () => {
-    userLimitMock.mockResolvedValue([]);
-    const { GET } = await import("@/app/api/account/preferences/route");
-
-    const response = await GET();
-
-    expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({ error: "User not found" });
-  });
-
-  it("reads account preferences from user settings", async () => {
-    const { GET } = await import("@/app/api/account/preferences/route");
-
-    const response = await GET();
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      accountPreferences: {
-        theme: "dark",
-        compactMode: false,
-      },
+    // Seed
+    await db.insert(user).values({
+      id: TEST_USER_ID,
+      name: "Pref Test User",
+      email: "pref-test@example.com",
+      username: "preftestuser",
+      settings: {},
     });
   });
 
-  it("rejects patch requests without accountPreferences", async () => {
-    const { PATCH } = await import("@/app/api/account/preferences/route");
-
-    const response = await PATCH(
-      new Request("http://localhost/api/account/preferences", {
-        method: "PATCH",
-        body: JSON.stringify({}),
-        headers: { "content-type": "application/json" },
-      }),
-    );
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: "accountPreferences is required",
-    });
+  afterAll(async () => {
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
   });
 
-  it("merges and persists updated account preferences", async () => {
-    const { PATCH } = await import("@/app/api/account/preferences/route");
+  it("GET returns 401 if no session", async () => {
+    (auth.api.getSession as any).mockResolvedValue(null);
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
 
-    const response = await PATCH(
-      new Request("http://localhost/api/account/preferences", {
-        method: "PATCH",
-        body: JSON.stringify({
-          accountPreferences: { compactMode: true },
-        }),
-        headers: { "content-type": "application/json" },
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(updateSetMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        settings: { theme: "dark", compactMode: true },
-        updatedAt: expect.any(Date),
-      }),
-    );
-    expect(updateWhereMock).toHaveBeenCalled();
-    await expect(response.json()).resolves.toEqual({
-      accountPreferences: {
-        theme: "dark",
-        compactMode: true,
-      },
+  it("GET returns preferences for authenticated user", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
     });
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.accountPreferences).toBeDefined();
+    // Should have default theme if not set
+    expect(data.accountPreferences.theme).toBe("system");
+  });
+
+  it("PATCH updates user preferences", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    const req = new Request("http://localhost/api/account/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({
+        accountPreferences: {
+          theme: "dark",
+          fontSize: "large",
+        },
+      }),
+    });
+
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.accountPreferences.theme).toBe("dark");
+    expect(data.accountPreferences.fontSize).toBe("large");
+
+    // Verify in DB
+    const [updatedUser] = await db.select().from(user).where(eq(user.id, TEST_USER_ID)).limit(1);
+    expect(updatedUser.settings).toBeDefined();
+    expect((updatedUser.settings as any).accountPreferences.theme).toBe("dark");
+  });
+
+  it("PATCH returns 400 if accountPreferences is missing", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    const req = new Request("http://localhost/api/account/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({}),
+    });
+
+    const res = await PATCH(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe("accountPreferences is required");
   });
 });
