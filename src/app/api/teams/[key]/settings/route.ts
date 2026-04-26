@@ -9,6 +9,8 @@ import { NextResponse } from "next/server";
 type TeamSettingsFlags = {
   emailEnabled: boolean;
   detailedHistory: boolean;
+  agentGuidance: string;
+  autoAssignment: boolean;
 };
 
 type EstimateTypeValue = "not_in_use" | "linear" | "exponential" | "tshirt";
@@ -22,6 +24,9 @@ function readTeamSettings(settings: unknown): TeamSettingsFlags {
   return {
     emailEnabled: parsed.emailEnabled === true,
     detailedHistory: parsed.detailedHistory === true,
+    agentGuidance:
+      typeof parsed.agentGuidance === "string" ? parsed.agentGuidance : "",
+    autoAssignment: parsed.autoAssignment === true,
   };
 }
 
@@ -75,6 +80,8 @@ async function buildTeamResponse(
     statusCount: statusCountResult[0]?.value ?? 0,
     emailEnabled: flags.emailEnabled,
     detailedHistory: flags.detailedHistory,
+    agentGuidance: flags.agentGuidance,
+    autoAssignment: flags.autoAssignment,
   };
 }
 
@@ -124,6 +131,8 @@ export async function PATCH(
     cycleDurationWeeks?: number;
     emailEnabled?: boolean;
     detailedHistory?: boolean;
+    agentGuidance?: string;
+    autoAssignment?: boolean;
   } | null;
 
   if (!body) {
@@ -239,6 +248,8 @@ export async function PATCH(
         ...currentSettings,
         emailEnabled: body.emailEnabled ?? currentFlags.emailEnabled,
         detailedHistory: body.detailedHistory ?? currentFlags.detailedHistory,
+        agentGuidance: body.agentGuidance ?? currentFlags.agentGuidance,
+        autoAssignment: body.autoAssignment ?? currentFlags.autoAssignment,
       },
       updatedAt: new Date(),
     })

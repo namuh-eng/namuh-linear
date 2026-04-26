@@ -31,13 +31,18 @@ export type AccountPreferences = {
   openInDesktopApp: boolean;
   sidebarBadgeStyle: SidebarBadgeStyle;
   sidebarVisibility: SidebarVisibilitySettings;
+  agentPersonalization: {
+    instructions: string;
+    autoFix: boolean;
+  };
 };
 
 export type AccountPreferencesPatch = Omit<
   Partial<AccountPreferences>,
-  "sidebarVisibility"
+  "sidebarVisibility" | "agentPersonalization"
 > & {
   sidebarVisibility?: Partial<SidebarVisibilitySettings>;
+  agentPersonalization?: Partial<AccountPreferences["agentPersonalization"]>;
 };
 
 export const DEFAULT_ACCOUNT_PREFERENCES: AccountPreferences = {
@@ -58,6 +63,10 @@ export const DEFAULT_ACCOUNT_PREFERENCES: AccountPreferences = {
     views: true,
     initiatives: true,
     cycles: true,
+  },
+  agentPersonalization: {
+    instructions: "",
+    autoFix: false,
   },
 };
 
@@ -104,6 +113,7 @@ export function normalizeAccountPreferences(
 ): AccountPreferences {
   const parsed = asRecord(value);
   const sidebarVisibility = asRecord(parsed.sidebarVisibility);
+  const agentPersonalization = asRecord(parsed.agentPersonalization);
 
   return {
     defaultHomeView: isDefaultHomeView(parsed.defaultHomeView)
@@ -167,6 +177,16 @@ export function normalizeAccountPreferences(
           ? sidebarVisibility.cycles
           : DEFAULT_ACCOUNT_PREFERENCES.sidebarVisibility.cycles,
     },
+    agentPersonalization: {
+      instructions:
+        typeof agentPersonalization.instructions === "string"
+          ? agentPersonalization.instructions
+          : DEFAULT_ACCOUNT_PREFERENCES.agentPersonalization.instructions,
+      autoFix:
+        typeof agentPersonalization.autoFix === "boolean"
+          ? agentPersonalization.autoFix
+          : DEFAULT_ACCOUNT_PREFERENCES.agentPersonalization.autoFix,
+    },
   };
 }
 
@@ -180,6 +200,10 @@ export function mergeAccountPreferences(
     sidebarVisibility: {
       ...current.sidebarVisibility,
       ...patch.sidebarVisibility,
+    },
+    agentPersonalization: {
+      ...current.agentPersonalization,
+      ...patch.agentPersonalization,
     },
   });
 }
