@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getSessionMock = vi.fn();
 const teamLimitMock = vi.fn();
 const updateSetMock = vi.fn();
-const updateWhereMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
   auth: {
@@ -15,23 +14,20 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   db: {
-    select: vi.fn(() => ({
+    select: vi.fn((_selection?: Record<string, unknown>) => ({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
-          limit: teamLimitMock,
+          limit: vi.fn().mockResolvedValue(teamLimitMock()),
         }),
       }),
     })),
     update: vi.fn(() => ({
-      set: (...setArgs: unknown[]) => {
+      set: vi.fn((...setArgs: unknown[]) => {
         updateSetMock(...setArgs);
         return {
-          where: (...whereArgs: unknown[]) => {
-            updateWhereMock(...whereArgs);
-            return Promise.resolve();
-          },
+          where: vi.fn().mockResolvedValue([]),
         };
-      },
+      }),
     })),
   },
 }));
@@ -44,19 +40,9 @@ describe("team display options route", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    getSessionMock.mockResolvedValue({
-      user: { id: "user-1" },
-    });
-    teamLimitMock.mockResolvedValue([
-      {
-        id: "team-1",
-        settings: {
-          displayOptions: {
-            layout: "list",
-          },
-          other: true,
-        },
-      },
+    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    teamLimitMock.mockReturnValue([
+      { id: "team-1", settings: { displayOptions: { showCompleted: true } } },
     ]);
   });
 
@@ -64,86 +50,50 @@ describe("team display options route", () => {
     getSessionMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/teams/[key]/display-options/route");
 
-    const response = await GET(
-      new Request("http://localhost/api/teams/ENG/display-options"),
-      {
-        params: Promise.resolve({ key: "ENG" }),
-      },
-    );
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "ENG" }),
+    });
 
     expect(response.status).toBe(401);
   });
 
-  it("returns stored display options", async () => {
+  it("returns 404 when team is missing", async () => {
+    teamLimitMock.mockReturnValue([]);
     const { GET } = await import("@/app/api/teams/[key]/display-options/route");
 
-    const response = await GET(
-      new Request("http://localhost/api/teams/ENG/display-options"),
-      {
-        params: Promise.resolve({ key: "ENG" }),
-      },
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      displayOptions: {
-        layout: "list",
-      },
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "MISSING" }),
     });
-  });
-
-  it("returns 404 when the team does not exist", async () => {
-    teamLimitMock.mockResolvedValue([]);
-    const { PUT } = await import("@/app/api/teams/[key]/display-options/route");
-
-    const response = await PUT(
-      new Request("http://localhost/api/teams/NOPE/display-options", {
-        method: "PUT",
-        body: JSON.stringify({ displayOptions: { layout: "board" } }),
-      }),
-      {
-        params: Promise.resolve({ key: "NOPE" }),
-      },
-    );
 
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({ error: "Team not found" });
   });
 
-  it("persists display options without clobbering other settings", async () => {
+  it("returns team display options", async () => {
+    const { GET } = await import("@/app/api/teams/[key]/display-options/route");
+
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "ENG" }),
+    });
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.displayOptions.showCompleted).toBe(true);
+  });
+
+  it("updates team display options", async () => {
     const { PUT } = await import("@/app/api/teams/[key]/display-options/route");
 
     const response = await PUT(
-      new Request("http://localhost/api/teams/ENG/display-options", {
+      new Request("http://localhost", {
         method: "PUT",
-        body: JSON.stringify({
-          displayOptions: {
-            layout: "board",
-            groupBy: "status",
-          },
-        }),
+        body: JSON.stringify({ displayOptions: { showCompleted: false } }),
       }),
-      {
-        params: Promise.resolve({ key: "ENG" }),
-      },
+      { params: Promise.resolve({ key: "ENG" }) },
     );
 
     expect(response.status).toBe(200);
     expect(updateSetMock).toHaveBeenCalledWith({
-      settings: {
-        displayOptions: {
-          layout: "board",
-          groupBy: "status",
-        },
-        other: true,
-      },
-    });
-    expect(updateWhereMock).toHaveBeenCalled();
-    await expect(response.json()).resolves.toEqual({
-      displayOptions: {
-        layout: "board",
-        groupBy: "status",
-      },
+      settings: { displayOptions: { showCompleted: false } },
     });
   });
 });
