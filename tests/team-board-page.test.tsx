@@ -12,7 +12,9 @@ import TeamBoardPage from "@/app/(app)/team/[key]/board/page";
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ key: "ENG" }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/team/ENG/board",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 function buildBoardResponse() {

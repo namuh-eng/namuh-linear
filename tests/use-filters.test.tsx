@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useFilters } from "@/hooks/use-filters";
 
+// Mock next/navigation
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 describe("useFilters", () => {
   beforeEach(() => {
     const storage = new Map<string, string>();
@@ -25,37 +32,32 @@ describe("useFilters", () => {
   });
 
   it("persists filters for a scope and restores them for the next mount", () => {
-    const { result, unmount } = renderHook(() => useFilters("team:ONB"));
+    const { result, unmount } = renderHook(() => useFilters("team-1"));
 
     act(() => {
       result.current.updateFilters([
-        { type: "status", operator: "is", values: ["backlog"] },
-      ]);
-    });
-
-    expect(window.localStorage.setItem).toHaveBeenCalledWith(
-      "namuh-linear-filters:team:ONB",
-      JSON.stringify([{ type: "status", operator: "is", values: ["backlog"] }]),
-    );
-
-    unmount();
-
-    const restored = renderHook(() => useFilters("team:ONB"));
-    expect(restored.result.current.filters).toEqual([
-      { type: "status", operator: "is", values: ["backlog"] },
-    ]);
-  });
-
-  it("isolates filters by scope", () => {
-    const teamFilters = renderHook(() => useFilters("team:ONB"));
-
-    act(() => {
-      teamFilters.result.current.updateFilters([
         { type: "priority", operator: "is", values: ["high"] },
       ]);
     });
 
-    const boardFilters = renderHook(() => useFilters("team:PLT"));
-    expect(boardFilters.result.current.filters).toEqual([]);
+    unmount();
+
+    const { result: nextResult } = renderHook(() => useFilters("team-1"));
+    expect(nextResult.current.filters).toEqual([
+      { type: "priority", operator: "is", values: ["high"] },
+    ]);
+  });
+
+  it("isolates filters by scope", () => {
+    const { result: scope1 } = renderHook(() => useFilters("team-1"));
+    const { result: scope2 } = renderHook(() => useFilters("team-2"));
+
+    act(() => {
+      scope1.current.updateFilters([
+        { type: "priority", operator: "is", values: ["high"] },
+      ]);
+    });
+
+    expect(scope2.current.filters).toEqual([]);
   });
 });

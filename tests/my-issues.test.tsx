@@ -3,9 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
 const pushMock = vi.fn();
+const replaceMock = vi.fn();
 vi.mock("next/navigation", () => ({
   useParams: () => ({ tab: "assigned" }),
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, replace: replaceMock }),
+  usePathname: () => "/my-issues/assigned",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // Must import after mocks

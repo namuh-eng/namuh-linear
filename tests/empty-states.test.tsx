@@ -23,6 +23,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/team/ENG/all",
   useParams: () => ({ key: "ENG" }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const createIssueOptionsResponse = {

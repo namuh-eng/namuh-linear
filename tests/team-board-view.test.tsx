@@ -10,9 +10,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
 const pushMock = vi.fn();
+const replaceMock = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, replace: replaceMock }),
   useParams: () => ({ key: "ENG" }),
+  usePathname: () => "/team/ENG/board",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 import TeamBoardPage from "@/app/(app)/team/[key]/board/page";
