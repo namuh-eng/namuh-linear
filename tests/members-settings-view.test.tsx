@@ -1,41 +1,53 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import MembersPage from "@/app/(app)/settings/members/page";
 
-const mockMembers = [
-  {
-    id: "m-1",
-    kind: "member",
-    userId: "u-1",
-    name: "Alice Owner",
-    email: "alice@example.com",
-    image: null,
-    role: "owner",
-    status: "active",
-    teams: ["Engineering"],
-    joinedAt: "2024-01-01T00:00:00Z",
-    lastSeenAt: "2024-04-26T10:00:00Z",
-  },
-  {
-    id: "m-2",
-    kind: "member",
-    userId: "u-2",
-    name: "Bob Member",
-    email: "bob@example.com",
-    image: null,
-    role: "member",
-    status: "active",
-    teams: ["Design"],
-    joinedAt: "2024-02-01T00:00:00Z",
-    lastSeenAt: null,
-  },
-];
-
-const mockResponse = {
+const mockMembersData = {
   workspaceId: "ws-123",
   currentUserId: "u-1",
   viewerRole: "owner",
-  members: mockMembers,
+  members: [
+    {
+      id: "m-1",
+      kind: "member",
+      userId: "u-1",
+      name: "Ashley Owner",
+      email: "ashley@example.com",
+      image: null,
+      role: "owner",
+      status: "active",
+      teams: ["Engineering"],
+      joinedAt: "2024-01-01T00:00:00Z",
+      lastSeenAt: "2024-04-26T10:00:00Z",
+    },
+    {
+      id: "m-2",
+      kind: "member",
+      userId: "u-2",
+      name: "Bob Member",
+      email: "bob@example.com",
+      image: null,
+      role: "member",
+      status: "active",
+      teams: ["Design"],
+      joinedAt: "2024-02-01T00:00:00Z",
+      lastSeenAt: null,
+    },
+    {
+      id: "m-3",
+      kind: "invitation",
+      userId: null,
+      name: "",
+      email: "pending@example.com",
+      image: null,
+      role: "member",
+      status: "pending",
+      teams: [],
+      joinedAt: "2024-04-01T00:00:00Z",
+      lastSeenAt: null,
+    },
+  ],
 };
 
 describe("MembersPage component", () => {
@@ -47,7 +59,7 @@ describe("MembersPage component", () => {
   it("renders loading state then member list", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => mockResponse,
+      json: async () => mockMembersData,
     }));
 
     render(<MembersPage />);
@@ -57,32 +69,32 @@ describe("MembersPage component", () => {
       expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByText("Alice Owner")).toBeInTheDocument();
-    expect(screen.getByText("bob@example.com")).toBeInTheDocument();
-    expect(screen.getByText("Engineering")).toBeInTheDocument();
+    expect(screen.getByText("Ashley Owner")).toBeInTheDocument();
+    expect(screen.getByText("Bob Member")).toBeInTheDocument();
+    expect(screen.getByText("pending@example.com")).toBeInTheDocument();
   });
 
   it("updates member role", async () => {
-    const fetchMock = vi.stubGlobal("fetch", vi.fn()
+    vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => mockResponse,
+        json: async () => mockMembersData,
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({}),
+        json: async () => ({ success: true }),
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ ...mockResponse, members: [{ ...mockMembers[1], role: "admin" }] }),
+        json: async () => ({ ...mockMembersData, members: mockMembersData.members.map(m => m.id === "m-2" ? { ...m, role: "admin" } : m) }),
       })
     );
 
     render(<MembersPage />);
     await waitFor(() => screen.getByText("Bob Member"));
 
-    const roleSelect = screen.getByLabelText("Role for bob@example.com");
-    fireEvent.change(roleSelect, { target: { value: "admin" } });
+    const select = screen.getByLabelText("Role for bob@example.com");
+    fireEvent.change(select, { target: { value: "admin" } });
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith("/api/workspaces/members", expect.objectContaining({
@@ -94,11 +106,11 @@ describe("MembersPage component", () => {
     expect(screen.getByText("Member role updated.")).toBeInTheDocument();
   });
 
-  it("opens invite dialog and submits invitations", async () => {
-    const fetchMock = vi.stubGlobal("fetch", vi.fn()
+  it("opens invite dialog and sends invitations", async () => {
+    vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => mockResponse,
+        json: async () => mockMembersData,
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -106,20 +118,21 @@ describe("MembersPage component", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => mockResponse,
+        json: async () => mockMembersData,
       })
     );
 
     render(<MembersPage />);
-    await waitFor(() => screen.getByText("Alice Owner"));
+    await waitFor(() => screen.getByText("Ashley Owner"));
 
     fireEvent.click(screen.getByText("Invite"));
     expect(screen.getByText("Invite members")).toBeInTheDocument();
 
-    const emailInput = screen.getByPlaceholderText("teammate@company.com");
-    fireEvent.change(emailInput, { target: { value: "new@example.com" } });
-
-    fireEvent.click(screen.getByText("Send invitations"));
+    const input = screen.getByPlaceholderText("teammate@company.com");
+    fireEvent.change(input, { target: { value: "new@example.com" } });
+    
+    const submitBtn = screen.getByRole("button", { name: "Send invitations" });
+    fireEvent.click(submitBtn);
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith("/api/workspaces/invite", expect.objectContaining({
@@ -130,6 +143,25 @@ describe("MembersPage component", () => {
 
     expect(screen.getByText("Sent 1 invitation.")).toBeInTheDocument();
   });
-});
 
-import MembersPage from "@/app/(app)/settings/members/page";
+  it("exports CSV on button click", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockMembersData,
+    }));
+
+    const createObjectURLMock = vi.fn().mockReturnValue("blob:url");
+    vi.stubGlobal("URL", {
+      createObjectURL: createObjectURLMock,
+      revokeObjectURL: vi.fn(),
+    });
+
+    render(<MembersPage />);
+    await waitFor(() => screen.getByText("Export CSV"));
+
+    fireEvent.click(screen.getByText("Export CSV"));
+
+    expect(createObjectURLMock).toHaveBeenCalled();
+    expect(screen.getByText("Exported members CSV.")).toBeInTheDocument();
+  });
+});
