@@ -52,7 +52,9 @@ export default function TeamTriageSettingsPage() {
       .then((res) => res.json())
       .then((data) => {
         setTeam(data.team);
-        setTriageEnabled(data.team.triageEnabled);
+        if (data.team) {
+          setTriageEnabled(data.team.triageEnabled);
+        }
       })
       .finally(() => setLoading(false));
   }, [teamKey]);
