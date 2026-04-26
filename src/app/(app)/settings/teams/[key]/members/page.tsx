@@ -70,7 +70,7 @@ export default function TeamMembersSettingsPage() {
         </button>
       </div>
       <p className="mt-2 text-[13px] text-[var(--color-text-tertiary)]">
-        Manage who has access to the ${team.name} team.
+        Manage who has access to the {team.name} team.
       </p>
 
       <div className="mt-8 overflow-hidden rounded-lg border border-[var(--color-border)]">
