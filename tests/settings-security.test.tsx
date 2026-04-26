@@ -175,11 +175,11 @@ describe("Security settings page", () => {
     render(<SecurityPage />);
     await waitForLoaded();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add domain" }));
+    fireEvent.click(screen.getByLabelText("Add approved email domain"));
     fireEvent.change(screen.getByLabelText("Domain"), {
       target: { value: "Example.com" },
     });
-    fireEvent.click(screen.getAllByRole("button", { name: "Add domain" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Add domain" }));
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 

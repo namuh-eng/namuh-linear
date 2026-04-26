@@ -108,7 +108,7 @@ describe("SecurityPage UI", () => {
     render(<SecurityPage />);
     await screen.findByText("Workspace access");
 
-    fireEvent.click(screen.getByRole("button", { name: "Add domain" }));
+    fireEvent.click(screen.getByLabelText("Add approved email domain"));
 
     const input = screen.getByPlaceholderText("example.com");
     fireEvent.change(input, { target: { value: "test.com" } });
