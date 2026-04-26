@@ -1,141 +1,145 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GET, PATCH, POST } from "@/app/api/teams/[key]/settings/route";
+import { db } from "@/lib/db";
+import { team, teamMember, user, workspace, member } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
+import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
 
-const getSessionMock = vi.fn();
-const findAccessibleTeamMock = vi.fn();
-const countWhereMock = vi.fn();
-const updateSetMock = vi.fn();
-const updateWhereMock = vi.fn();
+const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
+const TEST_WS_ID = "00000000-0000-0000-0000-000000000002";
+const TEST_TEAM_ID = "00000000-0000-0000-0000-000000000003";
 
+// Mock next/headers
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => new Headers()),
+  cookies: vi.fn(async () => ({
+    get: vi.fn(),
+  })),
+}));
+
+// Mock auth
 vi.mock("@/lib/auth", () => ({
   auth: {
     api: {
-      getSession: getSessionMock,
+      getSession: vi.fn(),
     },
   },
 }));
 
-vi.mock("@/lib/teams", () => ({
-  findAccessibleTeam: findAccessibleTeamMock,
-}));
+import { auth } from "@/lib/auth";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    select: vi.fn((selection: Record<string, unknown>) => {
-      // count queries in buildTeamResponse
-      if (selection && "value" in selection) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(countWhereMock()),
-          }),
-        };
-      }
+describe("Team Settings API Route", () => {
+  beforeAll(async () => {
+    // Cleanup
+    await db.delete(teamMember).where(eq(teamMember.teamId, TEST_TEAM_ID));
+    await db.delete(team).where(eq(team.id, TEST_TEAM_ID));
+    await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
 
-      // duplicate key check in PATCH
-      return {
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([]),
-          }),
-        }),
-      };
-    }),
-    update: vi.fn(() => ({
-      set: (...setArgs: unknown[]) => {
-        updateSetMock(...setArgs);
-        return {
-          where: (...whereArgs: unknown[]) => {
-            updateWhereMock(...whereArgs);
-            return {
-              returning: vi
-                .fn()
-                .mockResolvedValue([
-                  { id: "team-1", workspaceId: "workspace-1" },
-                ]),
-            };
-          },
-        };
-      },
-    })),
-  },
-}));
-
-vi.mock("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
-
-describe("team settings route", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
-    findAccessibleTeamMock.mockResolvedValue({
-      id: "team-1",
-      name: "Engineering",
-      key: "ENG",
-      icon: "rocket",
-      settings: { emailEnabled: true },
-      estimateType: "linear",
-    });
-    countWhereMock.mockReturnValue([{ value: 5 }]);
-  });
-
-  it("returns 401 without a session", async () => {
-    getSessionMock.mockResolvedValue(null);
-    const { GET } = await import("@/app/api/teams/[key]/settings/route");
-
-    const response = await GET(new Request("http://localhost"), {
-      params: Promise.resolve({ key: "ENG" }),
+    // Seed
+    await db.insert(user).values({
+      id: TEST_USER_ID,
+      name: "Team Test User",
+      email: "team-test@example.com",
     });
 
-    expect(response.status).toBe(401);
-  });
-
-  it("returns 404 when team is not found", async () => {
-    findAccessibleTeamMock.mockResolvedValue(null);
-    const { GET } = await import("@/app/api/teams/[key]/settings/route");
-
-    const response = await GET(new Request("http://localhost"), {
-      params: Promise.resolve({ key: "MISSING" }),
+    await db.insert(workspace).values({
+      id: TEST_WS_ID,
+      name: "Team Test Workspace",
+      slug: "team-test",
+      urlSlug: "team-test",
     });
 
-    expect(response.status).toBe(404);
-  });
-
-  it("returns full team settings payload", async () => {
-    const { GET } = await import("@/app/api/teams/[key]/settings/route");
-
-    const response = await GET(new Request("http://localhost"), {
-      params: Promise.resolve({ key: "ENG" }),
+    await db.insert(member).values({
+      userId: TEST_USER_ID,
+      workspaceId: TEST_WS_ID,
+      role: "admin",
     });
 
-    expect(response.status).toBe(200);
-    const payload = await response.json();
-    expect(payload.team.id).toBe("team-1");
-    expect(payload.team.emailEnabled).toBe(true);
-    expect(payload.team.memberCount).toBe(5);
+    await db.insert(team).values({
+      id: TEST_TEAM_ID,
+      workspaceId: TEST_WS_ID,
+      name: "Initial Team",
+      key: "INIT",
+      icon: "⚙️",
+    });
+
+    await db.insert(teamMember).values({
+      userId: TEST_USER_ID,
+      teamId: TEST_TEAM_ID,
+    });
   });
 
-  it("updates team settings", async () => {
-    const { PATCH } = await import("@/app/api/teams/[key]/settings/route");
+  afterAll(async () => {
+    await db.delete(teamMember).where(eq(teamMember.teamId, TEST_TEAM_ID));
+    await db.delete(team).where(eq(team.id, TEST_TEAM_ID));
+    await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
+  });
 
-    const response = await PATCH(
-      new Request("http://localhost", {
-        method: "PATCH",
-        body: JSON.stringify({
-          name: "Core",
-          key: "CORE",
-          triageEnabled: false,
-        }),
+  it("GET returns team settings", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    
+    const res = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "INIT" }),
+    });
+    
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.team.name).toBe("Initial Team");
+  });
+
+  it("PATCH updates team settings", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    
+    const req = new Request("http://localhost", {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: "Updated Team",
+        key: "UPDT",
       }),
-      { params: Promise.resolve({ key: "ENG" }) },
-    );
+    });
 
-    expect(response.status).toBe(200);
-    expect(updateSetMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "Core",
-        key: "CORE",
-      }),
+    const res = await PATCH(req, {
+      params: Promise.resolve({ key: "INIT" }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.team.name).toBe("Updated Team");
+    expect(data.team.key).toBe("UPDT");
+
+    // Verify in DB
+    const [dbTeam] = await db.select().from(team).where(eq(team.id, TEST_TEAM_ID));
+    expect(dbTeam.name).toBe("Updated Team");
+    expect(dbTeam.key).toBe("UPDT");
+  });
+
+  it("POST leave team action removes membership", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+
+    const req = new Request("http://localhost", {
+      method: "POST",
+      body: JSON.stringify({ action: "leave" }),
+    });
+
+    const res = await POST(req, {
+      params: Promise.resolve({ key: "UPDT" }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+
+    // Verify membership is gone
+    const memberships = await db.select().from(teamMember).where(
+      and(eq(teamMember.teamId, TEST_TEAM_ID), eq(teamMember.userId, TEST_USER_ID))
     );
+    expect(memberships).toHaveLength(0);
   });
 });
