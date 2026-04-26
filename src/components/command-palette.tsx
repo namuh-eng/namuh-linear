@@ -148,10 +148,13 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       id: "search-workspace",
       label: "Search workspace",
       group: "Filter",
-      closeOnSelect: false,
+      closeOnSelect: true,
       action: () => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
+        if (query) {
+          router.push(`/search?q=${encodeURIComponent(query)}`);
+        } else {
+          inputRef.current?.focus();
+        }
       },
     },
     {
