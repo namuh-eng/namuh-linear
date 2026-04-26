@@ -121,6 +121,7 @@ describe("current workspace route", () => {
         logo: null,
         region: "Canada",
         fiscalMonth: "april",
+        plan: "free",
       },
     });
   });
@@ -160,6 +161,7 @@ describe("current workspace route", () => {
         logo: "data:image/png;base64,logo",
         region: "Canada",
         fiscalMonth: "october",
+        plan: "free",
       },
     });
   });
