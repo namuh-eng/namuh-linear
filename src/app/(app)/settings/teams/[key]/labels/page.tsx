@@ -68,7 +68,7 @@ export default function TeamLabelsSettingsPage() {
         </button>
       </div>
       <p className="mt-2 text-[13px] text-[var(--color-text-tertiary)]">
-        Manage labels available for ${team.name} issues.
+        Manage labels available for {team.name} issues.
       </p>
 
       <div className="mt-8 flex flex-col gap-1">
