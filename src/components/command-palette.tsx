@@ -150,8 +150,8 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       group: "Filter",
       closeOnSelect: true,
       action: () => {
-        if (query) {
-          router.push(`/search?q=${encodeURIComponent(query)}`);
+        if (query.trim()) {
+          router.push(`/search?q=${encodeURIComponent(query.trim())}`);
         } else {
           inputRef.current?.focus();
         }
