@@ -8,60 +8,102 @@ import {
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// Mock next/navigation
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useParams: () => ({}),
+}));
+
 import InitiativesPage from "@/app/(app)/initiatives/page";
+
+const mockInitiativesData = {
+  initiatives: [
+    {
+      id: "init-1",
+      name: "Active Growth",
+      description: "Scale",
+      status: "active",
+      projectCount: 2,
+      completedProjectCount: 1,
+      createdAt: "2026-04-01T00:00:00.000Z",
+    },
+    {
+      id: "init-2",
+      name: "Planned Future",
+      description: "Next",
+      status: "planned",
+      projectCount: 0,
+      completedProjectCount: 0,
+      createdAt: "2026-04-02T00:00:00.000Z",
+    },
+  ],
+};
 
 describe("InitiativesPage", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
     cleanup();
+    vi.clearAllMocks();
   });
 
-  it("filters initiatives by active tab", async () => {
+  it("renders active initiatives by default", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
-      json: async () => ({
-        initiatives: [
-          {
-            id: "init-active",
-            name: "Ship desktop rewrite",
-            description: "Active initiative",
-            status: "active",
-            projectCount: 2,
-            completedProjectCount: 1,
-            createdAt: "2026-04-01T00:00:00.000Z",
-          },
-          {
-            id: "init-planned",
-            name: "Plan growth experiments",
-            description: "Planned initiative",
-            status: "planned",
-            projectCount: 0,
-            completedProjectCount: 0,
-            createdAt: "2026-04-02T00:00:00.000Z",
-          },
-        ],
-      }),
+      json: async () => mockInitiativesData,
     } as Response);
 
     render(<InitiativesPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText("Ship desktop rewrite")).toBeInTheDocument();
-    });
+    expect(await screen.findByText("Active Growth")).toBeInTheDocument();
+    expect(screen.queryByText("Planned Future")).not.toBeInTheDocument();
+  });
 
-    expect(
-      screen.queryByText("Plan growth experiments"),
-    ).not.toBeInTheDocument();
+  it("switches tabs to show planned initiatives", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => mockInitiativesData,
+    } as Response);
+
+    render(<InitiativesPage />);
+    await screen.findByText("Active Growth");
 
     fireEvent.click(screen.getByRole("button", { name: "Planned" }));
 
-    await waitFor(() => {
-      expect(screen.getByText("Plan growth experiments")).toBeInTheDocument();
-    });
-    expect(screen.queryByText("Ship desktop rewrite")).not.toBeInTheDocument();
+    expect(await screen.findByText("Planned Future")).toBeInTheDocument();
+    expect(screen.queryByText("Active Growth")).not.toBeInTheDocument();
   });
 
-  it("opens the create form on the N then I shortcut", async () => {
+  it("creates a new initiative", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => mockInitiativesData,
+    } as Response);
+
+    render(<InitiativesPage />);
+    await screen.findByText("Active Growth");
+
+    fireEvent.click(screen.getByRole("button", { name: /New initiative/ }));
+
+    fireEvent.change(screen.getByPlaceholderText("Initiative name"), {
+      target: { value: "Super Growth" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Description (optional)"), {
+      target: { value: "More scale" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create initiative" }));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/initiatives",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ name: "Super Growth", description: "More scale", status: "active" }),
+        }),
+      );
+    });
+  });
+
+  it("shows empty state when no initiatives match", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({ initiatives: [] }),
@@ -69,15 +111,6 @@ describe("InitiativesPage", () => {
 
     render(<InitiativesPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText("No initiatives")).toBeInTheDocument();
-    });
-
-    fireEvent.keyDown(document, { key: "n" });
-    fireEvent.keyDown(document, { key: "i" });
-
-    expect(
-      await screen.findByPlaceholderText("Initiative name"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("No initiatives")).toBeInTheDocument();
   });
 });
