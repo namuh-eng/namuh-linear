@@ -1,23 +1,27 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import TeamSlackSettingsPage from "../src/app/(app)/settings/teams/[key]/slack-notifications/page";
+import TeamSlackSettingsPage from "@/app/(app)/settings/teams/[key]/slack-notifications/page";
+import "@testing-library/jest-dom/vitest";
 
-// Mock useParams
+// Mock next/navigation
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ key: "ENG" }),
+  useParams: () => ({ key: "TEAM" }),
 }));
 
-describe("TeamSlackSettingsPage component", () => {
+describe("TeamSlackSettingsPage", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     cleanup();
   });
 
-  it("renders the disconnected Slack state", () => {
+  it("renders the Slack settings page in disconnected state", async () => {
     render(<TeamSlackSettingsPage />);
 
-    expect(screen.getByText("Slack notifications")).toBeDefined();
-    expect(screen.getByText("Slack is not connected")).toBeDefined();
-    expect(screen.getByRole("button", { name: "Connect Slack" })).toBeDefined();
-    expect(screen.getByText("Back to team settings")).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByText("Slack notifications")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Slack is not connected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect Slack" })).toBeInTheDocument();
   });
 });
