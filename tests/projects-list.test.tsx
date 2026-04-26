@@ -19,7 +19,11 @@ import { ProjectRow } from "@/components/project-row";
 import { ProjectStatusBadge } from "@/components/project-status-badge";
 import { ProjectsPage } from "@/components/projects-page";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+  localStorage.clear();
+});
 
 describe("ProjectRow", () => {
   const defaultProps = {
@@ -136,6 +140,7 @@ describe("ProjectsPage", () => {
             priority: "none",
             health: "No updates",
             lead: null,
+            teams: [],
             targetDate: null,
             progress: 0,
             createdAt: "2026-04-05T00:00:00.000Z",
@@ -149,6 +154,7 @@ describe("ProjectsPage", () => {
             priority: "high",
             health: "No updates",
             lead: null,
+            teams: [],
             targetDate: null,
             progress: 100,
             createdAt: "2026-04-06T00:00:00.000Z",
@@ -184,6 +190,7 @@ describe("ProjectsPage", () => {
             priority: "none",
             health: "No updates",
             lead: null,
+            teams: [],
             targetDate: null,
             progress: 10,
             createdAt: "2026-04-05T00:00:00.000Z",
@@ -197,6 +204,7 @@ describe("ProjectsPage", () => {
             priority: "high",
             health: "No updates",
             lead: null,
+            teams: [],
             targetDate: null,
             progress: 90,
             createdAt: "2026-04-06T00:00:00.000Z",
