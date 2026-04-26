@@ -1,46 +1,90 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import TeamIssueStatusesPage from "@/app/(app)/settings/teams/[key]/statuses/page";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-const mockStatuses = {
-  triage: [{ id: "s-1", name: "Triage", issueCount: 0, description: null, isDefault: true }],
-  backlog: [{ id: "s-2", name: "Backlog", issueCount: 10, description: "Parked items" }],
-  unstarted: [{ id: "s-3", name: "Todo", issueCount: 5, description: null }],
-  started: [{ id: "s-4", name: "In Progress", issueCount: 3, description: null }],
-  completed: [{ id: "s-5", name: "Done", issueCount: 50, description: null }],
-  canceled: [{ id: "s-6", name: "Canceled", issueCount: 2, description: null }],
-};
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ key: "ENG" }),
+  useParams: () => ({ key: "TEAM" }),
 }));
 
-describe("TeamIssueStatusesPage component", () => {
-  afterEach(() => {
-    cleanup();
-    vi.restoreAllMocks();
+// Mock status icon
+vi.mock("@/components/icons/status-icon", () => ({
+  StatusIcon: () => <div data-testid="status-icon" />,
+}));
+
+const mockStatuses = {
+  triage: [{ id: "s1", name: "Triage", issueCount: 5, description: "New issues" }],
+  backlog: [{ id: "s2", name: "Backlog", issueCount: 0, description: null }],
+  unstarted: [{ id: "s3", name: "Todo", issueCount: 10, description: "Planned", isDefault: true }],
+  started: [{ id: "s4", name: "In Progress", issueCount: 2, description: null }],
+  completed: [{ id: "s5", name: "Done", issueCount: 100, description: null }],
+  canceled: [{ id: "s6", name: "Canceled", issueCount: 1, description: null }],
+};
+
+describe("TeamIssueStatusesPage", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ statuses: mockStatuses }),
+        }),
+      ),
+    );
   });
 
-  it("renders loading state then statuses", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ statuses: mockStatuses }),
-    }));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    cleanup();
+  });
 
+  it("renders loading state then issue statuses", async () => {
     render(<TeamIssueStatusesPage />);
     expect(screen.getByText("Loading...")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
+      expect(screen.getByText("Issue statuses")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Issue statuses")).toBeInTheDocument();
+    // Check category headers (using getAll since the name is also used in status items and select)
     expect(screen.getAllByText("Triage").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Backlog").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Unstarted").length).toBeGreaterThan(0);
+
+    // Check status items
+    expect(screen.getByText("New issues")).toBeInTheDocument();
+    
+    expect(screen.getAllByText("Todo").length).toBeGreaterThan(0);
+    expect(screen.getByText("Default")).toBeInTheDocument();
     expect(screen.getByText("10 issues")).toBeInTheDocument();
-    expect(screen.getByText("Parked items")).toBeInTheDocument();
+  });
+
+  it("handles empty status list", async () => {
+    vi.mocked(global.fetch).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ statuses: null }),
+      }),
+    );
+
+    render(<TeamIssueStatusesPage />);
+    await waitFor(() => {
+      expect(screen.getByText("No statuses found")).toBeInTheDocument();
+    });
+  });
+
+  it("renders duplicate issue status selector with all statuses", async () => {
+    render(<TeamIssueStatusesPage />);
+    await waitFor(() => screen.getByText("Duplicate issue status"));
+
+    const select = screen.getByRole("combobox");
+    expect(select).toBeInTheDocument();
+    
+    // Check if some statuses from different categories are options
+    expect(screen.getByRole("option", { name: "Triage" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Done" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Canceled" })).toBeInTheDocument();
   });
 });
-
-import TeamIssueStatusesPage from "@/app/(app)/settings/teams/[key]/statuses/page";
