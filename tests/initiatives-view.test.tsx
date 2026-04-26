@@ -58,8 +58,10 @@ describe("InitiativesPage component", () => {
 
     fireEvent.click(screen.getByText("Planned"));
 
-    expect(screen.getByText("Mobile App")).toBeInTheDocument();
-    expect(screen.queryByText("Core Overhaul")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Mobile App")).toBeInTheDocument();
+      expect(screen.queryByText("Core Overhaul")).not.toBeInTheDocument();
+    });
   });
 
   it("opens create form and submits new initiative", async () => {
