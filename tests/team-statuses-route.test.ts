@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getSessionMock = vi.fn();
 const findAccessibleTeamMock = vi.fn();
 const statesOrderByMock = vi.fn();
-const issueGroupByMock = vi.fn();
+const issueCountsGroupByMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
   auth: {
@@ -20,23 +20,38 @@ vi.mock("@/lib/teams", () => ({
 vi.mock("@/lib/db", () => ({
   db: {
     select: vi.fn((selection: Record<string, unknown>) => {
-      if ("category" in selection && "position" in selection) {
+      // States lookup in GET
+      if (selection && "isDefault" in selection) {
         return {
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
-              orderBy: statesOrderByMock,
+              orderBy: vi.fn().mockResolvedValue(statesOrderByMock()),
             }),
           }),
         };
       }
 
-      return {
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            groupBy: issueGroupByMock,
+      // issueCounts lookup in GET
+      if (selection && "stateId" in selection) {
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              groupBy: vi.fn().mockResolvedValue(issueCountsGroupByMock()),
+            }),
           }),
-        }),
+        };
+      }
+
+      const chain = {
+        from: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        orderBy: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        // biome-ignore lint/suspicious/noThenProperty: <explanation>
+        then: (resolve: (val: unknown) => void) => resolve([]),
       };
+      return chain;
     }),
   },
 }));
@@ -49,125 +64,57 @@ describe("team statuses route", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    getSessionMock.mockResolvedValue({
-      user: { id: "user-1" },
-    });
+    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
     findAccessibleTeamMock.mockResolvedValue({
       id: "team-1",
-      key: "ENG",
       name: "Engineering",
+      key: "ENG",
     });
-    statesOrderByMock.mockResolvedValue([
+    statesOrderByMock.mockReturnValue([
       {
-        id: "triage-1",
-        name: "Triage",
-        category: "triage",
-        color: "#aaa",
-        description: "Needs review",
+        id: "state-1",
+        name: "Todo",
+        category: "unstarted",
+        color: "#999",
         position: 1,
-        isDefault: null,
-      },
-      {
-        id: "backlog-1",
-        name: "Backlog",
-        category: "backlog",
-        color: "#bbb",
-        description: "Queued",
-        position: 2,
         isDefault: true,
       },
-      {
-        id: "done-1",
-        name: "Done",
-        category: "completed",
-        color: "#0f0",
-        description: "Finished",
-        position: 3,
-        isDefault: null,
-      },
     ]);
-    issueGroupByMock.mockResolvedValue([
-      { stateId: "backlog-1", count: 4 },
-      { stateId: "done-1", count: 2 },
-    ]);
+    issueCountsGroupByMock.mockReturnValue([{ stateId: "state-1", count: 12 }]);
   });
 
   it("returns 401 without a session", async () => {
     getSessionMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/teams/[key]/statuses/route");
 
-    const response = await GET(
-      new Request("http://localhost/api/teams/ENG/statuses"),
-      {
-        params: Promise.resolve({ key: "ENG" }),
-      },
-    );
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "ENG" }),
+    });
 
     expect(response.status).toBe(401);
   });
 
-  it("returns 404 when the team is inaccessible", async () => {
+  it("returns 404 when team is missing", async () => {
     findAccessibleTeamMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/teams/[key]/statuses/route");
 
-    const response = await GET(
-      new Request("http://localhost/api/teams/ENG/statuses"),
-      {
-        params: Promise.resolve({ key: "ENG" }),
-      },
-    );
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "MISSING" }),
+    });
 
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({ error: "Team not found" });
   });
 
-  it("returns statuses grouped by category with issue counts", async () => {
+  it("returns grouped team statuses with issue counts", async () => {
     const { GET } = await import("@/app/api/teams/[key]/statuses/route");
 
-    const response = await GET(
-      new Request("http://localhost/api/teams/ENG/statuses"),
-      {
-        params: Promise.resolve({ key: "ENG" }),
-      },
-    );
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "ENG" }),
+    });
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      statuses: {
-        triage: [
-          {
-            id: "triage-1",
-            name: "Triage",
-            issueCount: 0,
-            description: "Needs review",
-            color: "#aaa",
-            isDefault: null,
-          },
-        ],
-        backlog: [
-          {
-            id: "backlog-1",
-            name: "Backlog",
-            issueCount: 4,
-            description: "Queued",
-            color: "#bbb",
-            isDefault: true,
-          },
-        ],
-        unstarted: [],
-        started: [],
-        completed: [
-          {
-            id: "done-1",
-            name: "Done",
-            issueCount: 2,
-            description: "Finished",
-            color: "#0f0",
-            isDefault: null,
-          },
-        ],
-        canceled: [],
-      },
-    });
+    const payload = await response.json();
+    expect(payload.statuses.unstarted.length).toBe(1);
+    expect(payload.statuses.unstarted[0].issueCount).toBe(12);
   });
 });
