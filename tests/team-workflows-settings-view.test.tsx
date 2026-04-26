@@ -1,15 +1,38 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import TeamWorkflowsSettingsPage from "../src/app/(app)/settings/teams/[key]/workflows/page";
+import TeamWorkflowsSettingsPage from "@/app/(app)/settings/teams/[key]/workflows/page";
+import "@testing-library/jest-dom/vitest";
 
-// Mock useParams
+// Mock next/navigation
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ key: "ENG" }),
+  useParams: () => ({ key: "TEAM" }),
 }));
 
-describe("TeamWorkflowsSettingsPage component", () => {
+const mockTeam = {
+  name: "Team Name",
+  detailedHistory: false,
+};
+
+describe("TeamWorkflowsSettingsPage", () => {
   beforeEach(() => {
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url, options) => {
+        if (url === "/api/teams/TEAM/settings" && !options) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ team: mockTeam }),
+          });
+        }
+        if (url === "/api/teams/TEAM/settings" && options?.method === "PATCH") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ team: { ...mockTeam, ...JSON.parse(options.body) } }),
+          });
+        }
+        return Promise.reject(new Error("Unhandled fetch"));
+      }),
+    );
   });
 
   afterEach(() => {
@@ -17,55 +40,72 @@ describe("TeamWorkflowsSettingsPage component", () => {
     cleanup();
   });
 
-  const mockTeamData = {
-    team: {
-      name: "Engineering",
-      detailedHistory: false,
-    },
-  };
-
-  it("renders loading state then workflow settings", async () => {
-    (fetch as any).mockResolvedValue({
-      ok: true,
-      json: async () => mockTeamData,
-    });
-
+  it("renders loading state then workflows settings", async () => {
     render(<TeamWorkflowsSettingsPage />);
-
-    expect(screen.getByText("Loading...")).toBeDefined();
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText("Workflows & automations")).toBeDefined();
+      expect(screen.getByText("Workflows & automations")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Enable detailed issue history")).toBeDefined();
-    const toggle = screen.getByLabelText("Enable detailed issue history");
-    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByLabelText("Enable detailed issue history")).toBeInTheDocument();
   });
 
-  it("toggles and persists detailed history setting", async () => {
-    (fetch as any).mockImplementation((url: string, init?: any) => {
-      if (init?.method === "PATCH") {
-        return Promise.resolve({ ok: true });
+  it("handles toggling detailed history and saving", async () => {
+    render(<TeamWorkflowsSettingsPage />);
+    await waitFor(() => screen.getByLabelText("Enable detailed issue history"));
+
+    const toggle = screen.getByLabelText("Enable detailed issue history");
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(screen.getByText("Workflow settings updated")).toBeInTheDocument();
+    });
+
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/teams/TEAM/settings",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ detailedHistory: true }),
+      }),
+    );
+  });
+
+  it("shows error message when save fails", async () => {
+    vi.mocked(global.fetch).mockImplementation((url, options) => {
+      if (url === "/api/teams/TEAM/settings" && options?.method === "PATCH") {
+        return Promise.resolve({ ok: false });
       }
       return Promise.resolve({
         ok: true,
-        json: async () => mockTeamData,
+        json: () => Promise.resolve({ team: mockTeam }),
       });
     });
 
     render(<TeamWorkflowsSettingsPage />);
-    await waitFor(() => screen.getByText("Workflows & automations"));
+    await waitFor(() => screen.getByLabelText("Enable detailed issue history"));
 
-    const toggle = screen.getByLabelText("Enable detailed issue history");
-    fireEvent.click(toggle);
+    fireEvent.click(screen.getByLabelText("Enable detailed issue history"));
 
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledWith("/api/teams/ENG/settings", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ detailedHistory: true }),
-      }));
-      expect(screen.getByText("Workflow settings updated")).toBeDefined();
+      expect(screen.getByText("Failed to update workflow settings")).toBeInTheDocument();
+    });
+  });
+
+  it("shows team not found when API returns null team", async () => {
+    vi.mocked(global.fetch).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ team: null }),
+      }),
+    );
+
+    render(<TeamWorkflowsSettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Team not found")).toBeInTheDocument();
     });
   });
 });

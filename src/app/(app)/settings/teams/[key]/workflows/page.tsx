@@ -52,7 +52,9 @@ export default function TeamWorkflowsSettingsPage() {
       .then((res) => res.json())
       .then((data) => {
         setTeam(data.team);
-        setDetailedHistory(data.team.detailedHistory);
+        if (data.team) {
+          setDetailedHistory(data.team.detailedHistory);
+        }
       })
       .finally(() => setLoading(false));
   }, [teamKey]);
