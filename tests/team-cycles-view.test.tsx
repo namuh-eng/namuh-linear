@@ -1,126 +1,119 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import TeamCyclesSettingsPage from "@/app/(app)/settings/teams/[key]/cycles/page";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
-  useParams: () => ({ key: "ENG" }),
+  useParams: () => ({ key: "TEAM" }),
 }));
 
-import TeamCyclesPage from "@/app/(app)/team/[key]/cycles/page";
-
-const mockCyclesData = {
+const mockCyclesResponse = {
   team: {
-    id: "team-1",
-    name: "Engineering",
-    key: "ENG",
+    name: "Team Name",
     cyclesEnabled: true,
-    cycleStartDay: 1,
-    cycleDurationWeeks: 2,
-    timezone: "UTC",
   },
   cycles: [
     {
       id: "c1",
-      name: "Current Sprint",
+      name: "Custom Cycle",
       number: 1,
-      teamId: "team-1",
-      startDate: "2026-04-20T00:00:00Z",
-      endDate: "2026-05-03T00:00:00Z",
-      issueCount: 5,
-      completedIssueCount: 2,
+      startDate: "2024-01-01",
+      endDate: "2024-01-14",
+      issueCount: 10,
+      completedIssueCount: 5,
     },
     {
       id: "c2",
-      name: "Upcoming Sprint",
+      name: null,
       number: 2,
-      teamId: "team-1",
-      startDate: "2026-05-04T00:00:00Z",
-      endDate: "2026-05-17T00:00:00Z",
-      issueCount: 0,
+      startDate: "2024-01-15",
+      endDate: "2024-01-28",
+      issueCount: 2,
       completedIssueCount: 0,
     },
   ],
 };
 
-describe("TeamCyclesPage UI", () => {
-  afterEach(() => {
-    cleanup();
-    vi.clearAllMocks();
+describe("TeamCyclesSettingsPage", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockCyclesResponse),
+        }),
+      ),
+    );
   });
 
-  it("renders loading state then cycle list", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => mockCyclesData,
-    } as Response);
+  afterEach(() => {
+    vi.restoreAllMocks();
+    cleanup();
+  });
 
-    // Mock Date to be within the first cycle
-    vi.setSystemTime(new Date("2026-04-25T10:00:00Z"));
-
-    render(<TeamCyclesPage />);
-
+  it("renders loading state then cycles list", async () => {
+    render(<TeamCyclesSettingsPage />);
     expect(screen.getByText("Loading...")).toBeInTheDocument();
 
-    expect(await screen.findByText("Current Cycle")).toBeInTheDocument();
-    expect(screen.getByText("Current Sprint")).toBeInTheDocument();
-    expect(screen.getByText("Upcoming Sprint")).toBeInTheDocument();
-  });
-
-  it("shows the create cycle form and submits", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
-        if (url.toString().includes("/api/teams/ENG/cycles") && !url.toString().includes("POST")) {
-            return Promise.resolve({
-                ok: true,
-                json: async () => mockCyclesData,
-            } as Response);
-        }
-        if (url.toString().includes("/api/teams/ENG/cycles") && url.toString().includes("POST")) {
-            return Promise.resolve({
-                ok: true,
-                json: async () => ({ id: "c3" }),
-            } as Response);
-        }
-        return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
-    });
-
-    render(<TeamCyclesPage />);
-    await screen.findByText("Current Sprint");
-
-    fireEvent.click(screen.getByRole("button", { name: "New cycle" }));
-
-    fireEvent.change(screen.getByPlaceholderText("Cycle name (optional)"), {
-      target: { value: "Sprint 3" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Create cycle" }));
-
     await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/teams/ENG/cycles",
-          expect.objectContaining({
-            method: "POST",
-            body: expect.stringContaining('"name":"Sprint 3"'),
+      expect(screen.getByText("Cycles")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Custom Cycle")).toBeInTheDocument();
+    expect(screen.getByText("Cycle 2")).toBeInTheDocument();
+    expect(screen.getByText("10 issues")).toBeInTheDocument();
+    expect(screen.getByText("5 completed")).toBeInTheDocument();
+  });
+
+  it("shows disabled warning when cyclesEnabled is false", async () => {
+    vi.mocked(global.fetch).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ...mockCyclesResponse,
+            team: { ...mockCyclesResponse.team, cyclesEnabled: false },
           }),
-        );
+      }),
+    );
+
+    render(<TeamCyclesSettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/Cycles are currently disabled/)).toBeInTheDocument();
     });
   });
 
-  it("shows empty state when team has no cycles", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => ({ ...mockCyclesData, cycles: [] }),
-    } as Response);
+  it("shows empty state when no cycles exist", async () => {
+    vi.mocked(global.fetch).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ...mockCyclesResponse,
+            cycles: [],
+          }),
+      }),
+    );
 
-    render(<TeamCyclesPage />);
+    render(<TeamCyclesSettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("No cycles have been created for this team.")).toBeInTheDocument();
+    });
+  });
 
-    expect(await screen.findByText("No active cycle")).toBeInTheDocument();
+  it("shows team not found when API returns null data", async () => {
+    vi.mocked(global.fetch).mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(null),
+      }),
+    );
+
+    render(<TeamCyclesSettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Team not found")).toBeInTheDocument();
+    });
   });
 });
