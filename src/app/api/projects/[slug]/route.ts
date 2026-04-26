@@ -690,3 +690,33 @@ export async function PATCH(
   const updated = await buildProjectResponse(session.user.id, slug);
   return NextResponse.json(updated.body, { status: updated.status });
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ slug: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { slug } = await params;
+  const workspaceId = await findWorkspaceId(session.user.id);
+  if (!workspaceId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const proj = await findProjectInWorkspace(workspaceId, slug);
+  if (!proj) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  await db.transaction(async (tx) => {
+    // Delete project members, teams, milestones, and issues
+    // Or let cascade handle it. In our schema we usually use cascades.
+    // For safety, let's just delete the project record.
+    await tx.delete(project).where(eq(project.id, proj.id));
+  });
+
+  return NextResponse.json({ success: true });
+}

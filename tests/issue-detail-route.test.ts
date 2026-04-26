@@ -184,6 +184,9 @@ vi.mock("@/lib/db", () => ({
         };
       },
     })),
+    delete: vi.fn(() => ({
+      where: vi.fn().mockResolvedValue([{ id: "issue-1" }]),
+    })),
   },
 }));
 
@@ -453,5 +456,16 @@ describe("issue detail route", () => {
       stateId: "state-2",
       sortOrder: 8,
     });
+  });
+
+  it("deletes an issue", async () => {
+    const { DELETE } = await import("@/app/api/issues/[id]/route");
+
+    const response = await DELETE(new Request("http://localhost"), {
+      params: Promise.resolve({ id: "ENG-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true });
   });
 });

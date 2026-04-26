@@ -268,4 +268,15 @@ describe("project detail route", () => {
     const payload = await response.json();
     expect(payload.project.id).toBe("proj-1");
   });
+
+  it("deletes a project", async () => {
+    const { DELETE } = await import("@/app/api/projects/[slug]/route");
+
+    const response = await DELETE(new Request("http://localhost"), {
+      params: Promise.resolve({ slug: "ever" }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true });
+  });
 });

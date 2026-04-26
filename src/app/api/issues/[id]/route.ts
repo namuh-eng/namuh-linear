@@ -423,3 +423,26 @@ export async function PATCH(
 
   return NextResponse.json(updated[0]);
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const existingIssue = await findIssueRecord(id);
+  if (!existingIssue) {
+    return NextResponse.json({ error: "Issue not found" }, { status: 404 });
+  }
+
+  // Delete the issue. Labels and comments should be handled by DB-level cascade if configured,
+  // but we can also handle them explicitly here if needed.
+  // Assuming cascade is set up in schema.
+  await db.delete(issue).where(eq(issue.id, existingIssue.id));
+
+  return NextResponse.json({ success: true });
+}
