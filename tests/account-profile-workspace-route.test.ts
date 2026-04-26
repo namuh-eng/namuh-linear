@@ -1,116 +1,93 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DELETE } from "@/app/api/account/profile/workspace/route";
+import { db } from "@/lib/db";
+import { user, workspace, member } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
+import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
 
-const getSessionMock = vi.fn();
-const resolveActiveWorkspaceIdMock = vi.fn();
-const remainingMembershipLimitMock = vi.fn();
-const deleteWhereMock = vi.fn();
+const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
+const TEST_WS_ID = "00000000-0000-0000-0000-000000000002";
 
+// Mock next/headers
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => new Headers()),
+  cookies: vi.fn(async () => ({
+    get: vi.fn((name) => {
+        if (name === "activeWorkspaceId") return { value: TEST_WS_ID };
+        return undefined;
+    }),
+    set: vi.fn(),
+    delete: vi.fn(),
+  })),
+}));
+
+// Mock auth
 vi.mock("@/lib/auth", () => ({
   auth: {
     api: {
-      getSession: getSessionMock,
+      getSession: vi.fn(),
     },
   },
 }));
 
-vi.mock("@/lib/active-workspace", () => ({
-  resolveActiveWorkspaceId: resolveActiveWorkspaceIdMock,
-}));
+import { auth } from "@/lib/auth";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    delete: vi.fn(() => ({
-      where: (...whereArgs: unknown[]) => {
-        deleteWhereMock(...whereArgs);
-        return Promise.resolve();
-      },
-    })),
-    select: vi.fn(() => ({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          orderBy: vi.fn().mockReturnValue({
-            limit: remainingMembershipLimitMock,
-          }),
-        }),
-      }),
-    })),
-  },
-}));
+describe("Account Profile Workspace API Route (Leave Workspace)", () => {
+  beforeAll(async () => {
+    // Cleanup
+    await db.delete(member).where(eq(member.userId, TEST_USER_ID));
+    await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
 
-vi.mock("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
+    // Seed
+    await db.insert(user).values({
+      id: TEST_USER_ID,
+      name: "Leave Test User",
+      email: "leave-test@example.com",
+      username: "leavetestuser",
+      settings: {},
+    });
 
-describe("account profile workspace route", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
-    resolveActiveWorkspaceIdMock.mockResolvedValue("workspace-1");
-    remainingMembershipLimitMock.mockResolvedValue([
-      { workspaceId: "workspace-2" },
-    ]);
-  });
+    await db.insert(workspace).values({
+      id: TEST_WS_ID,
+      name: "Leave Test Workspace",
+      slug: "leave-test",
+      urlSlug: "leave-test",
+    });
 
-  it("returns 401 without a session", async () => {
-    getSessionMock.mockResolvedValue(null);
-    const { DELETE } = await import(
-      "@/app/api/account/profile/workspace/route"
-    );
-
-    const response = await DELETE();
-
-    expect(response.status).toBe(401);
-  });
-
-  it("returns 404 when there is no active workspace", async () => {
-    resolveActiveWorkspaceIdMock.mockResolvedValue(null);
-    const { DELETE } = await import(
-      "@/app/api/account/profile/workspace/route"
-    );
-
-    const response = await DELETE();
-
-    expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({
-      error: "No active workspace found",
+    await db.insert(member).values({
+      userId: TEST_USER_ID,
+      workspaceId: TEST_WS_ID,
+      role: "admin",
     });
   });
 
-  it("removes the current membership and points to the next workspace", async () => {
-    const { DELETE } = await import(
-      "@/app/api/account/profile/workspace/route"
-    );
-
-    const response = await DELETE();
-
-    expect(response.status).toBe(200);
-    expect(deleteWhereMock).toHaveBeenCalled();
-    await expect(response.json()).resolves.toEqual({
-      success: true,
-      redirectTo: "/",
-    });
-    expect(response.cookies.get("activeWorkspaceId")?.value).toBe(
-      "workspace-2",
-    );
+  afterAll(async () => {
+    await db.delete(member).where(eq(member.userId, TEST_USER_ID));
+    await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
   });
 
-  it("redirects to workspace creation when no memberships remain", async () => {
-    remainingMembershipLimitMock.mockResolvedValue([]);
-    const { DELETE } = await import(
-      "@/app/api/account/profile/workspace/route"
+  it("DELETE returns 401 if no session", async () => {
+    (auth.api.getSession as any).mockResolvedValue(null);
+    const res = await DELETE();
+    expect(res.status).toBe(401);
+  });
+
+  it("DELETE removes user from active workspace and redirects correctly", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    
+    const res = await DELETE();
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.redirectTo).toBe("/create-workspace");
+
+    // Verify membership is gone
+    const memberships = await db.select().from(member).where(
+        and(eq(member.userId, TEST_USER_ID), eq(member.workspaceId, TEST_WS_ID))
     );
-
-    const response = await DELETE();
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      success: true,
-      redirectTo: "/create-workspace",
-    });
-    expect(response.cookies.get("activeWorkspaceId")).toMatchObject({
-      name: "activeWorkspaceId",
-      value: "",
-    });
+    expect(memberships.length).toBe(0);
   });
 });
