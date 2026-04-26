@@ -1,19 +1,21 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-// Mock next/navigation
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
-}));
-
 import WorkspaceSettingsPage from "@/app/(app)/settings/workspace/page";
 
-const mockWorkspace = {
+const pushMock = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: pushMock,
+    refresh: vi.fn(),
+  }),
+}));
+
+const mockWorkspaceData = {
   id: "ws-123",
   name: "Acme Corp",
   urlSlug: "acme",
-  logo: "https://example.com/logo.png",
+  logo: "data:image/png;base64,abc",
   region: "United States",
   fiscalMonth: "january",
 };
@@ -24,10 +26,10 @@ describe("WorkspaceSettingsPage component", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders loading state then workspace details", async () => {
+  it("renders loading state then workspace settings", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ workspace: mockWorkspace }),
+      json: async () => ({ workspace: mockWorkspaceData }),
     }));
 
     render(<WorkspaceSettingsPage />);
@@ -37,29 +39,31 @@ describe("WorkspaceSettingsPage component", () => {
       expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
     });
 
-    expect(screen.getByDisplayValue("Acme Corp")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("acme")).toBeInTheDocument();
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
+    expect(screen.getByLabelText("Workspace name")).toHaveValue("Acme Corp");
+    expect(screen.getByLabelText("Workspace URL slug")).toHaveValue("acme");
+    expect(screen.getByLabelText("First month of fiscal year")).toHaveValue("january");
     expect(screen.getByText("United States")).toBeInTheDocument();
   });
 
   it("updates workspace name on blur", async () => {
-    const fetchMock = vi.stubGlobal("fetch", vi.fn()
+    vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ workspace: mockWorkspace }),
+        json: async () => ({ workspace: mockWorkspaceData }),
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ workspace: { ...mockWorkspace, name: "New Name" } }),
+        json: async () => ({ workspace: { ...mockWorkspaceData, name: "New Name" } }),
       })
     );
 
     render(<WorkspaceSettingsPage />);
-    await waitFor(() => screen.getByDisplayValue("Acme Corp"));
+    await waitFor(() => screen.getByLabelText("Workspace name"));
 
-    const nameInput = screen.getByLabelText("Workspace name");
-    fireEvent.change(nameInput, { target: { value: "New Name" } });
-    fireEvent.blur(nameInput);
+    const input = screen.getByLabelText("Workspace name");
+    fireEvent.change(input, { target: { value: "New Name" } });
+    fireEvent.blur(input);
 
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith("/api/workspaces/current", expect.objectContaining({
@@ -71,35 +75,65 @@ describe("WorkspaceSettingsPage component", () => {
     expect(screen.getByText("Workspace updated.")).toBeInTheDocument();
   });
 
-  it("opens delete dialog and confirms deletion", async () => {
+  it("updates fiscal month on change", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ workspace: mockWorkspace }),
+        json: async () => ({ workspace: mockWorkspaceData }),
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ redirectTo: "/onboard" }),
+        json: async () => ({ workspace: { ...mockWorkspaceData, fiscalMonth: "july" } }),
       })
     );
 
     render(<WorkspaceSettingsPage />);
-    await waitFor(() => screen.getByDisplayValue("Acme Corp"));
+    await waitFor(() => screen.getByLabelText("First month of fiscal year"));
+
+    const select = screen.getByLabelText("First month of fiscal year");
+    fireEvent.change(select, { target: { value: "july" } });
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith("/api/workspaces/current", expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"fiscalMonth":"july"'),
+      }));
+    });
+
+    expect(screen.getByText("Workspace updated.")).toBeInTheDocument();
+  });
+
+  it("opens delete dialog and deletes workspace", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ workspace: mockWorkspaceData }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ redirectTo: "/login" }),
+      })
+    );
+
+    render(<WorkspaceSettingsPage />);
+    await waitFor(() => screen.getByText("Delete workspace"));
 
     fireEvent.click(screen.getByText("Delete workspace"));
     expect(screen.getByText("Delete workspace?")).toBeInTheDocument();
 
-    const confirmInput = screen.getByLabelText("Confirm workspace name");
-    fireEvent.change(confirmInput, { target: { value: "Acme Corp" } });
-
-    const confirmButton = screen.getAllByRole("button", { name: "Delete workspace" }).find(
-      btn => btn.closest("dialog")
-    );
-    if (!confirmButton) throw new Error("Confirm button not found in dialog");
-    fireEvent.click(confirmButton);
+    const input = screen.getByLabelText("Confirm workspace name");
+    fireEvent.change(input, { target: { value: "Acme Corp" } });
+    
+    // There are two buttons with this text: trigger and modal confirm
+    const buttons = screen.getAllByRole("button", { name: "Delete workspace" });
+    fireEvent.click(buttons[buttons.length - 1]);
 
     await waitFor(() => {
-      expect(screen.getByText("Deleting...")).toBeInTheDocument();
+      expect(fetch).toHaveBeenCalledWith("/api/workspaces/current", expect.objectContaining({
+        method: "DELETE",
+      }));
     });
+
+    expect(pushMock).toHaveBeenCalledWith("/login");
   });
 });
