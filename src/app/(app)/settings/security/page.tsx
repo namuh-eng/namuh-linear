@@ -431,6 +431,7 @@ export default function SecurityPage() {
                 setErrorMessage(null);
               }}
               className="flex items-center gap-1.5 text-[12px] text-[var(--color-accent)] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label="Add approved email domain"
             >
               <svg
                 className="h-3 w-3"
