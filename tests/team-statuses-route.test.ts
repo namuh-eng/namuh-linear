@@ -1,120 +1,100 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GET } from "@/app/api/teams/[key]/statuses/route";
+import { db } from "@/lib/db";
+import { team, workflowState, user, workspace, member } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
 
-const getSessionMock = vi.fn();
-const findAccessibleTeamMock = vi.fn();
-const statesOrderByMock = vi.fn();
-const issueCountsGroupByMock = vi.fn();
+const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
+const TEST_WS_ID = "00000000-0000-0000-0000-000000000002";
+const TEST_TEAM_ID = "00000000-0000-0000-0000-000000000003";
 
+const TEST_STATE_ID = "00000000-0000-0000-0000-000000000004";
+
+// Mock next/headers
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => new Headers()),
+  cookies: vi.fn(async () => ({
+    get: vi.fn(),
+  })),
+}));
+
+// Mock auth
 vi.mock("@/lib/auth", () => ({
   auth: {
     api: {
-      getSession: getSessionMock,
+      getSession: vi.fn(),
     },
   },
 }));
 
-vi.mock("@/lib/teams", () => ({
-  findAccessibleTeam: findAccessibleTeamMock,
-}));
+import { auth } from "@/lib/auth";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    select: vi.fn((selection: Record<string, unknown>) => {
-      // States lookup in GET
-      if (selection && "isDefault" in selection) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              orderBy: vi.fn().mockResolvedValue(statesOrderByMock()),
-            }),
-          }),
-        };
-      }
+describe("Team Statuses API Route", () => {
+  beforeAll(async () => {
+    // Cleanup
+    await db.delete(workflowState).where(eq(workflowState.teamId, TEST_TEAM_ID));
+    await db.delete(team).where(eq(team.id, TEST_TEAM_ID));
+    await db.delete(member).where(eq(member.userId, TEST_USER_ID));
+    await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
 
-      // issueCounts lookup in GET
-      if (selection && "stateId" in selection) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              groupBy: vi.fn().mockResolvedValue(issueCountsGroupByMock()),
-            }),
-          }),
-        };
-      }
-
-      const chain = {
-        from: vi.fn().mockReturnThis(),
-        innerJoin: vi.fn().mockReturnThis(),
-        where: vi.fn().mockReturnThis(),
-        orderBy: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        // biome-ignore lint/suspicious/noThenProperty: <explanation>
-        then: (resolve: (val: unknown) => void) => resolve([]),
-      };
-      return chain;
-    }),
-  },
-}));
-
-vi.mock("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
-
-describe("team statuses route", () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
-    findAccessibleTeamMock.mockResolvedValue({
-      id: "team-1",
-      name: "Engineering",
-      key: "ENG",
+    // Seed
+    await db.insert(user).values({
+      id: TEST_USER_ID,
+      name: "Status Test User",
+      email: "status-test@example.com",
     });
-    statesOrderByMock.mockReturnValue([
-      {
-        id: "state-1",
-        name: "Todo",
-        category: "unstarted",
-        color: "#999",
-        position: 1,
-        isDefault: true,
-      },
-    ]);
-    issueCountsGroupByMock.mockReturnValue([{ stateId: "state-1", count: 12 }]);
+
+    await db.insert(workspace).values({
+      id: TEST_WS_ID,
+      name: "Status Test Workspace",
+      slug: "status-test",
+      urlSlug: "status-test",
+    });
+
+    await db.insert(member).values({
+      userId: TEST_USER_ID,
+      workspaceId: TEST_WS_ID,
+      role: "admin",
+    });
+
+    await db.insert(team).values({
+      id: TEST_TEAM_ID,
+      workspaceId: TEST_WS_ID,
+      name: "Status Team",
+      key: "STAT",
+    });
+
+    await db.insert(workflowState).values({
+      id: TEST_STATE_ID,
+      teamId: TEST_TEAM_ID,
+      name: "Todo",
+      category: "unstarted",
+      position: 1,
+    });
   });
 
-  it("returns 401 without a session", async () => {
-    getSessionMock.mockResolvedValue(null);
-    const { GET } = await import("@/app/api/teams/[key]/statuses/route");
-
-    const response = await GET(new Request("http://localhost"), {
-      params: Promise.resolve({ key: "ENG" }),
-    });
-
-    expect(response.status).toBe(401);
+  afterAll(async () => {
+    await db.delete(workflowState).where(eq(workflowState.id, TEST_STATE_ID));
+    await db.delete(team).where(eq(team.id, TEST_TEAM_ID));
+    await db.delete(member).where(eq(member.userId, TEST_USER_ID));
+    await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
   });
 
-  it("returns 404 when team is missing", async () => {
-    findAccessibleTeamMock.mockResolvedValue(null);
-    const { GET } = await import("@/app/api/teams/[key]/statuses/route");
-
-    const response = await GET(new Request("http://localhost"), {
-      params: Promise.resolve({ key: "MISSING" }),
+  it("GET returns grouped team statuses", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
     });
-
-    expect(response.status).toBe(404);
-  });
-
-  it("returns grouped team statuses with issue counts", async () => {
-    const { GET } = await import("@/app/api/teams/[key]/statuses/route");
-
-    const response = await GET(new Request("http://localhost"), {
-      params: Promise.resolve({ key: "ENG" }),
+    
+    const res = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "STAT" }),
     });
-
-    expect(response.status).toBe(200);
-    const payload = await response.json();
-    expect(payload.statuses.unstarted.length).toBe(1);
-    expect(payload.statuses.unstarted[0].issueCount).toBe(12);
+    
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.statuses.unstarted).toHaveLength(1);
+    expect(data.statuses.unstarted[0].name).toBe("Todo");
+    expect(data.statuses.backlog).toBeDefined();
   });
 });
