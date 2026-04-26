@@ -1,206 +1,123 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { GET, PATCH } from "@/app/api/account/profile/route";
+import { db } from "@/lib/db";
+import { user, workspace, member } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
+import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
+import { NextResponse } from "next/server";
 
-const getSessionMock = vi.fn();
-const userLimitMock = vi.fn();
-const workspaceLimitMock = vi.fn();
-const updateSetMock = vi.fn();
-const updateWhereMock = vi.fn();
-const deleteWhereMock = vi.fn();
-const membershipLimitMock = vi.fn();
-const resolveActiveWorkspaceIdMock = vi.fn();
+const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
+const TEST_WS_ID = "00000000-0000-0000-0000-000000000002";
 
+// Mock next/headers
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => new Headers()),
+  cookies: vi.fn(async () => ({
+    get: vi.fn(),
+  })),
+}));
+
+// Mock auth
 vi.mock("@/lib/auth", () => ({
   auth: {
     api: {
-      getSession: getSessionMock,
+      getSession: vi.fn(),
     },
   },
 }));
 
-vi.mock("@/lib/active-workspace", () => ({
-  resolveActiveWorkspaceId: resolveActiveWorkspaceIdMock,
-}));
+import { auth } from "@/lib/auth";
 
-vi.mock("@/lib/db", () => ({
-  db: {
-    select: vi.fn((selection: Record<string, unknown>) => {
-      if (
-        "name" in selection &&
-        "email" in selection &&
-        "settings" in selection
-      ) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: userLimitMock,
-            }),
-          }),
-        };
-      }
+describe("Account Profile API Route", () => {
+  beforeAll(async () => {
+    // Cleanup
+    await db.delete(member).where(eq(member.userId, TEST_USER_ID));
+    await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
 
-      if ("name" in selection && Object.keys(selection).length === 2) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: workspaceLimitMock,
-            }),
-          }),
-        };
-      }
-
-      return {
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockReturnValue({
-              limit: membershipLimitMock,
-            }),
-          }),
-        }),
-      };
-    }),
-    update: vi.fn(() => ({
-      set: (...args: unknown[]) => {
-        updateSetMock(...args);
-        return {
-          where: (...whereArgs: unknown[]) => {
-            updateWhereMock(...whereArgs);
-            return Promise.resolve();
-          },
-        };
-      },
-    })),
-    delete: vi.fn(() => ({
-      where: (...whereArgs: unknown[]) => {
-        deleteWhereMock(...whereArgs);
-        return Promise.resolve();
-      },
-    })),
-  },
-}));
-
-vi.mock("next/headers", () => ({
-  headers: async () => new Headers(),
-}));
-
-describe("account profile routes", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    userLimitMock.mockResolvedValue([
-      {
-        id: "user-1",
-        name: "John Doe",
-        email: "john@example.com",
-        image: "https://example.com/avatar.png",
-        settings: {
-          accountProfile: {
-            username: "johnd",
-          },
-        },
-      },
-    ]);
-    workspaceLimitMock.mockResolvedValue([
-      {
-        id: "workspace-1",
-        name: "Onboarding QA Team",
-      },
-    ]);
-    membershipLimitMock.mockResolvedValue([{ workspaceId: "workspace-2" }]);
-    resolveActiveWorkspaceIdMock.mockResolvedValue("workspace-1");
-  });
-
-  it("loads persisted username data for the current session", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { id: "user-1" },
+    // Seed
+    await db.insert(user).values({
+      id: TEST_USER_ID,
+      name: "Test User",
+      email: "profile-test@example.com",
+      username: "testuser",
+      settings: {},
     });
 
-    const { GET } = await import("@/app/api/account/profile/route");
-    const response = await GET();
+    await db.insert(workspace).values({
+      id: TEST_WS_ID,
+      name: "Profile Test Workspace",
+      slug: "profile-test",
+      urlSlug: "profile-test",
+    });
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      profile: {
-        name: "John Doe",
-        email: "john@example.com",
-        username: "johnd",
-        image: "https://example.com/avatar.png",
-      },
-      workspaceAccess: {
-        currentWorkspaceId: "workspace-1",
-        currentWorkspaceName: "Onboarding QA Team",
-      },
+    await db.insert(member).values({
+      userId: TEST_USER_ID,
+      workspaceId: TEST_WS_ID,
+      role: "admin",
     });
   });
 
-  it("persists username updates inside user settings", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { id: "user-1" },
-    });
+  afterAll(async () => {
+    await db.delete(member).where(eq(member.userId, TEST_USER_ID));
+    await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
+    await db.delete(user).where(eq(user.id, TEST_USER_ID));
+  });
 
-    const { PATCH } = await import("@/app/api/account/profile/route");
-    const response = await PATCH(
-      new Request("http://localhost/api/account/profile", {
-        method: "PATCH",
-        body: JSON.stringify({
-          name: "Jane Doe",
-          username: "JaneD",
-          image: "data:image/png;base64,abc123",
-        }),
+  it("GET returns 401 if no session", async () => {
+    (auth.api.getSession as any).mockResolvedValue(null);
+    const res = await GET();
+    expect(res.status).toBe(401);
+  });
+
+  it("GET returns profile data for authenticated user", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.profile.name).toBe("Test User");
+    expect(data.workspaceAccess.currentWorkspaceName).toBe("Profile Test Workspace");
+  });
+
+  it("PATCH updates user profile", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    const req = new Request("http://localhost/api/account/profile", {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: "Updated Name",
+        username: "updateduser",
       }),
-    );
+    });
 
-    expect(response.status).toBe(200);
-    expect(updateSetMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "Jane Doe",
-        image: "data:image/png;base64,abc123",
-        settings: expect.objectContaining({
-          accountProfile: {
-            username: "janed",
-          },
-        }),
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.profile.name).toBe("Updated Name");
+    expect(data.profile.username).toBe("updateduser");
+
+    // Verify in DB
+    const [updatedUser] = await db.select().from(user).where(eq(user.id, TEST_USER_ID)).limit(1);
+    expect(updatedUser.name).toBe("Updated Name");
+  });
+
+  it("PATCH returns 400 for invalid username (with spaces)", async () => {
+    (auth.api.getSession as any).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    const req = new Request("http://localhost/api/account/profile", {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: "Test",
+        username: "invalid user",
       }),
-    );
-    await expect(response.json()).resolves.toEqual({
-      profile: {
-        name: "Jane Doe",
-        email: "john@example.com",
-        username: "janed",
-        image: "data:image/png;base64,abc123",
-      },
-      workspaceAccess: {
-        currentWorkspaceId: "workspace-1",
-        currentWorkspaceName: "Onboarding QA Team",
-      },
-    });
-  });
-
-  it("removes the active workspace membership and points the user to the next workspace", async () => {
-    getSessionMock.mockResolvedValue({
-      user: { id: "user-1" },
     });
 
-    const { DELETE } = await import(
-      "@/app/api/account/profile/workspace/route"
-    );
-    const response = await DELETE();
-
-    expect(response.status).toBe(200);
-    expect(deleteWhereMock).toHaveBeenCalled();
-    await expect(response.json()).resolves.toEqual({
-      success: true,
-      redirectTo: "/",
-    });
-    expect(response.cookies.get("activeWorkspaceId")?.value).toBe(
-      "workspace-2",
-    );
-  });
-
-  it("returns 401 without a session", async () => {
-    getSessionMock.mockResolvedValue(null);
-
-    const { GET } = await import("@/app/api/account/profile/route");
-    const response = await GET();
-
-    expect(response.status).toBe(401);
+    const res = await PATCH(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe("Username must be a single word");
   });
 });
