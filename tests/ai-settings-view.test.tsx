@@ -1,22 +1,81 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it } from "vitest";
-import AISettingsPage from "@/app/(app)/settings/ai/page";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import AISettingsPage from "../src/app/(app)/settings/ai/page";
 
 describe("AISettingsPage component", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
   afterEach(() => {
+    vi.restoreAllMocks();
     cleanup();
   });
 
-  it("renders the AI settings page with empty state", async () => {
+  const mockAnalyticsData = {
+    workspaceId: "ws_1",
+    completedLast30Days: [
+      { teamId: "t1", teamName: "Engineering", completedCount: 15 },
+      { teamId: "t2", teamName: "Product", completedCount: 5 },
+    ],
+    activeIssues: [
+      { teamId: "t1", teamName: "Engineering", activeCount: 20 },
+      { teamId: "t2", teamName: "Product", activeCount: 8 },
+    ],
+    period: "Last 30 days",
+  };
+
+  it("renders loading state initially", () => {
+    (fetch as any).mockResolvedValue(new Promise(() => {}));
+    render(<AISettingsPage />);
+    expect(screen.getByText("Loading...")).toBeDefined();
+  });
+
+  it("renders analytics data and team summary cards", async () => {
+    (fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => mockAnalyticsData,
+    });
+
     render(<AISettingsPage />);
 
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
-    
     await waitFor(() => {
-      expect(screen.getByText("AI & Agents")).toBeInTheDocument();
-      expect(screen.getByText(/Configure workspace-wide AI features/)).toBeInTheDocument();
-      expect(screen.getByText("AI features are enabled")).toBeInTheDocument();
-    }, { timeout: 2000 });
+      expect(screen.getAllByText("20").length).toBeGreaterThan(0); // Total completed: 15+5
+    });
+
+    expect(screen.getByText("28")).toBeDefined(); // Total active: 20+8
+    expect(screen.getByText("Engineering")).toBeDefined();
+    expect(screen.getByText("Product")).toBeDefined();
+    expect(screen.getAllByText("20").length).toBeGreaterThanOrEqual(2); // One in StatCard, one in table
+    expect(screen.getAllByText("15")).toHaveLength(1); // In table
+  });
+
+  it("shows error message when fetch fails", async () => {
+    (fetch as any).mockResolvedValue({
+      ok: false,
+    });
+
+    render(<AISettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Unable to load workspace analytics.")).toBeDefined();
+    });
+  });
+
+  it("shows empty state in table when no active issues", async () => {
+    (fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...mockAnalyticsData,
+        activeIssues: [],
+        completedLast30Days: [],
+      }),
+    });
+
+    render(<AISettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("No team activity found.")).toBeDefined();
+    });
   });
 });
