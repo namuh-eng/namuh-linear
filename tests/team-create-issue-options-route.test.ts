@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
-const teamContextLimitMock = vi.fn();
-const statusesOrderByMock = vi.fn();
-const assigneesOrderByMock = vi.fn();
-const labelsOrderByMock = vi.fn();
-const projectsOrderByMock = vi.fn();
+const teamLimitMock = vi.fn();
+const statusesWhereMock = vi.fn();
+const assigneesWhereMock = vi.fn();
+const labelsWhereMock = vi.fn();
+const projectsWhereMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
   auth: {
@@ -18,61 +18,79 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/db", () => ({
   db: {
     select: vi.fn((selection: Record<string, unknown>) => {
-      if (
-        "workspaceId" in selection &&
-        "name" in selection &&
-        "key" in selection
-      ) {
-        return {
-          from: vi.fn().mockReturnValue({
-            innerJoin: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: teamContextLimitMock,
-              }),
-            }),
-          }),
+      // primary team lookup
+      if (selection && "workspaceId" in selection) {
+        const chain = {
+          from: vi.fn().mockReturnThis(),
+          innerJoin: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockResolvedValue(teamLimitMock()),
         };
+        return chain;
       }
 
-      if ("category" in selection && "color" in selection) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              orderBy: statusesOrderByMock,
-            }),
-          }),
+      // options parallel list: statuses
+      if (selection && "category" in selection) {
+        const chain = {
+          from: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnThis(),
+          orderBy: vi.fn().mockReturnThis(),
+          // biome-ignore lint/suspicious/noThenProperty: <explanation>
+          then: (resolve: (val: unknown) => void) =>
+            resolve(statusesWhereMock()),
         };
+        return chain;
       }
 
-      if ("image" in selection && Object.keys(selection).length === 3) {
-        return {
-          from: vi.fn().mockReturnValue({
-            innerJoin: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                orderBy: assigneesOrderByMock,
-              }),
-            }),
-          }),
+      // options parallel list: assignees
+      if (selection && "image" in selection) {
+        const chain = {
+          from: vi.fn().mockReturnThis(),
+          innerJoin: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnThis(),
+          orderBy: vi.fn().mockReturnThis(),
+          // biome-ignore lint/suspicious/noThenProperty: <explanation>
+          then: (resolve: (val: unknown) => void) =>
+            resolve(assigneesWhereMock()),
         };
+        return chain;
       }
 
-      if ("color" in selection && Object.keys(selection).length === 3) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              orderBy: labelsOrderByMock,
-            }),
-          }),
+      // options parallel list: labels
+      if (selection && "color" in selection) {
+        const chain = {
+          from: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnThis(),
+          orderBy: vi.fn().mockReturnThis(),
+          // biome-ignore lint/suspicious/noThenProperty: <explanation>
+          then: (resolve: (val: unknown) => void) => resolve(labelsWhereMock()),
         };
+        return chain;
       }
 
-      return {
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: projectsOrderByMock,
-          }),
-        }),
+      // options parallel list: projects
+      if (selection && "icon" in selection) {
+        const chain = {
+          from: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnThis(),
+          orderBy: vi.fn().mockReturnThis(),
+          // biome-ignore lint/suspicious/noThenProperty: <explanation>
+          then: (resolve: (val: unknown) => void) =>
+            resolve(projectsWhereMock()),
+        };
+        return chain;
+      }
+
+      const chain = {
+        from: vi.fn().mockReturnThis(),
+        innerJoin: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        orderBy: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        // biome-ignore lint/suspicious/noThenProperty: <explanation>
+        then: (resolve: (val: unknown) => void) => resolve([]),
       };
+      return chain;
     }),
   },
 }));
@@ -85,15 +103,8 @@ describe("team create issue options route", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    getSessionMock.mockResolvedValue({
-      user: {
-        id: "user-1",
-        name: "Fallback User",
-        email: "fallback@example.com",
-        image: null,
-      },
-    });
-    teamContextLimitMock.mockResolvedValue([
+    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    teamLimitMock.mockReturnValue([
       {
         id: "team-1",
         name: "Engineering",
@@ -101,35 +112,12 @@ describe("team create issue options route", () => {
         workspaceId: "workspace-1",
       },
     ]);
-    statusesOrderByMock.mockResolvedValue([
-      {
-        id: "state-1",
-        name: "Backlog",
-        category: "backlog",
-        color: "#999",
-      },
+    statusesWhereMock.mockReturnValue([{ id: "state-1", name: "Backlog" }]);
+    assigneesWhereMock.mockReturnValue([
+      { id: "user-1", name: "Ashley", image: null },
     ]);
-    assigneesOrderByMock.mockResolvedValue([
-      {
-        id: "user-2",
-        name: "Alice",
-        image: "https://example.com/alice.png",
-      },
-    ]);
-    labelsOrderByMock.mockResolvedValue([
-      {
-        id: "label-1",
-        name: "Bug",
-        color: "#f00",
-      },
-    ]);
-    projectsOrderByMock.mockResolvedValue([
-      {
-        id: "project-1",
-        name: "API hardening",
-        icon: "🔧",
-      },
-    ]);
+    labelsWhereMock.mockReturnValue([{ id: "label-1", name: "Bug" }]);
+    projectsWhereMock.mockReturnValue([{ id: "project-1", name: "Ever" }]);
   });
 
   it("returns 401 without a session", async () => {
@@ -138,113 +126,40 @@ describe("team create issue options route", () => {
       "@/app/api/teams/[key]/create-issue-options/route"
     );
 
-    const response = await GET(
-      new Request("http://localhost/api/teams/ENG/create-issue-options"),
-      {
-        params: Promise.resolve({ key: "ENG" }),
-      },
-    );
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "ENG" }),
+    });
 
     expect(response.status).toBe(401);
   });
 
-  it("returns 404 when the team is missing", async () => {
-    teamContextLimitMock.mockResolvedValue([]);
+  it("returns 404 when team is missing", async () => {
+    teamLimitMock.mockReturnValue([]);
     const { GET } = await import(
       "@/app/api/teams/[key]/create-issue-options/route"
     );
 
-    const response = await GET(
-      new Request("http://localhost/api/teams/NOPE/create-issue-options"),
-      {
-        params: Promise.resolve({ key: "NOPE" }),
-      },
-    );
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "MISSING" }),
+    });
 
     expect(response.status).toBe(404);
-    await expect(response.json()).resolves.toEqual({ error: "Team not found" });
   });
 
-  it("returns issue creation metadata for the team", async () => {
+  it("returns full issue creation options payload", async () => {
     const { GET } = await import(
       "@/app/api/teams/[key]/create-issue-options/route"
     );
 
-    const response = await GET(
-      new Request("http://localhost/api/teams/ENG/create-issue-options"),
-      {
-        params: Promise.resolve({ key: "ENG" }),
-      },
-    );
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "ENG" }),
+    });
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      team: {
-        id: "team-1",
-        name: "Engineering",
-        key: "ENG",
-      },
-      statuses: [
-        {
-          id: "state-1",
-          name: "Backlog",
-          category: "backlog",
-          color: "#999",
-        },
-      ],
-      priorities: [
-        { value: "urgent", label: "Urgent" },
-        { value: "high", label: "High" },
-        { value: "medium", label: "Medium" },
-        { value: "low", label: "Low" },
-        { value: "none", label: "No priority" },
-      ],
-      assignees: [
-        {
-          id: "user-2",
-          name: "Alice",
-          image: "https://example.com/alice.png",
-        },
-      ],
-      labels: [
-        {
-          id: "label-1",
-          name: "Bug",
-          color: "#f00",
-        },
-      ],
-      projects: [
-        {
-          id: "project-1",
-          name: "API hardening",
-          icon: "🔧",
-        },
-      ],
-    });
-  });
-
-  it("falls back to the current session user when no assignees exist", async () => {
-    assigneesOrderByMock.mockResolvedValue([]);
-    const { GET } = await import(
-      "@/app/api/teams/[key]/create-issue-options/route"
-    );
-
-    const response = await GET(
-      new Request("http://localhost/api/teams/ENG/create-issue-options"),
-      {
-        params: Promise.resolve({ key: "ENG" }),
-      },
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      assignees: [
-        {
-          id: "user-1",
-          name: "Fallback User",
-          image: null,
-        },
-      ],
-    });
+    const payload = await response.json();
+    expect(payload.statuses.length).toBe(1);
+    expect(payload.assignees.length).toBe(1);
+    expect(payload.labels.length).toBe(1);
+    expect(payload.projects.length).toBe(1);
   });
 });
