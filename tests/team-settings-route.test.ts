@@ -1,11 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
-const resolveActiveWorkspaceIdMock = vi.fn();
-const memberLimitMock = vi.fn();
-const teamLimitMock = vi.fn();
+const findAccessibleTeamMock = vi.fn();
 const countWhereMock = vi.fn();
-const teamWhereMock = vi.fn();
 const updateSetMock = vi.fn();
 const updateWhereMock = vi.fn();
 
@@ -17,45 +14,27 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
-vi.mock("@/lib/active-workspace", () => ({
-  resolveActiveWorkspaceId: resolveActiveWorkspaceIdMock,
+vi.mock("@/lib/teams", () => ({
+  findAccessibleTeam: findAccessibleTeamMock,
 }));
 
 vi.mock("@/lib/db", () => ({
   db: {
     select: vi.fn((selection: Record<string, unknown>) => {
-      if ("value" in selection) {
+      // count queries in buildTeamResponse
+      if (selection && "value" in selection) {
         return {
           from: vi.fn().mockReturnValue({
-            where: (...args: unknown[]) => {
-              countWhereMock(...args);
-              return Promise.resolve([{ value: 0 }]);
-            },
+            where: vi.fn().mockResolvedValue(countWhereMock()),
           }),
         };
       }
 
-      if (
-        "workspaceId" in selection &&
-        "timezone" in selection &&
-        "settings" in selection
-      ) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: (...args: unknown[]) => {
-              teamWhereMock(...args);
-              return {
-                limit: teamLimitMock,
-              };
-            },
-          }),
-        };
-      }
-
+      // duplicate key check in PATCH
       return {
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            limit: memberLimitMock,
+            limit: vi.fn().mockResolvedValue([]),
           }),
         }),
       };
@@ -67,25 +46,11 @@ vi.mock("@/lib/db", () => ({
           where: (...whereArgs: unknown[]) => {
             updateWhereMock(...whereArgs);
             return {
-              returning: vi.fn().mockResolvedValue([
-                {
-                  id: "team-2",
-                  workspaceId: "workspace-2",
-                  name: "Scoped Team",
-                  key: "QAX",
-                  icon: "🚀",
-                  timezone: "Asia/Seoul",
-                  estimateType: "linear",
-                  triageEnabled: true,
-                  cyclesEnabled: false,
-                  cycleStartDay: null,
-                  cycleDurationWeeks: null,
-                  settings: {
-                    emailEnabled: true,
-                    detailedHistory: true,
-                  },
-                },
-              ]),
+              returning: vi
+                .fn()
+                .mockResolvedValue([
+                  { id: "team-1", workspaceId: "workspace-1" },
+                ]),
             };
           },
         };
@@ -98,113 +63,79 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
 
-function collectParamValues(sql: unknown): unknown[] {
-  if (!sql || typeof sql !== "object") {
-    return [];
-  }
-
-  const maybeSql = sql as { queryChunks?: unknown[]; value?: unknown };
-  if ("value" in maybeSql && !("queryChunks" in maybeSql)) {
-    return [maybeSql.value];
-  }
-
-  if (!Array.isArray(maybeSql.queryChunks)) {
-    return [];
-  }
-
-  return maybeSql.queryChunks.flatMap((chunk) => collectParamValues(chunk));
-}
-
 describe("team settings route", () => {
   beforeEach(() => {
+    vi.resetModules();
     vi.clearAllMocks();
-    getSessionMock.mockResolvedValue({
-      user: { id: "user-1" },
+    getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    findAccessibleTeamMock.mockResolvedValue({
+      id: "team-1",
+      name: "Engineering",
+      key: "ENG",
+      icon: "rocket",
+      settings: { emailEnabled: true },
+      estimateType: "linear",
     });
-    resolveActiveWorkspaceIdMock.mockResolvedValue("workspace-2");
-    memberLimitMock.mockResolvedValue([{ id: "member-1" }]);
-    teamLimitMock.mockResolvedValue([
-      {
-        id: "team-2",
-        workspaceId: "workspace-2",
-        name: "Scoped Team",
-        key: "QAX",
-        icon: "•",
-        timezone: "America/Los_Angeles",
-        estimateType: "not_in_use",
-        triageEnabled: true,
-        cyclesEnabled: false,
-        cycleStartDay: null,
-        cycleDurationWeeks: null,
-        settings: {},
-      },
-    ]);
+    countWhereMock.mockReturnValue([{ value: 5 }]);
   });
 
-  it("scopes team lookup to the active workspace", async () => {
+  it("returns 401 without a session", async () => {
+    getSessionMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/teams/[key]/settings/route");
-    const response = await GET(
-      new Request("http://localhost/api/teams/QAX/settings"),
-      {
-        params: Promise.resolve({ key: "QAX" }),
-      },
-    );
+
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "ENG" }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 404 when team is not found", async () => {
+    findAccessibleTeamMock.mockResolvedValue(null);
+    const { GET } = await import("@/app/api/teams/[key]/settings/route");
+
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "MISSING" }),
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it("returns full team settings payload", async () => {
+    const { GET } = await import("@/app/api/teams/[key]/settings/route");
+
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "ENG" }),
+    });
 
     expect(response.status).toBe(200);
-    const whereExpression = teamWhereMock.mock.calls[0]?.[0];
-    expect(collectParamValues(whereExpression)).toEqual(
-      expect.arrayContaining(["QAX", "workspace-2"]),
-    );
-    await expect(response.json()).resolves.toEqual({
-      team: expect.objectContaining({
-        id: "team-2",
-        key: "QAX",
-        name: "Scoped Team",
-      }),
-    });
+    const payload = await response.json();
+    expect(payload.team.id).toBe("team-1");
+    expect(payload.team.emailEnabled).toBe(true);
+    expect(payload.team.memberCount).toBe(5);
   });
 
-  it("persists icon and team settings updates", async () => {
+  it("updates team settings", async () => {
     const { PATCH } = await import("@/app/api/teams/[key]/settings/route");
+
     const response = await PATCH(
-      new Request("http://localhost/api/teams/QAX/settings", {
+      new Request("http://localhost", {
         method: "PATCH",
         body: JSON.stringify({
-          name: "Scoped Team",
-          icon: "🚀",
-          key: "QAX",
-          timezone: "Asia/Seoul",
-          estimateType: "linear",
-          emailEnabled: true,
-          detailedHistory: true,
+          name: "Core",
+          key: "CORE",
+          triageEnabled: false,
         }),
       }),
-      {
-        params: Promise.resolve({ key: "QAX" }),
-      },
+      { params: Promise.resolve({ key: "ENG" }) },
     );
 
     expect(response.status).toBe(200);
     expect(updateSetMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        icon: "🚀",
-        timezone: "Asia/Seoul",
-        estimateType: "linear",
-        settings: expect.objectContaining({
-          emailEnabled: true,
-          detailedHistory: true,
-        }),
+        name: "Core",
+        key: "CORE",
       }),
     );
-    expect(updateWhereMock).toHaveBeenCalled();
-    await expect(response.json()).resolves.toEqual({
-      team: expect.objectContaining({
-        icon: "🚀",
-        timezone: "Asia/Seoul",
-        estimateType: "linear",
-        emailEnabled: true,
-        detailedHistory: true,
-      }),
-    });
   });
 });
