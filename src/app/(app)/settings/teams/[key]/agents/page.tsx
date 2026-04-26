@@ -54,8 +54,10 @@ export default function TeamAgentsSettingsPage() {
       .then((res) => res.json())
       .then((data) => {
         setTeam(data.team);
-        setAgentGuidance(data.team.agentGuidance || "");
-        setAutoAssignment(data.team.autoAssignment || false);
+        if (data.team) {
+          setAgentGuidance(data.team.agentGuidance || "");
+          setAutoAssignment(data.team.autoAssignment || false);
+        }
       })
       .finally(() => setLoading(false));
   }, [teamKey]);
