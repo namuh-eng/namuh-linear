@@ -1,8 +1,8 @@
 import { DELETE } from "@/app/api/account/profile/workspace/route";
 import { db } from "@/lib/db";
-import { user, workspace, member } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
+import { member, user, workspace } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
 const TEST_WS_ID = "00000000-0000-0000-0000-000000000002";
@@ -12,8 +12,8 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Headers()),
   cookies: vi.fn(async () => ({
     get: vi.fn((name) => {
-        if (name === "activeWorkspaceId") return { value: TEST_WS_ID };
-        return undefined;
+      if (name === "activeWorkspaceId") return { value: TEST_WS_ID };
+      return undefined;
     }),
     set: vi.fn(),
     delete: vi.fn(),
@@ -43,14 +43,12 @@ describe("Account Profile Workspace API Route (Leave Workspace)", () => {
       id: TEST_USER_ID,
       name: "Leave Test User",
       email: "leave-test@example.com",
-      username: "leavetestuser",
       settings: {},
     });
 
     await db.insert(workspace).values({
       id: TEST_WS_ID,
       name: "Leave Test Workspace",
-      slug: "leave-test",
       urlSlug: "leave-test",
     });
 
@@ -77,7 +75,7 @@ describe("Account Profile Workspace API Route (Leave Workspace)", () => {
     (auth.api.getSession as any).mockResolvedValue({
       user: { id: TEST_USER_ID },
     });
-    
+
     const res = await DELETE();
     expect(res.status).toBe(200);
     const data = await res.json();
@@ -85,9 +83,15 @@ describe("Account Profile Workspace API Route (Leave Workspace)", () => {
     expect(data.redirectTo).toBe("/create-workspace");
 
     // Verify membership is gone
-    const memberships = await db.select().from(member).where(
-        and(eq(member.userId, TEST_USER_ID), eq(member.workspaceId, TEST_WS_ID))
-    );
+    const memberships = await db
+      .select()
+      .from(member)
+      .where(
+        and(
+          eq(member.userId, TEST_USER_ID),
+          eq(member.workspaceId, TEST_WS_ID),
+        ),
+      );
     expect(memberships.length).toBe(0);
   });
 });

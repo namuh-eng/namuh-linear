@@ -2,7 +2,7 @@ import { GET, PATCH } from "@/app/api/account/preferences/route";
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -32,7 +32,6 @@ describe("Account Preferences API Route", () => {
       id: TEST_USER_ID,
       name: "Pref Test User",
       email: "pref-test@example.com",
-      username: "preftestuser",
       settings: {},
     });
   });
@@ -80,7 +79,11 @@ describe("Account Preferences API Route", () => {
     expect(data.accountPreferences.fontSize).toBe("large");
 
     // Verify in DB
-    const [updatedUser] = await db.select().from(user).where(eq(user.id, TEST_USER_ID)).limit(1);
+    const [updatedUser] = await db
+      .select()
+      .from(user)
+      .where(eq(user.id, TEST_USER_ID))
+      .limit(1);
     expect(updatedUser.settings).toBeDefined();
     expect((updatedUser.settings as any).accountPreferences.theme).toBe("dark");
   });

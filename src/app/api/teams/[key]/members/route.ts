@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { teamMember, user } from "@/lib/db/schema";
 import { findAccessibleTeam } from "@/lib/teams";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -28,7 +28,7 @@ export async function GET(
       userId: teamMember.userId,
       name: user.name,
       email: user.email,
-      role: teamMember.role,
+      role: sql<string>`'member'`,
     })
     .from(teamMember)
     .innerJoin(user, eq(teamMember.userId, user.id))
