@@ -1,9 +1,9 @@
 import { GET, PATCH } from "@/app/api/account/profile/route";
 import { db } from "@/lib/db";
-import { user, workspace, member } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
+import { member, user, workspace } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
 const TEST_WS_ID = "00000000-0000-0000-0000-000000000002";
@@ -39,14 +39,12 @@ describe("Account Profile API Route", () => {
       id: TEST_USER_ID,
       name: "Test User",
       email: "profile-test@example.com",
-      username: "testuser",
-      settings: {},
+      settings: { accountProfile: { username: "testuser" } },
     });
 
     await db.insert(workspace).values({
       id: TEST_WS_ID,
       name: "Profile Test Workspace",
-      slug: "profile-test",
       urlSlug: "profile-test",
     });
 
@@ -77,7 +75,9 @@ describe("Account Profile API Route", () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.profile.name).toBe("Test User");
-    expect(data.workspaceAccess.currentWorkspaceName).toBe("Profile Test Workspace");
+    expect(data.workspaceAccess.currentWorkspaceName).toBe(
+      "Profile Test Workspace",
+    );
   });
 
   it("PATCH updates user profile", async () => {
@@ -99,7 +99,11 @@ describe("Account Profile API Route", () => {
     expect(data.profile.username).toBe("updateduser");
 
     // Verify in DB
-    const [updatedUser] = await db.select().from(user).where(eq(user.id, TEST_USER_ID)).limit(1);
+    const [updatedUser] = await db
+      .select()
+      .from(user)
+      .where(eq(user.id, TEST_USER_ID))
+      .limit(1);
     expect(updatedUser.name).toBe("Updated Name");
   });
 
