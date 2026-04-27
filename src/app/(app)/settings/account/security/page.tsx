@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/empty-state";
+import { useEffect, useState } from "react";
 
 export default function AccountSecurityPage() {
   const [loading, setLoading] = useState(true);
@@ -12,7 +12,9 @@ export default function AccountSecurityPage() {
   }, []);
 
   if (loading) {
-    return <div className="p-8 text-[var(--color-text-tertiary)]">Loading...</div>;
+    return (
+      <div className="p-8 text-[var(--color-text-tertiary)]">Loading...</div>
+    );
   }
 
   return (
@@ -29,7 +31,8 @@ export default function AccountSecurityPage() {
           Two-factor authentication
         </h2>
         <p className="mt-2 text-[13px] text-[var(--color-text-secondary)]">
-          Add an extra layer of security to your account by requiring more than just a password to log in.
+          Add an extra layer of security to your account by requiring more than
+          just a password to log in.
         </p>
         <button
           type="button"

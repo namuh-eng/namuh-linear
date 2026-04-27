@@ -4,9 +4,9 @@ import { member, team, teamMember, user, workspace } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
-const TEST_WS_ID = "00000000-0000-0000-0000-000000000002";
-const TEST_TEAM_ID = "00000000-0000-0000-0000-000000000003";
+const TEST_USER_ID = "10000000-0000-0000-0000-000000000001";
+const TEST_WS_ID = "10000000-0000-0000-0000-000000000002";
+const TEST_TEAM_ID = "10000000-0000-0000-0000-000000000003";
 
 describe("Approved domain auto-join logic", () => {
   beforeAll(async () => {

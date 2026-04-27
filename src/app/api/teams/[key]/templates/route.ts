@@ -20,8 +20,8 @@ export async function GET(
   }
 
   // Placeholder for when templates table is added
-  return NextResponse.json({ 
+  return NextResponse.json({
     team: { name: teamRecord.name },
-    templates: [] 
+    templates: [],
   });
 }

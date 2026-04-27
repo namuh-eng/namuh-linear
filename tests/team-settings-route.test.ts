@@ -4,9 +4,9 @@ import { member, team, teamMember, user, workspace } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
-const TEST_WS_ID = "00000000-0000-0000-0000-000000000002";
-const TEST_TEAM_ID = "00000000-0000-0000-0000-000000000003";
+const TEST_USER_ID = "15000000-0000-0000-0000-000000000001";
+const TEST_WS_ID = "15000000-0000-0000-0000-000000000002";
+const TEST_TEAM_ID = "15000000-0000-0000-0000-000000000003";
 
 // Mock next/headers
 vi.mock("next/headers", () => ({
@@ -27,7 +27,9 @@ vi.mock("@/lib/auth", () => ({
 
 import { auth } from "@/lib/auth";
 
-const getSessionMock = vi.mocked(auth.api.getSession);
+const getSessionMock = auth.api.getSession as unknown as ReturnType<
+  typeof vi.fn
+>;
 
 describe("Team Settings API Route", () => {
   beforeAll(async () => {

@@ -4,8 +4,8 @@ import { member, user, workspace } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
-const TEST_WS_ID = "00000000-0000-0000-0000-000000000002";
+const TEST_USER_ID = "14000000-0000-0000-0000-000000000001";
+const TEST_WS_ID = "14000000-0000-0000-0000-000000000002";
 
 // Mock next/headers
 vi.mock("next/headers", () => ({
@@ -66,13 +66,17 @@ describe("Account Profile Workspace API Route (Leave Workspace)", () => {
   });
 
   it("DELETE returns 401 if no session", async () => {
-    (auth.api.getSession as any).mockResolvedValue(null);
+    (
+      auth.api.getSession as unknown as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(null);
     const res = await DELETE();
     expect(res.status).toBe(401);
   });
 
   it("DELETE removes user from active workspace and redirects correctly", async () => {
-    (auth.api.getSession as any).mockResolvedValue({
+    (
+      auth.api.getSession as unknown as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       user: { id: TEST_USER_ID },
     });
 

@@ -15,7 +15,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  
+
   // For now, history is derived from the issue's updatedAt and created fields.
   // Real audit logs would be in a separate table.
   // We'll return a placeholder until the schema is extended.
@@ -33,10 +33,10 @@ export async function GET(
     return NextResponse.json({ error: "Issue not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ 
+  return NextResponse.json({
     history: [
       { id: "h1", type: "created", createdAt: issues[0].createdAt },
       { id: "h2", type: "updated", createdAt: issues[0].updatedAt },
-    ] 
+    ],
   });
 }
