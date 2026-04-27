@@ -5,8 +5,8 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-const TEST_USER_ID = "00000000-0000-0000-0000-000000000001";
-const TEST_WS_ID = "00000000-0000-0000-0000-000000000002";
+const TEST_USER_ID = "13000000-0000-0000-0000-000000000001";
+const TEST_WS_ID = "13000000-0000-0000-0000-000000000002";
 
 // Mock next/headers
 vi.mock("next/headers", () => ({
@@ -62,13 +62,17 @@ describe("Account Profile API Route", () => {
   });
 
   it("GET returns 401 if no session", async () => {
-    (auth.api.getSession as any).mockResolvedValue(null);
+    (
+      auth.api.getSession as unknown as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(null);
     const res = await GET();
     expect(res.status).toBe(401);
   });
 
   it("GET returns profile data for authenticated user", async () => {
-    (auth.api.getSession as any).mockResolvedValue({
+    (
+      auth.api.getSession as unknown as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       user: { id: TEST_USER_ID },
     });
     const res = await GET();
@@ -81,7 +85,9 @@ describe("Account Profile API Route", () => {
   });
 
   it("PATCH updates user profile", async () => {
-    (auth.api.getSession as any).mockResolvedValue({
+    (
+      auth.api.getSession as unknown as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       user: { id: TEST_USER_ID },
     });
     const req = new Request("http://localhost/api/account/profile", {
@@ -108,7 +114,9 @@ describe("Account Profile API Route", () => {
   });
 
   it("PATCH returns 400 for invalid username (with spaces)", async () => {
-    (auth.api.getSession as any).mockResolvedValue({
+    (
+      auth.api.getSession as unknown as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
       user: { id: TEST_USER_ID },
     });
     const req = new Request("http://localhost/api/account/profile", {

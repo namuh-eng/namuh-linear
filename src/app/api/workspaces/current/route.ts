@@ -47,9 +47,12 @@ function readWorkspaceSettings(settings: unknown) {
       ? parsed.fiscalMonth
       : DEFAULT_FISCAL_MONTH;
 
+  const plan = typeof parsed.plan === "string" ? parsed.plan : "free";
+
   return {
     region,
     fiscalMonth,
+    plan,
   };
 }
 
@@ -111,7 +114,7 @@ export async function GET() {
       logo: currentWorkspace.logoUrl,
       region: currentWorkspace.region,
       fiscalMonth: currentWorkspace.fiscalMonth,
-      plan: (currentWorkspace.settings as any)?.plan ?? "free",
+      plan: readWorkspaceSettings(currentWorkspace.settings).plan,
     },
   });
 }
@@ -233,7 +236,7 @@ export async function PATCH(request: Request) {
       logo,
       region: currentWorkspace.region,
       fiscalMonth,
-      plan: (currentWorkspace.settings as any)?.plan ?? "free",
+      plan: readWorkspaceSettings(currentWorkspace.settings).plan,
     },
   });
 }
