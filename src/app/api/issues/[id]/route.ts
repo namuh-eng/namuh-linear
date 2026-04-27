@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import {
   comment,
@@ -19,7 +19,6 @@ import {
 } from "@/lib/notifications";
 import { getDownloadUrl } from "@/lib/s3";
 import { asc, desc, eq, inArray } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 async function findIssueRecord(id: string) {
@@ -84,9 +83,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { response: authResponse, session } = await requireApiSession();
+  if (authResponse) {
+    return authResponse;
   }
 
   const { id } = await params;
@@ -311,9 +310,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { response: authResponse, session } = await requireApiSession();
+  if (authResponse) {
+    return authResponse;
   }
 
   const { id } = await params;
@@ -428,9 +427,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { response: authResponse, session } = await requireApiSession();
+  if (authResponse) {
+    return authResponse;
   }
 
   const { id } = await params;
