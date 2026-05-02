@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const issueLimitMock = vi.fn();
+const findAuthorizedIssueRefMock = vi.fn();
 const resolveMentionedUserIdsMock = vi.fn();
 const buildNotificationValuesMock = vi.fn();
 const insertNotificationsMock = vi.fn();
@@ -27,6 +28,10 @@ vi.mock("@/lib/notifications", () => ({
   resolveMentionedUserIds: resolveMentionedUserIdsMock,
   buildNotificationValues: buildNotificationValuesMock,
   insertNotifications: insertNotificationsMock,
+}));
+
+vi.mock("@/lib/api-authz", () => ({
+  findAuthorizedIssueRef: findAuthorizedIssueRefMock,
 }));
 
 vi.mock("@/lib/db/schema", () => ({
@@ -98,6 +103,7 @@ describe("issue comments route", () => {
     });
     issueLimitMock.mockReset();
     issueLimitMock.mockResolvedValue([issueRecord]);
+    findAuthorizedIssueRefMock.mockResolvedValue(issueRecord);
     resolveMentionedUserIdsMock.mockResolvedValue(["user-3"]);
     buildNotificationValuesMock.mockImplementation(({ type, userIds }) =>
       userIds.map((userId: string) => ({ type, userId })),
@@ -122,7 +128,7 @@ describe("issue comments route", () => {
   });
 
   it("returns 404 when the issue does not exist", async () => {
-    issueLimitMock.mockResolvedValue([]);
+    findAuthorizedIssueRefMock.mockResolvedValue(null);
     const { POST } = await import("@/app/api/issues/[id]/comments/route");
 
     const response = await POST(
@@ -135,6 +141,8 @@ describe("issue comments route", () => {
     );
 
     expect(response.status).toBe(404);
+    expect(insertCommentValuesMock).not.toHaveBeenCalled();
+    expect(insertNotificationsMock).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toEqual({
       error: "Issue not found",
     });

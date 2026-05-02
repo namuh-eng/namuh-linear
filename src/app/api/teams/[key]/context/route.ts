@@ -1,7 +1,8 @@
 import { requireApiSession } from "@/lib/api-auth";
+import { findTeamContextForWorkspaceSwitchOnly } from "@/lib/api-authz";
 import { db } from "@/lib/db";
-import { member, team, workspace } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
+import { team } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET(
@@ -14,26 +15,10 @@ export async function GET(
   }
 
   const { key } = await params;
-
-  const [context] = await db
-    .select({
-      workspaceName: workspace.name,
-      workspaceId: workspace.id,
-      teamId: team.id,
-      teamName: team.name,
-      teamKey: team.key,
-    })
-    .from(team)
-    .innerJoin(workspace, eq(team.workspaceId, workspace.id))
-    .innerJoin(
-      member,
-      and(
-        eq(member.workspaceId, workspace.id),
-        eq(member.userId, session.user.id),
-      ),
-    )
-    .where(eq(team.key, key))
-    .limit(1);
+  const context = await findTeamContextForWorkspaceSwitchOnly(
+    key,
+    session.user.id,
+  );
 
   if (!context) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });

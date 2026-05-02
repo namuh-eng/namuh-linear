@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const contextLimitMock = vi.fn();
+const findTeamContextForWorkspaceSwitchOnlyMock = vi.fn();
 const teamsWhereMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
@@ -10,6 +11,11 @@ vi.mock("@/lib/auth", () => ({
       getSession: getSessionMock,
     },
   },
+}));
+
+vi.mock("@/lib/api-authz", () => ({
+  findTeamContextForWorkspaceSwitchOnly:
+    findTeamContextForWorkspaceSwitchOnlyMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -58,6 +64,13 @@ describe("team context route", () => {
         teamKey: "ENG",
       },
     ]);
+    findTeamContextForWorkspaceSwitchOnlyMock.mockResolvedValue({
+      workspaceName: "Namuh Labs",
+      workspaceId: "workspace-1",
+      teamId: "team-1",
+      teamName: "Engineering",
+      teamKey: "ENG",
+    });
     teamsWhereMock.mockReturnValue([
       { id: "team-1", name: "Engineering", key: "ENG" },
     ]);
@@ -75,7 +88,7 @@ describe("team context route", () => {
   });
 
   it("returns 404 when team is not found", async () => {
-    contextLimitMock.mockReturnValue([]);
+    findTeamContextForWorkspaceSwitchOnlyMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/teams/[key]/context/route");
 
     const response = await GET(new Request("http://localhost"), {

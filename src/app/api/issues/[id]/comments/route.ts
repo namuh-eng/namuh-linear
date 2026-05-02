@@ -1,46 +1,14 @@
 import { requireApiSession } from "@/lib/api-auth";
+import { findAuthorizedIssueRef } from "@/lib/api-authz";
 import { db } from "@/lib/db";
-import { comment, commentAttachment, issue, team } from "@/lib/db/schema";
+import { comment, commentAttachment } from "@/lib/db/schema";
 import {
   buildNotificationValues,
   insertNotifications,
   resolveMentionedUserIds,
 } from "@/lib/notifications";
 import { buildKey, deleteFile, getDownloadUrl, uploadFile } from "@/lib/s3";
-import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
-
-async function findIssueRecord(id: string) {
-  const issues = await db
-    .select({
-      id: issue.id,
-      workspaceId: team.workspaceId,
-      assigneeId: issue.assigneeId,
-      creatorId: issue.creatorId,
-    })
-    .from(issue)
-    .innerJoin(team, eq(issue.teamId, team.id))
-    .where(eq(issue.identifier, id))
-    .limit(1);
-
-  if (issues.length > 0) {
-    return issues[0];
-  }
-
-  const byId = await db
-    .select({
-      id: issue.id,
-      workspaceId: team.workspaceId,
-      assigneeId: issue.assigneeId,
-      creatorId: issue.creatorId,
-    })
-    .from(issue)
-    .innerJoin(team, eq(issue.teamId, team.id))
-    .where(eq(issue.id, id))
-    .limit(1);
-
-  return byId[0] ?? null;
-}
 
 function sanitizeFilename(value: string): string {
   return value.replaceAll(/[^a-zA-Z0-9._-]/g, "-");
@@ -60,7 +28,7 @@ export async function POST(
   }
 
   const { id } = await params;
-  const currentIssue = await findIssueRecord(id);
+  const currentIssue = await findAuthorizedIssueRef(id, session.user.id);
   if (!currentIssue) {
     return NextResponse.json({ error: "Issue not found" }, { status: 404 });
   }

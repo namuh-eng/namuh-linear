@@ -218,10 +218,11 @@ describe("MyIssuesTabPage", () => {
 });
 
 describe("My Issues API route", () => {
-  it("selects the most recent workspace membership for the current session", async () => {
+  it("uses the active workspace resolver for the current session", async () => {
     const fs = await import("node:fs");
     const content = fs.readFileSync("src/app/api/my-issues/route.ts", "utf-8");
-    expect(content).toContain(".orderBy(desc(member.createdAt))");
+    expect(content).toContain("resolveActiveWorkspaceRef(userId)");
+    expect(content).not.toContain(".orderBy(desc(member.createdAt))");
   });
 
   it("includes commenter-derived issues for subscribed and activity tabs", async () => {

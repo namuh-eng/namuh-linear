@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const getTeamIdByKeyMock = vi.fn();
+const findAccessibleTeamMock = vi.fn();
 const teamLimitMock = vi.fn();
 const cyclesOrderByMock = vi.fn();
 const completedStatesWhereMock = vi.fn();
@@ -21,6 +22,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/teams", () => ({
   getTeamIdByKey: getTeamIdByKeyMock,
+  findAccessibleTeam: findAccessibleTeamMock,
 }));
 
 vi.mock("@/lib/cycle-utils", () => ({
@@ -111,6 +113,16 @@ describe("team cycles collection route", () => {
     selectCallCount = 0;
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
     getTeamIdByKeyMock.mockResolvedValue("team-1");
+    findAccessibleTeamMock.mockResolvedValue({
+      id: "team-1",
+      name: "Engineering",
+      key: "ENG",
+      workspaceId: "workspace-1",
+      cyclesEnabled: true,
+      cycleStartDay: 1,
+      cycleDurationWeeks: 2,
+      timezone: "UTC",
+    });
     teamLimitMock.mockReturnValue([
       { id: "team-1", name: "Engineering", key: "ENG" },
     ]);

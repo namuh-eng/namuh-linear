@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const teamLimitMock = vi.fn();
+const findAccessibleTeamMock = vi.fn();
 const updateSetMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
@@ -10,6 +11,10 @@ vi.mock("@/lib/auth", () => ({
       getSession: getSessionMock,
     },
   },
+}));
+
+vi.mock("@/lib/teams", () => ({
+  findAccessibleTeam: findAccessibleTeamMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -44,6 +49,13 @@ describe("team display options route", () => {
     teamLimitMock.mockReturnValue([
       { id: "team-1", settings: { displayOptions: { showCompleted: true } } },
     ]);
+    findAccessibleTeamMock.mockResolvedValue({
+      id: "team-1",
+      name: "Engineering",
+      key: "ENG",
+      workspaceId: "workspace-1",
+      settings: { displayOptions: { showCompleted: true } },
+    });
   });
 
   it("returns 401 without a session", async () => {
@@ -58,7 +70,7 @@ describe("team display options route", () => {
   });
 
   it("returns 404 when team is missing", async () => {
-    teamLimitMock.mockReturnValue([]);
+    findAccessibleTeamMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/teams/[key]/display-options/route");
 
     const response = await GET(new Request("http://localhost"), {
@@ -66,6 +78,7 @@ describe("team display options route", () => {
     });
 
     expect(response.status).toBe(404);
+    expect(updateSetMock).not.toHaveBeenCalled();
   });
 
   it("returns team display options", async () => {

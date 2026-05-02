@@ -3,7 +3,7 @@ import { cycleRangesOverlap, parseCycleDateInput } from "@/lib/cycle-utils";
 import { db } from "@/lib/db";
 import { cycle, issue, user, workflowState } from "@/lib/db/schema";
 import { getLabelsForIssues } from "@/lib/issue-labels";
-import { getTeamByKey, getTeamIdByKey } from "@/lib/teams";
+import { findAccessibleTeam } from "@/lib/teams";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -11,14 +11,14 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ key: string; cycleId: string }> },
 ) {
-  const { response } = await requireApiSession();
+  const { response, session } = await requireApiSession();
   if (response) {
     return response;
   }
 
   const { key, cycleId } = await params;
 
-  const teamRecord = await getTeamByKey(key);
+  const teamRecord = await findAccessibleTeam(key, session.user.id);
   if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
@@ -61,7 +61,7 @@ export async function GET(
     })
     .from(issue)
     .leftJoin(user, eq(issue.assigneeId, user.id))
-    .where(eq(issue.cycleId, cycleId))
+    .where(and(eq(issue.cycleId, cycleId), eq(issue.teamId, teamRecord.id)))
     .orderBy(asc(issue.sortOrder), desc(issue.createdAt));
 
   // Get labels for issues
@@ -118,7 +118,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ key: string; cycleId: string }> },
 ) {
-  const { response } = await requireApiSession();
+  const { response, session } = await requireApiSession();
   if (response) {
     return response;
   }
@@ -126,10 +126,11 @@ export async function PATCH(
   const { key, cycleId } = await params;
   const body = await request.json();
 
-  const teamId = await getTeamIdByKey(key);
-  if (!teamId) {
+  const teamRecord = await findAccessibleTeam(key, session.user.id);
+  if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
+  const teamId = teamRecord.id;
 
   const existingCycles = await db
     .select({
@@ -222,23 +223,34 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ key: string; cycleId: string }> },
 ) {
-  const { response } = await requireApiSession();
+  const { response, session } = await requireApiSession();
   if (response) {
     return response;
   }
 
   const { key, cycleId } = await params;
 
-  const teamId = await getTeamIdByKey(key);
-  if (!teamId) {
+  const teamRecord = await findAccessibleTeam(key, session.user.id);
+  if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
+  const teamId = teamRecord.id;
 
-  // Unlink issues from cycle before deleting
+  const existingCycles = await db
+    .select({ id: cycle.id })
+    .from(cycle)
+    .where(and(eq(cycle.id, cycleId), eq(cycle.teamId, teamId)))
+    .limit(1);
+
+  if (existingCycles.length === 0) {
+    return NextResponse.json({ error: "Cycle not found" }, { status: 404 });
+  }
+
+  // Unlink only this team's issues after scoped cycle ownership is proven.
   await db
     .update(issue)
     .set({ cycleId: null })
-    .where(eq(issue.cycleId, cycleId));
+    .where(and(eq(issue.cycleId, cycleId), eq(issue.teamId, teamId)));
 
   const deleted = await db
     .delete(cycle)

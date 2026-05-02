@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
+const resolveActiveWorkspaceRefMock = vi.fn();
+const findAuthorizedLabelRefMock = vi.fn();
 const membershipsLimitMock = vi.fn();
 const labelsOrderByMock = vi.fn();
 const insertReturningMock = vi.fn();
@@ -11,6 +13,11 @@ vi.mock("@/lib/auth", () => ({
       getSession: getSessionMock,
     },
   },
+}));
+
+vi.mock("@/lib/api-authz", () => ({
+  findAuthorizedLabelRef: findAuthorizedLabelRefMock,
+  resolveActiveWorkspaceRef: resolveActiveWorkspaceRefMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -65,6 +72,9 @@ describe("labels collection route", () => {
     vi.resetModules();
     vi.clearAllMocks();
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    resolveActiveWorkspaceRefMock.mockResolvedValue({
+      workspaceId: "workspace-1",
+    });
     membershipsLimitMock.mockResolvedValue([{ workspaceId: "workspace-1" }]);
     labelsOrderByMock.mockReturnValue([
       {

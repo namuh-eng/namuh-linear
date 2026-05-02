@@ -1,41 +1,26 @@
 import { requireApiSession } from "@/lib/api-auth";
 import { cycleRangesOverlap, parseCycleDateInput } from "@/lib/cycle-utils";
 import { db } from "@/lib/db";
-import { cycle, issue, team, workflowState } from "@/lib/db/schema";
-import { getTeamIdByKey } from "@/lib/teams";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { cycle, issue, workflowState } from "@/lib/db/schema";
+import { findAccessibleTeam } from "@/lib/teams";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ key: string }> },
 ) {
-  const { response: authResponse } = await requireApiSession();
+  const { response: authResponse, session } = await requireApiSession();
   if (authResponse) {
     return authResponse;
   }
 
   const { key } = await params;
 
-  const teams = await db
-    .select({
-      id: team.id,
-      name: team.name,
-      key: team.key,
-      cyclesEnabled: team.cyclesEnabled,
-      cycleStartDay: team.cycleStartDay,
-      cycleDurationWeeks: team.cycleDurationWeeks,
-      timezone: team.timezone,
-    })
-    .from(team)
-    .where(eq(team.key, key))
-    .limit(1);
-
-  if (teams.length === 0) {
+  const teamRecord = await findAccessibleTeam(key, session.user.id);
+  if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
-
-  const teamRecord = teams[0];
 
   // Get all cycles for this team
   const cycles = await db
@@ -61,7 +46,7 @@ export async function GET(
       const totalResult = await db
         .select({ value: count() })
         .from(issue)
-        .where(eq(issue.cycleId, c.id));
+        .where(and(eq(issue.cycleId, c.id), eq(issue.teamId, teamRecord.id)));
       const issueCount = totalResult[0]?.value ?? 0;
 
       let completedIssueCount = 0;
@@ -72,10 +57,8 @@ export async function GET(
           .where(
             and(
               eq(issue.cycleId, c.id),
-              sql`${issue.stateId} IN (${sql.join(
-                completedStateIds.map((id) => sql`${id}`),
-                sql`, `,
-              )})`,
+              eq(issue.teamId, teamRecord.id),
+              inArray(issue.stateId, completedStateIds),
             ),
           );
         completedIssueCount = completedResult[0]?.value ?? 0;
@@ -115,17 +98,18 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ key: string }> },
 ) {
-  const { response: authResponse } = await requireApiSession();
+  const { response: authResponse, session } = await requireApiSession();
   if (authResponse) {
     return authResponse;
   }
 
   const { key } = await params;
 
-  const teamId = await getTeamIdByKey(key);
-  if (!teamId) {
+  const teamRecord = await findAccessibleTeam(key, session.user.id);
+  if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
+  const teamId = teamRecord.id;
 
   const body = await request.json();
   const startDate =

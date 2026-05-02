@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
+const resolveActiveWorkspaceRefMock = vi.fn();
 const membershipsLimitMock = vi.fn();
 const teamsWhereMock = vi.fn();
 const statesOrderByMock = vi.fn();
@@ -16,6 +17,10 @@ vi.mock("@/lib/auth", () => ({
       getSession: getSessionMock,
     },
   },
+}));
+
+vi.mock("@/lib/api-authz", () => ({
+  resolveActiveWorkspaceRef: resolveActiveWorkspaceRefMock,
 }));
 
 vi.mock("@/lib/issue-labels", () => ({
@@ -57,7 +62,7 @@ vi.mock("@/lib/db", () => ({
         };
       }
 
-      if (selectCallCount === 4) {
+      if (selectCallCount === 3) {
         return {
           from: vi.fn().mockReturnValue({
             leftJoin: vi.fn().mockReturnValue({
@@ -71,7 +76,7 @@ vi.mock("@/lib/db", () => ({
         };
       }
 
-      if (selectCallCount === 5) {
+      if (selectCallCount === 4) {
         return {
           from: vi.fn().mockReturnValue({
             leftJoin: vi.fn().mockReturnValue({
@@ -112,6 +117,9 @@ describe("my issues route", () => {
     vi.clearAllMocks();
     selectCallCount = 0;
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    resolveActiveWorkspaceRefMock.mockResolvedValue({
+      workspaceId: "workspace-1",
+    });
     membershipsLimitMock.mockResolvedValue([{ workspaceId: "workspace-1" }]);
     teamsWhereMock.mockResolvedValue([
       { id: "team-1", name: "Engineering", key: "ENG" },
@@ -211,7 +219,7 @@ describe("my issues route", () => {
   });
 
   it("returns 404 when the user has no workspace", async () => {
-    membershipsLimitMock.mockResolvedValue([]);
+    resolveActiveWorkspaceRefMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/my-issues/route");
 
     const response = await GET(new Request("http://localhost/api/my-issues"));

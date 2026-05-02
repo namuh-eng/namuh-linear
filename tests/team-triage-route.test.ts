@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const getTeamByKeyMock = vi.fn();
+const findAccessibleTeamMock = vi.fn();
 const triageStatesWhereMock = vi.fn();
 const issuesOrderByMock = vi.fn();
 const getLabelsForIssuesMock = vi.fn();
@@ -16,6 +17,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/teams", () => ({
   getTeamByKey: getTeamByKeyMock,
+  findAccessibleTeam: findAccessibleTeamMock,
 }));
 
 vi.mock("@/lib/issue-labels", () => ({
@@ -81,6 +83,16 @@ describe("team triage route", () => {
       name: "Engineering",
       key: "ENG",
     });
+    findAccessibleTeamMock.mockResolvedValue({
+      id: "team-1",
+      name: "Engineering",
+      key: "ENG",
+      workspaceId: "workspace-1",
+      cyclesEnabled: true,
+      cycleStartDay: 1,
+      cycleDurationWeeks: 2,
+      timezone: "UTC",
+    });
     triageStatesWhereMock.mockReturnValue([
       { id: "state-triage", name: "Triage", color: "#f00" },
     ]);
@@ -113,7 +125,7 @@ describe("team triage route", () => {
   });
 
   it("returns 404 when team is missing", async () => {
-    getTeamByKeyMock.mockResolvedValue(null);
+    findAccessibleTeamMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/teams/[key]/triage/route");
 
     const response = await GET(new Request("http://localhost"), {

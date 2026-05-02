@@ -1,7 +1,8 @@
 import { requireApiSession } from "@/lib/api-auth";
+import { findAuthorizedIssueRef } from "@/lib/api-authz";
 import { db } from "@/lib/db";
 import { issue } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET(
@@ -14,10 +15,11 @@ export async function GET(
   }
 
   const { id } = await params;
+  const issueRef = await findAuthorizedIssueRef(id, session.user.id);
+  if (!issueRef) {
+    return NextResponse.json({ error: "Issue not found" }, { status: 404 });
+  }
 
-  // For now, history is derived from the issue's updatedAt and created fields.
-  // Real audit logs would be in a separate table.
-  // We'll return a placeholder until the schema is extended.
   const issues = await db
     .select({
       id: issue.id,
@@ -25,7 +27,7 @@ export async function GET(
       updatedAt: issue.updatedAt,
     })
     .from(issue)
-    .where(eq(issue.id, id))
+    .where(and(eq(issue.id, issueRef.id), eq(issue.teamId, issueRef.teamId)))
     .limit(1);
 
   if (issues.length === 0) {

@@ -1,8 +1,8 @@
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
-import { cycle, issue, team, workflowState } from "@/lib/db/schema";
+import { cycle, issue, workflowState } from "@/lib/db/schema";
 import { findAccessibleTeam } from "@/lib/teams";
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET(
@@ -51,7 +51,7 @@ export async function GET(
       const totalResult = await db
         .select({ val: count() })
         .from(issue)
-        .where(eq(issue.cycleId, c.id));
+        .where(and(eq(issue.cycleId, c.id), eq(issue.teamId, teamRecord.id)));
       const total = totalResult[0].val;
 
       let completed = 0;
@@ -62,10 +62,8 @@ export async function GET(
           .where(
             and(
               eq(issue.cycleId, c.id),
-              sql`${issue.stateId} IN (${sql.join(
-                completedIds.map((id) => sql`${id}`),
-                sql`, `,
-              )})`,
+              eq(issue.teamId, teamRecord.id),
+              inArray(issue.stateId, completedIds),
             ),
           );
         completed = compResult[0].val;
@@ -85,21 +83,23 @@ export async function GET(
   const fourWeeksAgo = new Date();
   fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
 
-  const recentlyCompleted = await db
-    .select({ val: count() })
-    .from(issue)
-    .where(
-      and(
-        eq(issue.teamId, teamRecord.id),
-        gte(issue.completedAt, fourWeeksAgo),
-        sql`${issue.stateId} IN (${sql.join(
-          completedIds.map((id) => sql`${id}`),
-          sql`, `,
-        )})`,
-      ),
-    );
+  let recentlyCompletedCount = 0;
+  if (completedIds.length > 0) {
+    const recentlyCompleted = await db
+      .select({ val: count() })
+      .from(issue)
+      .where(
+        and(
+          eq(issue.teamId, teamRecord.id),
+          gte(issue.completedAt, fourWeeksAgo),
+          inArray(issue.stateId, completedIds),
+        ),
+      );
 
-  const velocity = Math.round((recentlyCompleted[0].val || 0) / 4);
+    recentlyCompletedCount = recentlyCompleted[0].val || 0;
+  }
+
+  const velocity = Math.round(recentlyCompletedCount / 4);
 
   return NextResponse.json({
     team: { id: teamRecord.id, name: teamRecord.name },

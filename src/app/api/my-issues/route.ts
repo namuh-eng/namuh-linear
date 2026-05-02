@@ -1,9 +1,9 @@
 import { requireApiSession } from "@/lib/api-auth";
+import { resolveActiveWorkspaceRef } from "@/lib/api-authz";
 import { db } from "@/lib/db";
 import {
   comment,
   issue,
-  member,
   project,
   team,
   user,
@@ -23,19 +23,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const tab = url.searchParams.get("tab") ?? "assigned";
 
-  // Get user's workspace
-  const memberships = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, userId))
-    .orderBy(desc(member.createdAt))
-    .limit(1);
-
-  if (memberships.length === 0) {
+  // Get user's active workspace
+  const activeWorkspace = await resolveActiveWorkspaceRef(userId);
+  if (!activeWorkspace) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
 
-  const workspaceId = memberships[0].workspaceId;
+  const { workspaceId } = activeWorkspace;
 
   // Get all teams in workspace
   const teams = await db
@@ -59,23 +53,23 @@ export async function GET(request: Request) {
   let issues: IssueRecord[];
 
   if (tab === "assigned") {
-    issues = await fetchIssuesByAssignee(userId, teamIds);
+    issues = await fetchIssuesByAssignee(userId, workspaceId, teamIds);
   } else if (tab === "created") {
-    issues = await fetchIssuesByCreator(userId, teamIds);
+    issues = await fetchIssuesByCreator(userId, workspaceId, teamIds);
   } else if (tab === "subscribed") {
     issues = sortIssuesByUpdatedAtDesc(
       dedupeIssuesById([
-        ...(await fetchIssuesByAssignee(userId, teamIds)),
-        ...(await fetchIssuesByCreator(userId, teamIds)),
-        ...(await fetchIssuesByCommenter(userId, teamIds)),
+        ...(await fetchIssuesByAssignee(userId, workspaceId, teamIds)),
+        ...(await fetchIssuesByCreator(userId, workspaceId, teamIds)),
+        ...(await fetchIssuesByCommenter(userId, workspaceId, teamIds)),
       ]),
     );
   } else {
     issues = sortIssuesByUpdatedAtDesc(
       dedupeIssuesById([
-        ...(await fetchIssuesByAssignee(userId, teamIds)),
-        ...(await fetchIssuesByCreator(userId, teamIds)),
-        ...(await fetchIssuesByCommenter(userId, teamIds)),
+        ...(await fetchIssuesByAssignee(userId, workspaceId, teamIds)),
+        ...(await fetchIssuesByCreator(userId, workspaceId, teamIds)),
+        ...(await fetchIssuesByCommenter(userId, workspaceId, teamIds)),
       ]),
     );
   }
@@ -264,6 +258,7 @@ const emptyFilterOptions = {
 
 async function fetchIssuesByAssignee(
   userId: string,
+  workspaceId: string,
   teamIds: string[],
 ): Promise<IssueRecord[]> {
   return db
@@ -287,13 +282,20 @@ async function fetchIssuesByAssignee(
     })
     .from(issue)
     .leftJoin(user, eq(issue.assigneeId, user.id))
-    .leftJoin(project, eq(issue.projectId, project.id))
+    .leftJoin(
+      project,
+      and(
+        eq(issue.projectId, project.id),
+        eq(project.workspaceId, workspaceId),
+      ),
+    )
     .where(and(inArray(issue.teamId, teamIds), eq(issue.assigneeId, userId)))
     .orderBy(asc(issue.sortOrder), desc(issue.createdAt));
 }
 
 async function fetchIssuesByCreator(
   userId: string,
+  workspaceId: string,
   teamIds: string[],
 ): Promise<IssueRecord[]> {
   return db
@@ -317,13 +319,20 @@ async function fetchIssuesByCreator(
     })
     .from(issue)
     .leftJoin(user, eq(issue.assigneeId, user.id))
-    .leftJoin(project, eq(issue.projectId, project.id))
+    .leftJoin(
+      project,
+      and(
+        eq(issue.projectId, project.id),
+        eq(project.workspaceId, workspaceId),
+      ),
+    )
     .where(and(inArray(issue.teamId, teamIds), eq(issue.creatorId, userId)))
     .orderBy(desc(issue.createdAt));
 }
 
 async function fetchIssuesByCommenter(
   userId: string,
+  workspaceId: string,
   teamIds: string[],
 ): Promise<IssueRecord[]> {
   return db
@@ -348,7 +357,13 @@ async function fetchIssuesByCommenter(
     .from(comment)
     .innerJoin(issue, eq(comment.issueId, issue.id))
     .leftJoin(user, eq(issue.assigneeId, user.id))
-    .leftJoin(project, eq(issue.projectId, project.id))
+    .leftJoin(
+      project,
+      and(
+        eq(issue.projectId, project.id),
+        eq(project.workspaceId, workspaceId),
+      ),
+    )
     .where(and(eq(comment.userId, userId), inArray(issue.teamId, teamIds)))
     .orderBy(desc(issue.updatedAt));
 }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
+const resolveActiveWorkspaceRefMock = vi.fn();
 const membershipsLimitMock = vi.fn();
 const teamsWhereMock = vi.fn();
 const issuesLimitMock = vi.fn();
@@ -11,6 +12,10 @@ vi.mock("@/lib/auth", () => ({
       getSession: getSessionMock,
     },
   },
+}));
+
+vi.mock("@/lib/api-authz", () => ({
+  resolveActiveWorkspaceRef: resolveActiveWorkspaceRefMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -71,6 +76,9 @@ describe("issues search route", () => {
     vi.resetModules();
     vi.clearAllMocks();
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    resolveActiveWorkspaceRefMock.mockResolvedValue({
+      workspaceId: "workspace-1",
+    });
     membershipsLimitMock.mockReturnValue([{ workspaceId: "workspace-1" }]);
     teamsWhereMock.mockReturnValue([{ id: "team-1" }]);
     issuesLimitMock.mockReturnValue([
@@ -95,6 +103,20 @@ describe("issues search route", () => {
     expect(response.status).toBe(200);
     const payload = await response.json();
     expect(payload.length).toBe(1);
+    expect(payload[0].identifier).toBe("ENG-1");
+  });
+
+  it("ignores workspaceId query as a tenant bypass", async () => {
+    const { GET } = await import("@/app/api/issues/search/route");
+
+    const response = await GET(
+      new Request("http://localhost?q=Search&workspaceId=foreign-workspace"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(resolveActiveWorkspaceRefMock).toHaveBeenCalledWith("user-1");
+    const payload = await response.json();
+    expect(payload).toHaveLength(1);
     expect(payload[0].identifier).toBe("ENG-1");
   });
 

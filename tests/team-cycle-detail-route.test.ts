@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getSessionMock = vi.fn();
 const getTeamByKeyMock = vi.fn();
 const getTeamIdByKeyMock = vi.fn();
+const findAccessibleTeamMock = vi.fn();
 const cycleLimitMock = vi.fn();
 const statesOrderByMock = vi.fn();
 const issuesOrderByMock = vi.fn();
@@ -24,6 +25,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/lib/teams", () => ({
+  findAccessibleTeam: findAccessibleTeamMock,
   getTeamByKey: getTeamByKeyMock,
   getTeamIdByKey: getTeamIdByKeyMock,
 }));
@@ -77,18 +79,26 @@ vi.mock("@/lib/db", () => ({
 
       return {
         from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue([
-            {
-              id: "cycle-1",
-              startDate: new Date("2026-04-01T00:00:00.000Z"),
-              endDate: new Date("2026-04-14T00:00:00.000Z"),
-            },
-            {
-              id: "cycle-2",
-              startDate: new Date("2026-04-20T00:00:00.000Z"),
-              endDate: new Date("2026-05-03T00:00:00.000Z"),
-            },
-          ]),
+          where: vi.fn().mockImplementation(() => {
+            const rows = [
+              {
+                id: "cycle-1",
+                startDate: new Date("2026-04-01T00:00:00.000Z"),
+                endDate: new Date("2026-04-14T00:00:00.000Z"),
+              },
+              {
+                id: "cycle-2",
+                startDate: new Date("2026-04-20T00:00:00.000Z"),
+                endDate: new Date("2026-05-03T00:00:00.000Z"),
+              },
+            ] as Array<{
+              id: string;
+              startDate: Date;
+              endDate: Date;
+            }> & { limit: typeof cycleLimitMock };
+            rows.limit = cycleLimitMock;
+            return rows;
+          }),
         }),
       };
     }),
@@ -157,6 +167,12 @@ describe("team cycle detail route", () => {
       name: "Engineering",
     });
     getTeamIdByKeyMock.mockResolvedValue("team-1");
+    findAccessibleTeamMock.mockResolvedValue({
+      id: "team-1",
+      key: "ENG",
+      name: "Engineering",
+      workspaceId: "workspace-1",
+    });
     cycleLimitMock.mockResolvedValue([
       {
         id: "cycle-1",
@@ -222,6 +238,7 @@ describe("team cycle detail route", () => {
         id: "team-1",
         key: "ENG",
         name: "Engineering",
+        workspaceId: "workspace-1",
       },
       cycle: {
         id: "cycle-1",

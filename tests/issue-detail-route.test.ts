@@ -21,6 +21,7 @@ const getDownloadUrlMock = vi.fn();
 const normalizeIssueDescriptionHtmlMock = vi.fn();
 const buildNotificationValuesMock = vi.fn();
 const insertNotificationsMock = vi.fn();
+const findAuthorizedIssueRefMock = vi.fn();
 let selectCallCount = 0;
 
 vi.mock("@/lib/auth", () => ({
@@ -42,6 +43,10 @@ vi.mock("@/lib/notifications", () => ({
 
 vi.mock("@/lib/s3", () => ({
   getDownloadUrl: getDownloadUrlMock,
+}));
+
+vi.mock("@/lib/api-authz", () => ({
+  findAuthorizedIssueRef: findAuthorizedIssueRefMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -200,6 +205,16 @@ describe("issue detail route", () => {
     vi.clearAllMocks();
     selectCallCount = 0;
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    findAuthorizedIssueRefMock.mockResolvedValue({
+      id: "issue-1",
+      number: 1,
+      identifier: "ENG-1",
+      teamId: "team-1",
+      workspaceId: "workspace-1",
+      assigneeId: "user-2",
+      creatorId: "user-3",
+      stateId: "state-1",
+    });
     issueLimitMock.mockResolvedValue([
       {
         id: "issue-1",
@@ -310,6 +325,21 @@ describe("issue detail route", () => {
     expect(response.status).toBe(401);
   });
 
+  it("returns 404 for a foreign issue before route-specific fetch", async () => {
+    findAuthorizedIssueRefMock.mockResolvedValue(null);
+    const { GET } = await import("@/app/api/issues/[id]/route");
+
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ id: "FOREIGN-1" }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(issueLimitMock).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({
+      error: "Issue not found",
+    });
+  });
+
   it("returns full issue detail payload", async () => {
     const { GET } = await import("@/app/api/issues/[id]/route");
 
@@ -380,7 +410,7 @@ describe("issue detail route", () => {
   });
 
   it("returns 404 when patching a missing issue", async () => {
-    issueLimitMock.mockResolvedValue([]);
+    findAuthorizedIssueRefMock.mockResolvedValue(null);
     const { PATCH } = await import("@/app/api/issues/[id]/route");
 
     const response = await PATCH(

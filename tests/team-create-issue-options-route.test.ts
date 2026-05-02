@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const teamLimitMock = vi.fn();
+const findAccessibleTeamMock = vi.fn();
 const statusesWhereMock = vi.fn();
 const assigneesWhereMock = vi.fn();
 const labelsWhereMock = vi.fn();
@@ -13,6 +14,10 @@ vi.mock("@/lib/auth", () => ({
       getSession: getSessionMock,
     },
   },
+}));
+
+vi.mock("@/lib/teams", () => ({
+  findAccessibleTeam: findAccessibleTeamMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -112,6 +117,12 @@ describe("team create issue options route", () => {
         workspaceId: "workspace-1",
       },
     ]);
+    findAccessibleTeamMock.mockResolvedValue({
+      id: "team-1",
+      name: "Engineering",
+      key: "ENG",
+      workspaceId: "workspace-1",
+    });
     statusesWhereMock.mockReturnValue([{ id: "state-1", name: "Backlog" }]);
     assigneesWhereMock.mockReturnValue([
       { id: "user-1", name: "Ashley", image: null },
@@ -134,7 +145,7 @@ describe("team create issue options route", () => {
   });
 
   it("returns 404 when team is missing", async () => {
-    teamLimitMock.mockReturnValue([]);
+    findAccessibleTeamMock.mockResolvedValue(null);
     const { GET } = await import(
       "@/app/api/teams/[key]/create-issue-options/route"
     );

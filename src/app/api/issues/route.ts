@@ -1,12 +1,14 @@
 import { requireApiSession } from "@/lib/api-auth";
+import { validateIssueCreateRefs } from "@/lib/api-authz";
 import { db } from "@/lib/db";
-import { issue, issueLabel, team, workflowState } from "@/lib/db/schema";
+import { issue, issueLabel } from "@/lib/db/schema";
 import { normalizeIssueDescriptionHtml } from "@/lib/issue-description";
 import {
   buildNotificationValues,
   insertNotifications,
 } from "@/lib/notifications";
-import { and, eq, sql } from "drizzle-orm";
+import { findAccessibleTeamById } from "@/lib/teams";
+import { eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -37,56 +39,27 @@ export async function POST(request: Request) {
     );
   }
 
-  // Get team to generate identifier
-  const teams = await db
-    .select({ id: team.id, key: team.key })
-    .from(team)
-    .where(eq(team.id, teamId))
-    .limit(1);
-
-  if (teams.length === 0) {
+  const teamRecord = await findAccessibleTeamById(teamId, session.user.id);
+  if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  const teamRecord = teams[0];
+  const refs = await validateIssueCreateRefs(
+    { stateId, labelIds, parentIssueId, projectId, assigneeId },
+    teamRecord,
+  );
+  if (!refs.ok) {
+    return NextResponse.json({ error: refs.error }, { status: 400 });
+  }
 
-  // Get next issue number for this team
   const maxResult = await db
     .select({ maxNum: sql<number>`COALESCE(MAX(${issue.number}), 0)` })
     .from(issue)
-    .where(eq(issue.teamId, teamId));
+    .where(eq(issue.teamId, teamRecord.id));
 
   const nextNumber = (maxResult[0]?.maxNum ?? 0) + 1;
   const identifier = `${teamRecord.key}-${nextNumber}`;
-
-  // Use provided stateId or find default backlog state
-  let finalStateId = stateId;
-  if (!finalStateId) {
-    const defaultState = await db
-      .select({ id: workflowState.id })
-      .from(workflowState)
-      .where(
-        and(
-          eq(workflowState.teamId, teamId),
-          eq(workflowState.category, "backlog"),
-        ),
-      )
-      .limit(1);
-
-    finalStateId = defaultState[0]?.id;
-  }
-
-  if (!finalStateId) {
-    return NextResponse.json(
-      { error: "No default workflow state found" },
-      { status: 400 },
-    );
-  }
-
   const normalizedDescription = normalizeIssueDescriptionHtml(description);
-  const uniqueLabelIds = Array.isArray(labelIds)
-    ? [...new Set(labelIds.filter((value): value is string => Boolean(value)))]
-    : [];
 
   const newIssue = await db.transaction(async (tx) => {
     const [createdIssue] = await tx
@@ -96,19 +69,19 @@ export async function POST(request: Request) {
         identifier,
         title: trimmedTitle,
         description: normalizedDescription,
-        teamId,
-        stateId: finalStateId,
+        teamId: teamRecord.id,
+        stateId: refs.stateId,
         creatorId: session.user.id,
         priority: priority || "none",
-        assigneeId: assigneeId || null,
-        projectId: projectId || null,
-        parentIssueId: parentIssueId || null,
+        assigneeId: refs.assigneeId,
+        projectId: refs.projectId,
+        parentIssueId: refs.parentIssueId,
       })
       .returning();
 
-    if (uniqueLabelIds.length > 0) {
+    if (refs.labelIds.length > 0) {
       await tx.insert(issueLabel).values(
-        uniqueLabelIds.map((labelId) => ({
+        refs.labelIds.map((labelId) => ({
           issueId: createdIssue.id,
           labelId,
         })),

@@ -4,6 +4,8 @@ const getSessionMock = vi.fn();
 const teamLimitMock = vi.fn();
 const maxWhereMock = vi.fn();
 const defaultStateLimitMock = vi.fn();
+const findAccessibleTeamByIdMock = vi.fn();
+const validateIssueCreateRefsMock = vi.fn();
 const insertIssueValuesMock = vi.fn();
 const insertLabelsValuesMock = vi.fn();
 const buildNotificationValuesMock = vi.fn();
@@ -21,6 +23,14 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/issue-description", () => ({
   normalizeIssueDescriptionHtml: normalizeIssueDescriptionHtmlMock,
+}));
+
+vi.mock("@/lib/teams", () => ({
+  findAccessibleTeamById: findAccessibleTeamByIdMock,
+}));
+
+vi.mock("@/lib/api-authz", () => ({
+  validateIssueCreateRefs: validateIssueCreateRefsMock,
 }));
 
 vi.mock("@/lib/notifications", () => ({
@@ -127,6 +137,20 @@ describe("issues route", () => {
     selectCallCount = 0;
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
     teamLimitMock.mockResolvedValue([{ id: "team-1", key: "ENG" }]);
+    findAccessibleTeamByIdMock.mockResolvedValue({
+      id: "team-1",
+      key: "ENG",
+      name: "Engineering",
+      workspaceId: "workspace-1",
+    });
+    validateIssueCreateRefsMock.mockResolvedValue({
+      ok: true,
+      stateId: "state-backlog",
+      labelIds: ["label-1", "label-2"],
+      parentIssueId: null,
+      projectId: "project-1",
+      assigneeId: "user-2",
+    });
     maxWhereMock.mockResolvedValue([{ maxNum: 7 }]);
     defaultStateLimitMock.mockResolvedValue([{ id: "state-backlog" }]);
     normalizeIssueDescriptionHtmlMock.mockReturnValue("<p>normalized</p>");
@@ -169,7 +193,7 @@ describe("issues route", () => {
   });
 
   it("returns 404 when the team is missing", async () => {
-    teamLimitMock.mockResolvedValue([]);
+    findAccessibleTeamByIdMock.mockResolvedValue(null);
     const { POST } = await import("@/app/api/issues/route");
 
     const response = await POST(
@@ -185,7 +209,10 @@ describe("issues route", () => {
   });
 
   it("returns 400 when no default workflow state exists", async () => {
-    defaultStateLimitMock.mockResolvedValue([]);
+    validateIssueCreateRefsMock.mockResolvedValue({
+      ok: false,
+      error: "No default workflow state found",
+    });
     const { POST } = await import("@/app/api/issues/route");
 
     const response = await POST(
@@ -200,6 +227,35 @@ describe("issues route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "No default workflow state found",
     });
+  });
+
+  it("returns 400 for invalid cross-resource refs before side effects", async () => {
+    validateIssueCreateRefsMock.mockResolvedValue({
+      ok: false,
+      error: "Labels are invalid",
+    });
+    const { POST } = await import("@/app/api/issues/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/issues", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Ship this",
+          teamId: "team-1",
+          labelIds: ["foreign-label"],
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Labels are invalid",
+    });
+    expect(maxWhereMock).not.toHaveBeenCalled();
+    expect(insertIssueValuesMock).not.toHaveBeenCalled();
+    expect(insertLabelsValuesMock).not.toHaveBeenCalled();
+    expect(insertNotificationsMock).not.toHaveBeenCalled();
   });
 
   it("creates an issue with deduped labels and assignment notification", async () => {

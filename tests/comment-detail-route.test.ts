@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getSessionMock = vi.fn();
 const selectMock = vi.fn();
 const deleteFileMock = vi.fn();
+const findAuthorizedCommentRefMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
   auth: {
@@ -14,6 +15,10 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/s3", () => ({
   deleteFile: deleteFileMock,
+}));
+
+vi.mock("@/lib/api-authz", () => ({
+  findAuthorizedCommentRef: findAuthorizedCommentRefMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -61,7 +66,14 @@ describe("comment detail route", () => {
     vi.resetModules();
     vi.clearAllMocks();
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
-    selectMock.mockResolvedValue([{ id: "comment-1", userId: "user-1" }]);
+    findAuthorizedCommentRefMock.mockResolvedValue({
+      id: "comment-1",
+      issueId: "issue-1",
+      teamId: "team-1",
+      workspaceId: "workspace-1",
+      userId: "user-1",
+    });
+    selectMock.mockResolvedValue([{ storageKey: "file-1" }]);
   });
 
   it("returns 401 without a session", async () => {
@@ -99,11 +111,21 @@ describe("comment detail route", () => {
     expect(payload.body).toBe("updated");
   });
 
+  it("returns 404 for a foreign comment before attachment deletion", async () => {
+    findAuthorizedCommentRefMock.mockResolvedValue(null);
+    const { DELETE } = await import("@/app/api/comments/[id]/route");
+
+    const response = await DELETE(new Request("http://localhost"), {
+      params: Promise.resolve({ id: "comment-foreign" }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(selectMock).not.toHaveBeenCalled();
+    expect(deleteFileMock).not.toHaveBeenCalled();
+  });
+
   it("deletes a comment and its attachments", async () => {
-    // First select is for the comment, second for attachments
-    selectMock
-      .mockResolvedValueOnce([{ id: "comment-1", userId: "user-1" }])
-      .mockResolvedValueOnce([{ storageKey: "file-1" }]);
+    selectMock.mockResolvedValueOnce([{ storageKey: "file-1" }]);
 
     const { DELETE } = await import("@/app/api/comments/[id]/route");
 

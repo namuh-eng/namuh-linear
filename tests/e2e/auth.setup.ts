@@ -56,6 +56,38 @@ setup("authenticate playwright browser", async ({ page }) => {
     })
     .toBe(email);
 
+  await expect
+    .poll(async () => {
+      return page.evaluate(async () => {
+        const response = await fetch("/api/workspaces", {
+          credentials: "include",
+        });
+        if (!response.ok) {
+          return "workspace-list-failed";
+        }
+
+        const workspaces = (await response.json()) as unknown[];
+        if (workspaces.length > 0) {
+          return "ready";
+        }
+
+        const createResponse = await fetch("/api/workspaces", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: "Playwright Workspace",
+            urlSlug: "playwright-workspace",
+          }),
+        });
+
+        return createResponse.ok || createResponse.status === 409
+          ? "ready"
+          : `workspace-create-failed:${createResponse.status}`;
+      });
+    })
+    .toBe("ready");
+
   await page.goto("/inbox");
   mkdirSync("tests/e2e/.auth", { recursive: true });
   await page.context().storageState({ path: authFile });

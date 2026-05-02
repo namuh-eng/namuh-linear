@@ -1,28 +1,22 @@
-import { auth } from "@/lib/auth";
+import { requireApiSession } from "@/lib/api-auth";
+import { resolveActiveWorkspaceRef } from "@/lib/api-authz";
 import { db } from "@/lib/db";
-import { issue, member, team, workflowState } from "@/lib/db/schema";
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
-import { headers } from "next/headers";
+import { issue, team, workflowState } from "@/lib/db/schema";
+import { and, count, eq, gte, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { response: authResponse, session } = await requireApiSession();
+  if (authResponse) {
+    return authResponse;
   }
 
-  const [membership] = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .orderBy(desc(member.createdAt))
-    .limit(1);
-
-  if (!membership) {
+  const activeWorkspace = await resolveActiveWorkspaceRef(session.user.id);
+  if (!activeWorkspace) {
     return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
   }
 
-  const workspaceId = membership.workspaceId;
+  const workspaceId = activeWorkspace.workspaceId;
 
   // 1. Issues completed across all teams in the last 30 days
   const thirtyDaysAgo = new Date();

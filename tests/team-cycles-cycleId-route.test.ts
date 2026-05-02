@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const getTeamByKeyMock = vi.fn();
+const findAccessibleTeamMock = vi.fn();
 const cyclesLimitMock = vi.fn();
 const statesOrderByMock = vi.fn();
 const issuesOrderByMock = vi.fn();
@@ -18,6 +19,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/teams", () => ({
   getTeamByKey: getTeamByKeyMock,
+  findAccessibleTeam: findAccessibleTeamMock,
 }));
 
 vi.mock("@/lib/issue-labels", () => ({
@@ -92,6 +94,16 @@ describe("team cycle detail route", () => {
       id: "team-1",
       name: "Engineering",
       key: "ENG",
+    });
+    findAccessibleTeamMock.mockResolvedValue({
+      id: "team-1",
+      name: "Engineering",
+      key: "ENG",
+      workspaceId: "workspace-1",
+      cyclesEnabled: true,
+      cycleStartDay: 1,
+      cycleDurationWeeks: 2,
+      timezone: "UTC",
     });
     cyclesLimitMock.mockReturnValue([
       { id: "cycle-1", name: "Cycle 1", startDate: new Date("2026-04-01") },

@@ -1,6 +1,10 @@
 import { requireApiSession } from "@/lib/api-auth";
+import {
+  findAuthorizedLabelRef,
+  resolveActiveWorkspaceRef,
+} from "@/lib/api-authz";
 import { db } from "@/lib/db";
-import { issueLabel, label, member } from "@/lib/db/schema";
+import { issueLabel, label } from "@/lib/db/schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -10,17 +14,12 @@ export async function GET() {
     return authResponse;
   }
 
-  const memberships = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .limit(1);
-
-  if (memberships.length === 0) {
+  const activeWorkspace = await resolveActiveWorkspaceRef(session.user.id);
+  if (!activeWorkspace) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
 
-  const workspaceId = memberships[0].workspaceId;
+  const { workspaceId } = activeWorkspace;
 
   // Get workspace-scoped labels (teamId is null) with issue counts
   const labels = await db
@@ -60,22 +59,32 @@ export async function POST(request: Request) {
     return authResponse;
   }
 
-  const memberships = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .limit(1);
-
-  if (memberships.length === 0) {
+  const activeWorkspace = await resolveActiveWorkspaceRef(session.user.id);
+  if (!activeWorkspace) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
 
-  const workspaceId = memberships[0].workspaceId;
+  const { workspaceId } = activeWorkspace;
   const body = await request.json();
   const { name, color, description, parentLabelId } = body;
 
   if (!name) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
+  }
+
+  let nextParentLabelId: string | null = null;
+  if (parentLabelId) {
+    const parentLabel = await findAuthorizedLabelRef(
+      String(parentLabelId),
+      session.user.id,
+    );
+    if (!parentLabel || parentLabel.teamId !== null) {
+      return NextResponse.json(
+        { error: "Parent label not found" },
+        { status: 400 },
+      );
+    }
+    nextParentLabelId = parentLabel.id;
   }
 
   const [newLabel] = await db
@@ -85,7 +94,7 @@ export async function POST(request: Request) {
       color: color || "#6b6f76",
       description: description || null,
       workspaceId,
-      parentLabelId: parentLabelId || null,
+      parentLabelId: nextParentLabelId,
     })
     .returning();
 

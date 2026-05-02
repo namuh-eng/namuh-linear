@@ -59,3 +59,24 @@ export async function findAccessibleTeam(key: string, userId: string) {
 
   return teamRecord ?? null;
 }
+
+export async function findAccessibleTeamById(teamId: string, userId: string) {
+  const workspaceId = await resolveActiveWorkspaceId(userId);
+  if (!workspaceId) return null;
+
+  const wsMember = await getWorkspaceMember(workspaceId, userId);
+  if (!wsMember) return null;
+
+  const [teamRecord] = await db
+    .select({
+      id: team.id,
+      workspaceId: team.workspaceId,
+      name: team.name,
+      key: team.key,
+    })
+    .from(team)
+    .where(and(eq(team.id, teamId), eq(team.workspaceId, workspaceId)))
+    .limit(1);
+
+  return teamRecord ?? null;
+}

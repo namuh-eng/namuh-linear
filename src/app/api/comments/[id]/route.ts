@@ -1,4 +1,5 @@
 import { requireApiSession } from "@/lib/api-auth";
+import { findAuthorizedCommentRef } from "@/lib/api-authz";
 import { db } from "@/lib/db";
 import { comment, commentAttachment } from "@/lib/db/schema";
 import { deleteFile } from "@/lib/s3";
@@ -15,6 +16,14 @@ export async function PATCH(
   }
 
   const { id } = await params;
+  const commentRef = await findAuthorizedCommentRef(id, session.user.id);
+  if (!commentRef || commentRef.userId !== session.user.id) {
+    return NextResponse.json(
+      { error: "Comment not found or unauthorized" },
+      { status: 404 },
+    );
+  }
+
   const body = await request.json();
   const nextBody = typeof body.body === "string" ? body.body.trim() : "";
 
@@ -28,7 +37,9 @@ export async function PATCH(
   const [updated] = await db
     .update(comment)
     .set({ body: nextBody, updatedAt: new Date() })
-    .where(and(eq(comment.id, id), eq(comment.userId, session.user.id)))
+    .where(
+      and(eq(comment.id, commentRef.id), eq(comment.userId, session.user.id)),
+    )
     .returning();
 
   if (!updated) {
@@ -51,37 +62,30 @@ export async function DELETE(
   }
 
   const { id } = await params;
-
-  // Find comment to check ownership and get attachments
-  const [existingComment] = await db
-    .select()
-    .from(comment)
-    .where(and(eq(comment.id, id), eq(comment.userId, session.user.id)))
-    .limit(1);
-
-  if (!existingComment) {
+  const commentRef = await findAuthorizedCommentRef(id, session.user.id);
+  if (!commentRef || commentRef.userId !== session.user.id) {
     return NextResponse.json(
       { error: "Comment not found or unauthorized" },
       { status: 404 },
     );
   }
 
-  // Get attachments to delete from S3
   const attachments = await db
     .select({ storageKey: commentAttachment.storageKey })
     .from(commentAttachment)
-    .where(eq(commentAttachment.commentId, id));
+    .where(eq(commentAttachment.commentId, commentRef.id));
 
   await db.transaction(async (tx) => {
-    // Delete attachments from DB
     await tx
       .delete(commentAttachment)
-      .where(eq(commentAttachment.commentId, id));
-    // Delete comment
-    await tx.delete(comment).where(eq(comment.id, id));
+      .where(eq(commentAttachment.commentId, commentRef.id));
+    await tx
+      .delete(comment)
+      .where(
+        and(eq(comment.id, commentRef.id), eq(comment.userId, session.user.id)),
+      );
   });
 
-  // Delete files from S3
   await Promise.all(
     attachments.map(async (currentAttachment) => {
       try {

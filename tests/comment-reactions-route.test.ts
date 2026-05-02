@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const commentLimitMock = vi.fn();
+const findAuthorizedCommentRefMock = vi.fn();
 const existingReactionLimitMock = vi.fn();
 const nextReactionsWhereMock = vi.fn();
 const deleteWhereMock = vi.fn();
@@ -14,6 +15,10 @@ vi.mock("@/lib/auth", () => ({
       getSession: getSessionMock,
     },
   },
+}));
+
+vi.mock("@/lib/api-authz", () => ({
+  findAuthorizedCommentRef: findAuthorizedCommentRefMock,
 }));
 
 vi.mock("@/lib/db/schema", () => ({
@@ -30,16 +35,6 @@ vi.mock("@/lib/db", async () => {
         selectCallCount += 1;
 
         if (selectCallCount === 1) {
-          return {
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                limit: commentLimitMock,
-              }),
-            }),
-          };
-        }
-
-        if (selectCallCount === 2) {
           return {
             from: vi.fn().mockReturnValue({
               where: vi.fn().mockReturnValue({
@@ -98,6 +93,13 @@ describe("comment reactions route", () => {
     selectCallCount = 0;
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
     commentLimitMock.mockResolvedValue([{ id: "comment-1" }]);
+    findAuthorizedCommentRefMock.mockResolvedValue({
+      id: "comment-1",
+      issueId: "issue-1",
+      teamId: "team-1",
+      workspaceId: "workspace-1",
+      userId: "user-2",
+    });
     existingReactionLimitMock.mockResolvedValue([]);
   });
 
@@ -134,7 +136,7 @@ describe("comment reactions route", () => {
   });
 
   it("returns 404 when the comment does not exist", async () => {
-    commentLimitMock.mockResolvedValue([]);
+    findAuthorizedCommentRefMock.mockResolvedValue(null);
     const { POST } = await import("@/app/api/comments/[id]/reactions/route");
 
     const response = await POST(
@@ -146,6 +148,8 @@ describe("comment reactions route", () => {
     );
 
     expect(response.status).toBe(404);
+    expect(insertValuesMock).not.toHaveBeenCalled();
+    expect(deleteWhereMock).not.toHaveBeenCalled();
     await expect(response.json()).resolves.toEqual({
       error: "Comment not found",
     });

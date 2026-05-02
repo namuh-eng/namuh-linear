@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
 const getTeamIdByKeyMock = vi.fn();
+const findAccessibleTeamMock = vi.fn();
 const statesLimitMock = vi.fn();
 const updateReturningMock = vi.fn();
 
@@ -15,6 +16,7 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/teams", () => ({
   getTeamIdByKey: getTeamIdByKeyMock,
+  findAccessibleTeam: findAccessibleTeamMock,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -48,6 +50,16 @@ describe("team triage issue actions route", () => {
     vi.clearAllMocks();
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
     getTeamIdByKeyMock.mockResolvedValue("team-1");
+    findAccessibleTeamMock.mockResolvedValue({
+      id: "team-1",
+      name: "Engineering",
+      key: "ENG",
+      workspaceId: "workspace-1",
+      cyclesEnabled: true,
+      cycleStartDay: 1,
+      cycleDurationWeeks: 2,
+      timezone: "UTC",
+    });
     statesLimitMock.mockReturnValue([{ id: "state-target" }]);
     updateReturningMock.mockReturnValue([
       { id: "issue-1", stateId: "state-target" },
@@ -71,7 +83,7 @@ describe("team triage issue actions route", () => {
   });
 
   it("returns 404 when team is missing", async () => {
-    getTeamIdByKeyMock.mockResolvedValue(null);
+    findAccessibleTeamMock.mockResolvedValue(null);
     const { PATCH } = await import(
       "@/app/api/teams/[key]/triage/[issueId]/route"
     );

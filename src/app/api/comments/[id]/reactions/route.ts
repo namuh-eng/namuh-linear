@@ -1,6 +1,7 @@
 import { requireApiSession } from "@/lib/api-auth";
+import { findAuthorizedCommentRef } from "@/lib/api-authz";
 import { db } from "@/lib/db";
-import { comment, reaction } from "@/lib/db/schema";
+import { reaction } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -46,13 +47,8 @@ export async function POST(
     return NextResponse.json({ error: "Emoji is required" }, { status: 400 });
   }
 
-  const comments = await db
-    .select({ id: comment.id })
-    .from(comment)
-    .where(eq(comment.id, id))
-    .limit(1);
-
-  if (comments.length === 0) {
+  const commentRef = await findAuthorizedCommentRef(id, session.user.id);
+  if (!commentRef) {
     return NextResponse.json({ error: "Comment not found" }, { status: 404 });
   }
 
@@ -61,7 +57,7 @@ export async function POST(
     .from(reaction)
     .where(
       and(
-        eq(reaction.commentId, id),
+        eq(reaction.commentId, commentRef.id),
         eq(reaction.userId, session.user.id),
         eq(reaction.emoji, emoji),
       ),
@@ -72,7 +68,7 @@ export async function POST(
     await db.delete(reaction).where(eq(reaction.id, existingReactions[0].id));
   } else {
     await db.insert(reaction).values({
-      commentId: id,
+      commentId: commentRef.id,
       userId: session.user.id,
       emoji,
     });
@@ -81,7 +77,7 @@ export async function POST(
   const nextReactions = await db
     .select({ emoji: reaction.emoji, userId: reaction.userId })
     .from(reaction)
-    .where(eq(reaction.commentId, id));
+    .where(eq(reaction.commentId, commentRef.id));
 
   return NextResponse.json(summarizeReactions(nextReactions, session.user.id));
 }

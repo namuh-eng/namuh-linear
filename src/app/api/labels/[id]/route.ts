@@ -1,6 +1,7 @@
 import { requireApiSession } from "@/lib/api-auth";
+import { findAuthorizedLabelRef } from "@/lib/api-authz";
 import { db } from "@/lib/db";
-import { label, member } from "@/lib/db/schema";
+import { label } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -13,18 +14,13 @@ export async function PATCH(
     return authResponse;
   }
 
-  const memberships = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .limit(1);
-
-  if (memberships.length === 0) {
-    return NextResponse.json({ error: "No workspace" }, { status: 404 });
-  }
-
   const { id } = await params;
-  const workspaceId = memberships[0].workspaceId;
+  const labelRef = await findAuthorizedLabelRef(id, session.user.id);
+  if (!labelRef?.workspaceId) {
+    return NextResponse.json({ error: "Label not found" }, { status: 404 });
+  }
+  const { workspaceId } = labelRef;
+
   const body = await request.json();
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -35,7 +31,7 @@ export async function PATCH(
   const [updated] = await db
     .update(label)
     .set(updates)
-    .where(and(eq(label.id, id), eq(label.workspaceId, workspaceId)))
+    .where(and(eq(label.id, labelRef.id), eq(label.workspaceId, workspaceId)))
     .returning();
 
   if (!updated) {
@@ -54,22 +50,16 @@ export async function DELETE(
     return authResponse;
   }
 
-  const memberships = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .limit(1);
-
-  if (memberships.length === 0) {
-    return NextResponse.json({ error: "No workspace" }, { status: 404 });
-  }
-
   const { id } = await params;
-  const workspaceId = memberships[0].workspaceId;
+  const labelRef = await findAuthorizedLabelRef(id, session.user.id);
+  if (!labelRef?.workspaceId) {
+    return NextResponse.json({ error: "Label not found" }, { status: 404 });
+  }
+  const { workspaceId } = labelRef;
 
   const [deleted] = await db
     .delete(label)
-    .where(and(eq(label.id, id), eq(label.workspaceId, workspaceId)))
+    .where(and(eq(label.id, labelRef.id), eq(label.workspaceId, workspaceId)))
     .returning();
 
   if (!deleted) {

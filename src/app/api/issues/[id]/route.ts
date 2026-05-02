@@ -1,4 +1,5 @@
 import { requireApiSession } from "@/lib/api-auth";
+import { findAuthorizedIssueRef } from "@/lib/api-authz";
 import { db } from "@/lib/db";
 import {
   comment,
@@ -18,11 +19,11 @@ import {
   insertNotifications,
 } from "@/lib/notifications";
 import { getDownloadUrl } from "@/lib/s3";
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-async function findIssueRecord(id: string) {
-  const issues = await db
+async function findIssueRecordById(id: string, teamId: string) {
+  const [issueRecord] = await db
     .select({
       id: issue.id,
       number: issue.number,
@@ -44,39 +45,10 @@ async function findIssueRecord(id: string) {
       completedAt: issue.completedAt,
     })
     .from(issue)
-    .where(eq(issue.identifier, id))
+    .where(and(eq(issue.id, id), eq(issue.teamId, teamId)))
     .limit(1);
 
-  if (issues.length > 0) {
-    return issues[0];
-  }
-
-  const byId = await db
-    .select({
-      id: issue.id,
-      number: issue.number,
-      identifier: issue.identifier,
-      title: issue.title,
-      description: issue.description,
-      priority: issue.priority,
-      stateId: issue.stateId,
-      assigneeId: issue.assigneeId,
-      creatorId: issue.creatorId,
-      projectId: issue.projectId,
-      dueDate: issue.dueDate,
-      estimate: issue.estimate,
-      sortOrder: issue.sortOrder,
-      createdAt: issue.createdAt,
-      updatedAt: issue.updatedAt,
-      teamId: issue.teamId,
-      canceledAt: issue.canceledAt,
-      completedAt: issue.completedAt,
-    })
-    .from(issue)
-    .where(eq(issue.id, id))
-    .limit(1);
-
-  return byId[0] ?? null;
+  return issueRecord ?? null;
 }
 
 export async function GET(
@@ -90,7 +62,12 @@ export async function GET(
 
   const { id } = await params;
 
-  const iss = await findIssueRecord(id);
+  const issueRef = await findAuthorizedIssueRef(id, session.user.id);
+  if (!issueRef) {
+    return NextResponse.json({ error: "Issue not found" }, { status: 404 });
+  }
+
+  const iss = await findIssueRecordById(issueRef.id, issueRef.teamId);
   if (!iss) {
     return NextResponse.json({ error: "Issue not found" }, { status: 404 });
   }
@@ -106,7 +83,15 @@ export async function GET(
     commentRows,
     subIssueRows,
   ] = await Promise.all([
-    db.select().from(workflowState).where(eq(workflowState.id, iss.stateId)),
+    db
+      .select()
+      .from(workflowState)
+      .where(
+        and(
+          eq(workflowState.id, iss.stateId),
+          eq(workflowState.teamId, iss.teamId),
+        ),
+      ),
     iss.assigneeId
       ? db
           .select({ id: user.id, name: user.name, image: user.image })
@@ -125,13 +110,24 @@ export async function GET(
       ? db
           .select({ id: project.id, name: project.name, icon: project.icon })
           .from(project)
-          .where(eq(project.id, iss.projectId))
+          .where(
+            and(
+              eq(project.id, iss.projectId),
+              eq(project.workspaceId, issueRef.workspaceId),
+            ),
+          )
       : Promise.resolve([]),
     db
       .select({ labelName: label.name, labelColor: label.color })
       .from(issueLabel)
       .innerJoin(label, eq(issueLabel.labelId, label.id))
-      .where(eq(issueLabel.issueId, iss.id)),
+      .where(
+        and(
+          eq(issueLabel.issueId, iss.id),
+          eq(label.workspaceId, issueRef.workspaceId),
+          or(isNull(label.teamId), eq(label.teamId, iss.teamId)),
+        ),
+      ),
     db
       .select({
         id: comment.id,
@@ -158,7 +154,7 @@ export async function GET(
       })
       .from(issue)
       .leftJoin(workflowState, eq(issue.stateId, workflowState.id))
-      .where(eq(issue.parentIssueId, iss.id))
+      .where(and(eq(issue.parentIssueId, iss.id), eq(issue.teamId, iss.teamId)))
       .orderBy(asc(issue.createdAt)),
   ]);
 
@@ -323,7 +319,7 @@ export async function PATCH(
     sortOrder?: number;
   };
 
-  const existingIssue = await findIssueRecord(id);
+  const existingIssue = await findAuthorizedIssueRef(id, session.user.id);
   if (!existingIssue) {
     return NextResponse.json({ error: "Issue not found" }, { status: 404 });
   }
@@ -356,11 +352,16 @@ export async function PATCH(
         category: workflowState.category,
       })
       .from(workflowState)
-      .where(eq(workflowState.id, body.stateId))
+      .where(
+        and(
+          eq(workflowState.id, body.stateId),
+          eq(workflowState.teamId, existingIssue.teamId),
+        ),
+      )
       .limit(1);
 
     const nextState = states[0];
-    if (!nextState || nextState.teamId !== existingIssue.teamId) {
+    if (!nextState) {
       return NextResponse.json(
         { error: "Workflow state not found" },
         { status: 400 },
@@ -380,7 +381,12 @@ export async function PATCH(
       const lastIssueInState = await db
         .select({ sortOrder: issue.sortOrder })
         .from(issue)
-        .where(eq(issue.stateId, nextState.id))
+        .where(
+          and(
+            eq(issue.stateId, nextState.id),
+            eq(issue.teamId, existingIssue.teamId),
+          ),
+        )
         .orderBy(desc(issue.sortOrder), desc(issue.createdAt))
         .limit(1);
 
@@ -395,7 +401,12 @@ export async function PATCH(
   const updated = await db
     .update(issue)
     .set(updateData)
-    .where(eq(issue.id, existingIssue.id))
+    .where(
+      and(
+        eq(issue.id, existingIssue.id),
+        eq(issue.teamId, existingIssue.teamId),
+      ),
+    )
     .returning({
       id: issue.id,
       title: issue.title,
@@ -433,7 +444,7 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const existingIssue = await findIssueRecord(id);
+  const existingIssue = await findAuthorizedIssueRef(id, session.user.id);
   if (!existingIssue) {
     return NextResponse.json({ error: "Issue not found" }, { status: 404 });
   }
@@ -441,7 +452,14 @@ export async function DELETE(
   // Delete the issue. Labels and comments should be handled by DB-level cascade if configured,
   // but we can also handle them explicitly here if needed.
   // Assuming cascade is set up in schema.
-  await db.delete(issue).where(eq(issue.id, existingIssue.id));
+  await db
+    .delete(issue)
+    .where(
+      and(
+        eq(issue.id, existingIssue.id),
+        eq(issue.teamId, existingIssue.teamId),
+      ),
+    );
 
   return NextResponse.json({ success: true });
 }
