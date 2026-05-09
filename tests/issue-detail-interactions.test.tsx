@@ -51,17 +51,31 @@ describe("IssueDetailView interactions", () => {
     updatedAt: "2026-04-20T09:00:00Z",
   };
 
+  const emptyHistoryResponse = {
+    ok: true,
+    json: () => Promise.resolve({ history: [] }),
+  };
+
   it("updates issue title via contentEditable blur", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockIssueData),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({ ...mockIssueData, title: "Updated Title" }),
+      .mockImplementation((input: string | URL | Request) => {
+        const url = input.toString();
+        if (url.includes("/history")) {
+          return Promise.resolve(emptyHistoryResponse);
+        }
+
+        if (url === "/api/issues/i-1" && typeof input === "string") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockIssueData),
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockIssueData),
+        });
       });
 
     vi.stubGlobal("fetch", fetchMock);
@@ -90,13 +104,24 @@ describe("IssueDetailView interactions", () => {
   it("adds a reaction to a comment", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockIssueData),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve([{ emoji: "👍", count: 1, reacted: true }]),
+      .mockImplementation((input: string | URL | Request) => {
+        const url = input.toString();
+        if (url.includes("/history")) {
+          return Promise.resolve(emptyHistoryResponse);
+        }
+
+        if (url.includes("/reactions")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve([{ emoji: "👍", count: 1, reacted: true }]),
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockIssueData),
+        });
       });
 
     vi.stubGlobal("fetch", fetchMock);
@@ -127,21 +152,31 @@ describe("IssueDetailView interactions", () => {
   it("submits a new comment", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockIssueData),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            id: "c-2",
-            body: "New reply",
-            user: { name: "Ashley", image: null },
-            createdAt: new Date().toISOString(),
-            reactions: [],
-            attachments: [],
-          }),
+      .mockImplementation((input: string | URL | Request) => {
+        const url = input.toString();
+        if (url.includes("/history")) {
+          return Promise.resolve(emptyHistoryResponse);
+        }
+
+        if (url.includes("/comments")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                id: "c-2",
+                body: "New reply",
+                user: { name: "Ashley", image: null },
+                createdAt: new Date().toISOString(),
+                reactions: [],
+                attachments: [],
+              }),
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(mockIssueData),
+        });
       });
 
     vi.stubGlobal("fetch", fetchMock);
