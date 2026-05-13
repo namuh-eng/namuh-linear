@@ -168,14 +168,17 @@ describe("Auth proxy", () => {
     expect(mockNext).toHaveBeenCalled();
   });
 
-  it("allows authenticated requests with secure cookie", async () => {
-    mockNext.mockClear();
+  it("redirects legacy canonical ENG team routes to workspace-scoped routes", async () => {
+    mockRedirect.mockClear();
     const { proxy } = await import("@/proxy");
-    const req = createMockRequest("/team/ENG/all", {
+    const req = createMockRequest("/team/ENG/all?view=list", {
       "__Secure-better-auth.session_token": "valid-session-token",
     });
     await proxy(req as never);
-    expect(mockNext).toHaveBeenCalled();
+    expect(mockRedirect).toHaveBeenCalled();
+    const redirectUrl = mockRedirect.mock.calls[0][0] as URL;
+    expect(redirectUrl.pathname).toBe("/foreverbrowsing/team/ENG/all");
+    expect(redirectUrl.search).toBe("?view=list");
   });
 
   it("preserves callback URL in redirect", async () => {

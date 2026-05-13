@@ -1,4 +1,8 @@
 import {
+  CANONICAL_TEAM_KEY,
+  CANONICAL_WORKSPACE_SLUG,
+} from "@/lib/canonical-routes";
+import {
   getPathSegments,
   isAppRoutePrefix,
   isPublicRoutePrefix,
@@ -72,6 +76,20 @@ function getSlugRewrite(pathname: string) {
   return null;
 }
 
+function getCanonicalTeamRedirect(pathname: string) {
+  const segments = getPathSegments(pathname);
+
+  if (
+    segments[0] === "team" &&
+    segments[1] === CANONICAL_TEAM_KEY &&
+    segments.length > 2
+  ) {
+    return `/${CANONICAL_WORKSPACE_SLUG}/${segments.join("/")}`;
+  }
+
+  return null;
+}
+
 function getWorkspaceRootRedirect(pathname: string) {
   const segments = getPathSegments(pathname);
 
@@ -120,6 +138,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  const canonicalTeamRedirect = getCanonicalTeamRedirect(pathname);
+  if (canonicalTeamRedirect) {
+    const canonicalTeamUrl = request.nextUrl.clone();
+    canonicalTeamUrl.pathname = canonicalTeamRedirect;
+    return NextResponse.redirect(canonicalTeamUrl);
+  }
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-workspace-source-path", pathname);
 
