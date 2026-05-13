@@ -1,7 +1,8 @@
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
-import { label, member } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
+import { issueLabel, label } from "@/lib/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function PATCH(
@@ -13,29 +14,36 @@ export async function PATCH(
     return authResponse;
   }
 
-  const memberships = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .limit(1);
+  const workspaceId = await resolveActiveWorkspaceId(session.user.id);
 
-  if (memberships.length === 0) {
+  if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
 
   const { id } = await params;
-  const workspaceId = memberships[0].workspaceId;
   const body = await request.json();
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
-  if (body.name !== undefined) updates.name = body.name;
+  if (body.name !== undefined) {
+    const trimmedName = typeof body.name === "string" ? body.name.trim() : "";
+    if (!trimmedName) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+    updates.name = trimmedName;
+  }
   if (body.color !== undefined) updates.color = body.color;
   if (body.description !== undefined) updates.description = body.description;
 
   const [updated] = await db
     .update(label)
     .set(updates)
-    .where(and(eq(label.id, id), eq(label.workspaceId, workspaceId)))
+    .where(
+      and(
+        eq(label.id, id),
+        eq(label.workspaceId, workspaceId),
+        isNull(label.teamId),
+      ),
+    )
     .returning();
 
   if (!updated) {
@@ -54,23 +62,46 @@ export async function DELETE(
     return authResponse;
   }
 
-  const memberships = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .limit(1);
+  const workspaceId = await resolveActiveWorkspaceId(session.user.id);
 
-  if (memberships.length === 0) {
+  if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
 
   const { id } = await params;
-  const workspaceId = memberships[0].workspaceId;
 
-  const [deleted] = await db
-    .delete(label)
-    .where(and(eq(label.id, id), eq(label.workspaceId, workspaceId)))
-    .returning();
+  const deleted = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: label.id })
+      .from(label)
+      .where(
+        and(
+          eq(label.id, id),
+          eq(label.workspaceId, workspaceId),
+          isNull(label.teamId),
+        ),
+      )
+      .limit(1);
+
+    if (!existing) {
+      return null;
+    }
+
+    await tx.delete(issueLabel).where(eq(issueLabel.labelId, id));
+
+    const [deletedLabel] = await tx
+      .delete(label)
+      .where(
+        and(
+          eq(label.id, id),
+          eq(label.workspaceId, workspaceId),
+          isNull(label.teamId),
+        ),
+      )
+      .returning();
+
+    return deletedLabel;
+  });
 
   if (!deleted) {
     return NextResponse.json({ error: "Label not found" }, { status: 404 });

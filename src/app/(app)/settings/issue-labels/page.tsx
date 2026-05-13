@@ -51,7 +51,11 @@ function formatRelativeTime(dateStr: string | null): string {
 
 function formatCreatedDate(dateStr: string): string {
   const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 function ColorDot({ color }: { color: string }) {
@@ -248,12 +252,134 @@ function CreateLabelModal({
   );
 }
 
+function EditLabelModal({
+  label,
+  onClose,
+  onSave,
+}: {
+  label: LabelData;
+  onClose: () => void;
+  onSave: (payload: {
+    id: string;
+    name: string;
+    color: string;
+    description: string;
+  }) => void;
+}) {
+  const [name, setName] = useState(label.name);
+  const [description, setDescription] = useState(label.description || "");
+  const [color, setColor] = useState(label.color);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    nameRef.current?.focus();
+    nameRef.current?.select();
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSave({
+      id: label.id,
+      name: name.trim(),
+      color,
+      description: description.trim(),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-[400px] rounded-lg border border-[var(--color-border)] bg-[var(--color-content-bg)] p-6 shadow-xl">
+        <h2 className="mb-4 text-[16px] font-semibold text-[var(--color-text-primary)]">
+          Edit label
+        </h2>
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label
+              htmlFor="edit-label-name"
+              className="mb-1 block text-[12px] text-[var(--color-text-secondary)]"
+            >
+              Name
+            </label>
+            <input
+              ref={nameRef}
+              id="edit-label-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
+              placeholder="Label name"
+            />
+          </div>
+          <div className="mb-4">
+            <label
+              htmlFor="edit-label-description"
+              className="mb-1 block text-[12px] text-[var(--color-text-secondary)]"
+            >
+              Description
+            </label>
+            <input
+              id="edit-label-description"
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
+              placeholder="Add label description..."
+            />
+          </div>
+          <div className="mb-6">
+            <label
+              htmlFor="edit-label-color"
+              className="mb-2 block text-[12px] text-[var(--color-text-secondary)]"
+            >
+              Color
+            </label>
+            <div className="flex flex-wrap gap-2" id="edit-label-color">
+              {LABEL_COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className={`h-6 w-6 rounded-full border-2 transition-all ${
+                    color === c
+                      ? "border-white scale-110"
+                      : "border-transparent hover:border-[var(--color-border)]"
+                  }`}
+                  style={{ backgroundColor: c }}
+                  aria-label={`Color ${c}`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[12px] text-[var(--color-text-primary)] transition-colors hover:bg-[var(--color-surface-hover)]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim()}
+              className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+            >
+              Save changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function IssueLabelsPage() {
   const [labels, setLabels] = useState<LabelData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [createMode, setCreateMode] = useState<CreateMode | null>(null);
+  const [editingLabel, setEditingLabel] = useState<LabelData | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const fetchLabels = useCallback(() => {
@@ -314,6 +440,37 @@ export default function IssueLabelsPage() {
       return;
     }
     setError("Could not create that item.");
+  };
+
+  const handleEdit = async ({
+    id,
+    name,
+    color,
+    description,
+  }: {
+    id: string;
+    name: string;
+    color: string;
+    description: string;
+  }) => {
+    const res = await fetch(`/api/labels/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, color, description }),
+    });
+    if (!res.ok) {
+      setError("Could not save that label.");
+      return;
+    }
+
+    setLabels((prev) =>
+      prev.map((l) =>
+        l.id === id
+          ? { ...l, name, color, description: description || null }
+          : l,
+      ),
+    );
+    setEditingLabel(null);
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -466,8 +623,16 @@ export default function IssueLabelsPage() {
                 </span>
                 <button
                   type="button"
+                  onClick={() => setEditingLabel(labelItem)}
+                  className="ml-auto rounded px-2 py-1 text-[11px] text-[var(--color-text-tertiary)] opacity-0 transition group-hover:opacity-100 hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] focus:opacity-100"
+                  aria-label={`Edit ${labelItem.name}`}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleDelete(labelItem.id, labelItem.name)}
-                  className="ml-auto rounded px-2 py-1 text-[11px] text-[var(--color-text-tertiary)] opacity-0 transition group-hover:opacity-100 hover:bg-[var(--color-surface-hover)] hover:text-[#f87171]"
+                  className="rounded px-2 py-1 text-[11px] text-[var(--color-text-tertiary)] opacity-0 transition group-hover:opacity-100 hover:bg-[var(--color-surface-hover)] hover:text-[#f87171] focus:opacity-100"
                   aria-label={`Delete ${labelItem.name}`}
                 >
                   Delete
@@ -503,6 +668,13 @@ export default function IssueLabelsPage() {
           mode={createMode}
           onClose={() => setCreateMode(null)}
           onCreate={handleCreate}
+        />
+      )}
+      {editingLabel && (
+        <EditLabelModal
+          label={editingLabel}
+          onClose={() => setEditingLabel(null)}
+          onSave={handleEdit}
         />
       )}
     </div>

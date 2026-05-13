@@ -137,6 +137,18 @@ describe("CommandPalette", () => {
     expect(pushMock).toHaveBeenCalledWith("/inbox");
   });
 
+  it("opens issue label settings from the Create label command", () => {
+    render(<CommandPalette teamKey="ENG" />);
+
+    fireEvent.keyDown(document, { key: "k", metaKey: true });
+
+    const input = screen.getByPlaceholderText("Type a command or search...");
+    fireEvent.change(input, { target: { value: "create label" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(pushMock).toHaveBeenCalledWith("/settings/issue-labels");
+  });
+
   it("shows keyboard shortcuts for commands", () => {
     render(<CommandPalette teamKey="ENG" />);
 

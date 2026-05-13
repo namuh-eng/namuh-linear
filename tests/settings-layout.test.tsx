@@ -165,6 +165,10 @@ describe("Settings Layout Shell", () => {
     // Labels appears in both Issues and Projects sections
     const labelLinks = screen.getAllByText("Labels");
     expect(labelLinks.length).toBe(2);
+    expect(labelLinks[0].closest("a")).toHaveAttribute(
+      "href",
+      "/namuh/settings/issue-labels",
+    );
   });
 
   it("renders Features section links", () => {
