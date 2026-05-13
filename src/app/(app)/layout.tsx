@@ -2,9 +2,10 @@ import { autoJoinWorkspaceForApprovedDomain } from "@/lib/approved-domain-auto-j
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member, team, workspace } from "@/lib/db/schema";
+import { isAppRoutePrefix, normalizeAppPath } from "@/lib/workspace-paths";
 import { desc, eq } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AppShell } from "./app-shell";
 
 export default async function AppLayout({
@@ -12,14 +13,16 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  const session = await auth.api.getSession({ headers: requestHeaders });
 
   if (!session) {
     redirect("/login");
   }
-
   const cookieStore = await cookies();
   const preferredWorkspaceId = cookieStore.get("activeWorkspaceId")?.value;
+  const requestedWorkspaceSlug = requestHeaders.get("x-workspace-slug");
+  const sourcePath = requestHeaders.get("x-workspace-source-path");
 
   const loadMemberships = () =>
     db
@@ -48,10 +51,26 @@ export default async function AppLayout({
     }
   }
 
-  const ws =
-    memberships.find(
-      (membership) => membership.workspaceId === preferredWorkspaceId,
-    ) ?? memberships[0];
+  const ws = requestedWorkspaceSlug
+    ? memberships.find(
+        (membership) => membership.workspaceSlug === requestedWorkspaceSlug,
+      )
+    : (memberships.find(
+        (membership) => membership.workspaceId === preferredWorkspaceId,
+      ) ?? memberships[0]);
+
+  if (!ws) {
+    notFound();
+  }
+
+  if (!requestedWorkspaceSlug && sourcePath) {
+    const normalizedSourcePath = normalizeAppPath(sourcePath);
+    const firstSegment = normalizedSourcePath.split("/").filter(Boolean)[0];
+
+    if (isAppRoutePrefix(firstSegment)) {
+      redirect(`/${ws.workspaceSlug}${normalizedSourcePath}`);
+    }
+  }
 
   // Get first team
   const teams = await db
@@ -66,6 +85,7 @@ export default async function AppLayout({
   return (
     <AppShell
       workspaceId={ws.workspaceId}
+      workspaceSlug={ws.workspaceSlug}
       workspaceName={ws.workspaceName}
       workspaceInitials={ws.workspaceName.substring(0, 2).toUpperCase()}
       teamName={firstTeam.name}

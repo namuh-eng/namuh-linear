@@ -5,6 +5,7 @@ import SettingsLayout from "@/app/(app)/settings/layout";
 
 vi.mock("@/app/(app)/app-shell", () => ({
   useAppShellContext: () => ({
+    workspaceSlug: "namuh",
     teams: [
       { id: "team-1", name: "Engineering", key: "ENG" },
       { id: "team-2", name: "Design", key: "DES" },
@@ -56,7 +57,7 @@ describe("Settings Layout Shell", () => {
     );
 
     const backLink = screen.getByText("Back to app");
-    expect(backLink.closest("a")).toHaveAttribute("href", "/");
+    expect(backLink.closest("a")).toHaveAttribute("href", "/namuh/inbox");
   });
 
   it("renders Settings heading", () => {

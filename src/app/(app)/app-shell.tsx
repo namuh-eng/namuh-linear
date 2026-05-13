@@ -13,12 +13,14 @@ import {
   OPEN_CREATE_ISSUE_EVENT,
   OPEN_CREATE_ISSUE_FULLSCREEN_EVENT,
 } from "@/lib/command-palette";
+import { stripWorkspaceSlug } from "@/lib/workspace-paths";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
 
 interface AppShellProps {
   children: React.ReactNode;
   workspaceId?: string;
+  workspaceSlug?: string;
   workspaceName: string;
   workspaceInitials: string;
   teamName: string;
@@ -29,6 +31,7 @@ interface AppShellProps {
 
 interface ShellContext {
   workspaceId: string;
+  workspaceSlug: string;
   workspaceName: string;
   workspaceInitials: string;
   teamName: string;
@@ -74,6 +77,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 export function AppShell({
   children,
   workspaceId = "",
+  workspaceSlug = "",
   workspaceName,
   workspaceInitials,
   teamName,
@@ -81,7 +85,7 @@ export function AppShell({
   teamKey,
   teams,
 }: AppShellProps) {
-  const pathname = usePathname();
+  const pathname = stripWorkspaceSlug(usePathname(), workspaceSlug);
   const isSettingsRoute = pathname.startsWith("/settings");
   const [showCreateIssue, setShowCreateIssue] = useState(false);
   const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
@@ -89,6 +93,7 @@ export function AppShell({
     useState<AccountPreferences>(DEFAULT_ACCOUNT_PREFERENCES);
   const [shellContext, setShellContext] = useState<ShellContext>({
     workspaceId,
+    workspaceSlug,
     workspaceName,
     workspaceInitials,
     teamName,
@@ -103,6 +108,7 @@ export function AppShell({
   useEffect(() => {
     const fallbackContext = {
       workspaceId,
+      workspaceSlug,
       workspaceName,
       workspaceInitials,
       teamName,
@@ -151,6 +157,7 @@ export function AppShell({
     teamName,
     teams,
     workspaceId,
+    workspaceSlug,
     workspaceInitials,
     workspaceName,
   ]);
@@ -325,6 +332,7 @@ export function AppShell({
             inboxUnreadCount={inboxUnreadCount}
             onCreateIssue={() => setShowCreateIssue(true)}
             accountPreferences={accountPreferences}
+            workspaceSlug={shellContext.workspaceSlug}
           />
         </div>
         <main
@@ -354,6 +362,7 @@ export function AppShell({
         <CommandPalette
           teamKey={shellContext.teamKey}
           workspaceId={shellContext.workspaceId}
+          workspaceSlug={shellContext.workspaceSlug}
         />
       </div>
     </AppShellContext.Provider>

@@ -18,6 +18,7 @@ export async function GET(
   const [context] = await db
     .select({
       workspaceName: workspace.name,
+      workspaceSlug: workspace.urlSlug,
       workspaceId: workspace.id,
       teamId: team.id,
       teamName: team.name,

@@ -6,12 +6,14 @@ import {
   OPEN_CREATE_ISSUE_EVENT,
   OPEN_CREATE_ISSUE_FULLSCREEN_EVENT,
 } from "@/lib/command-palette";
+import { withWorkspaceSlug } from "@/lib/workspace-paths";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface CommandPaletteProps {
   teamKey: string;
   workspaceId?: string;
+  workspaceSlug?: string;
 }
 
 interface SearchResult {
@@ -30,7 +32,11 @@ interface CommandItem {
   action: () => void;
 }
 
-export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
+export function CommandPalette({
+  teamKey,
+  workspaceId,
+  workspaceSlug,
+}: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -39,6 +45,10 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const lastFocusedElementRef = useRef<HTMLElement | null>(null);
   const router = useRouter();
+  const goTo = useCallback(
+    (path: string) => router.push(withWorkspaceSlug(path, workspaceSlug)),
+    [router, workspaceSlug],
+  );
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
   const latestSearchRequestRef = useRef(0);
@@ -73,12 +83,12 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
   const openLastIssue = useCallback(() => {
     const lastIssueId = window.localStorage.getItem(LAST_ISSUE_STORAGE_KEY);
     if (lastIssueId) {
-      router.push(`/issue/${lastIssueId}`);
+      goTo(`/issue/${lastIssueId}`);
       return;
     }
 
-    router.push(`/team/${teamKey}/all`);
-  }, [router, teamKey]);
+    goTo(`/team/${teamKey}/all`);
+  }, [goTo, teamKey]);
 
   // Commands
   const commands: CommandItem[] = [
@@ -87,7 +97,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       label: "Create view",
       group: "Views",
       action: () => {
-        router.push("/views");
+        goTo("/views");
       },
     },
     {
@@ -115,7 +125,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       label: "Create label",
       group: "Issues",
       action: () => {
-        router.push("/settings/issue-labels");
+        goTo("/settings/issue-labels");
       },
     },
     {
@@ -124,7 +134,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       shortcut: "N U",
       group: "Projects",
       action: () => {
-        router.push("/projects/all");
+        goTo("/projects/all");
       },
     },
     {
@@ -133,7 +143,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       shortcut: "N P",
       group: "Projects",
       action: () => {
-        router.push("/projects/all");
+        goTo("/projects/all");
       },
     },
     {
@@ -141,7 +151,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       label: "Create document",
       group: "Documents",
       action: () => {
-        router.push("/views");
+        goTo("/views");
       },
     },
     {
@@ -151,7 +161,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       closeOnSelect: true,
       action: () => {
         if (query.trim()) {
-          router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+          goTo(`/search?q=${encodeURIComponent(query.trim())}`);
         } else {
           inputRef.current?.focus();
         }
@@ -163,7 +173,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       shortcut: "Cmd F",
       group: "Filter",
       action: () => {
-        router.push("/views");
+        goTo("/views");
       },
     },
     {
@@ -179,7 +189,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       label: "Document template",
       group: "Templates",
       action: () => {
-        router.push("/views");
+        goTo("/views");
       },
     },
     {
@@ -187,7 +197,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       label: "Project template",
       group: "Templates",
       action: () => {
-        router.push("/projects/all");
+        goTo("/projects/all");
       },
     },
     {
@@ -201,7 +211,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       label: "Open in desktop",
       group: "Navigation",
       action: () => {
-        router.push("/settings/account/preferences");
+        goTo("/settings/account/preferences");
       },
     },
     {
@@ -209,7 +219,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       label: "Go to Inbox",
       group: "Navigation",
       action: () => {
-        router.push("/inbox");
+        goTo("/inbox");
       },
     },
     {
@@ -217,7 +227,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       label: "Go to My Issues",
       group: "Navigation",
       action: () => {
-        router.push("/my-issues/assigned");
+        goTo("/my-issues/assigned");
       },
     },
     {
@@ -225,7 +235,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       label: "Go to Issues",
       group: "Navigation",
       action: () => {
-        router.push(`/team/${teamKey}/all`);
+        goTo(`/team/${teamKey}/all`);
       },
     },
     {
@@ -233,7 +243,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       label: "Go to Board",
       group: "Navigation",
       action: () => {
-        router.push(`/team/${teamKey}/board`);
+        goTo(`/team/${teamKey}/board`);
       },
     },
   ];
@@ -380,7 +390,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
           // Navigate to issue
           const result = results[selectedIndex];
           close();
-          router.push(`/issue/${result.id}`);
+          goTo(`/issue/${result.id}`);
         } else {
           const cmdIndex = selectedIndex - results.length;
           if (cmdIndex < filteredCommands.length) {
@@ -394,8 +404,8 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
       close,
       executeCommand,
       filteredCommands,
+      goTo,
       results,
-      router,
       selectedIndex,
       totalItems,
     ],
@@ -476,7 +486,7 @@ export function CommandPalette({ teamKey, workspaceId }: CommandPaletteProps) {
                     }`}
                     onClick={() => {
                       close();
-                      router.push(`/issue/${result.id}`);
+                      goTo(`/issue/${result.id}`);
                     }}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >
