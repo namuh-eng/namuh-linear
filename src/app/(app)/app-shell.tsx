@@ -166,7 +166,8 @@ export function AppShell({
 
   useEffect(() => {
     document.cookie = `activeWorkspaceId=${shellContext.workspaceId}; path=/; samesite=lax`;
-  }, [shellContext.workspaceId]);
+    document.cookie = `activeWorkspaceSlug=${shellContext.workspaceSlug}; path=/; samesite=lax`;
+  }, [shellContext.workspaceId, shellContext.workspaceSlug]);
 
   useEffect(() => {
     let cancelled = false;

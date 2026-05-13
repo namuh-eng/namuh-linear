@@ -4,6 +4,12 @@ const userLimitMock = vi.fn();
 const insertReturningMock = vi.fn();
 const createSessionMock = vi.fn();
 const makeSignatureMock = vi.fn();
+const ensureCanonicalWorkspaceForUserMock = vi.fn();
+
+vi.mock("@/lib/canonical-workspace", () => ({
+  ensureCanonicalWorkspaceForUser: (userId: string) =>
+    ensureCanonicalWorkspaceForUserMock(userId),
+}));
 
 vi.mock("@/lib/auth", () => ({
   auth: {
@@ -60,6 +66,14 @@ describe("test create session route", () => {
       expiresAt: new Date(Date.now() + 3600000),
     });
     makeSignatureMock.mockResolvedValue("signature");
+    ensureCanonicalWorkspaceForUserMock.mockResolvedValue({
+      workspace: {
+        id: "workspace-foreverbrowsing",
+        name: "Forever Browsing",
+        urlSlug: "foreverbrowsing",
+      },
+      team: { id: "team-eng", name: "Engineering", key: "ENG" },
+    });
   });
 
   it("returns 200 and session when in test mode", async () => {
@@ -76,6 +90,12 @@ describe("test create session route", () => {
     const payload = await response.json();
     expect(payload.success).toBe(true);
     expect(payload.sessionToken).toBe("session-token.signature");
+    expect(payload.workspace.urlSlug).toBe("foreverbrowsing");
+    expect(payload.team.key).toBe("ENG");
+    expect(ensureCanonicalWorkspaceForUserMock).toHaveBeenCalledWith("user-1");
+    expect(response.headers.get("set-cookie")).toContain(
+      "activeWorkspaceId=workspace-foreverbrowsing",
+    );
   });
 
   it("returns 503 with setup instructions when Postgres is unavailable", async () => {

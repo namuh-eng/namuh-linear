@@ -6,9 +6,13 @@ import { cookies } from "next/headers";
 export async function resolveActiveWorkspaceId(userId: string) {
   const cookieStore = await cookies();
   const preferredWorkspaceId = cookieStore.get("activeWorkspaceId")?.value;
+  const preferredWorkspaceSlug = cookieStore.get("activeWorkspaceSlug")?.value;
 
   const memberships = await db
-    .select({ workspaceId: member.workspaceId })
+    .select({
+      workspaceId: member.workspaceId,
+      workspaceSlug: workspace.urlSlug,
+    })
     .from(member)
     .innerJoin(workspace, eq(member.workspaceId, workspace.id))
     .where(eq(member.userId, userId))
@@ -21,7 +25,11 @@ export async function resolveActiveWorkspaceId(userId: string) {
 
   return (
     memberships.find(
+      (membership) => membership.workspaceSlug === preferredWorkspaceSlug,
+    )?.workspaceId ??
+    memberships.find(
       (membership) => membership.workspaceId === preferredWorkspaceId,
-    )?.workspaceId ?? memberships[0].workspaceId
+    )?.workspaceId ??
+    memberships[0].workspaceId
   );
 }

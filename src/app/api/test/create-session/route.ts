@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { auth } from "@/lib/auth";
+import { ensureCanonicalWorkspaceForUser } from "@/lib/canonical-workspace";
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/schema";
 import {
@@ -100,6 +101,10 @@ async function createTestSession(email: string, name: string | undefined) {
         })
     )[0];
 
+  const canonicalContext = await ensureCanonicalWorkspaceForUser(
+    resolvedUser.id,
+  );
+
   const authContext = await auth.$context;
   const createdSession = await authContext.internalAdapter.createSession(
     resolvedUser.id,
@@ -115,7 +120,24 @@ async function createTestSession(email: string, name: string | undefined) {
     user: resolvedUser,
     sessionToken: signedToken,
     expiresAt: createdSession.expiresAt.toISOString(),
+    workspace: canonicalContext.workspace,
+    team: canonicalContext.team,
   });
+
+  response.cookies.set("activeWorkspaceId", canonicalContext.workspace.id, {
+    path: "/",
+    sameSite: "lax",
+    secure: sessionCookie.attributes.secure ?? false,
+  });
+  response.cookies.set(
+    "activeWorkspaceSlug",
+    canonicalContext.workspace.urlSlug,
+    {
+      path: "/",
+      sameSite: "lax",
+      secure: sessionCookie.attributes.secure ?? false,
+    },
+  );
 
   response.cookies.set(sessionCookie.name, signedToken, {
     expires: createdSession.expiresAt,
