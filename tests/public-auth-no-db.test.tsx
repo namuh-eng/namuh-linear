@@ -1,5 +1,8 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const fetchMock = vi.fn();
+vi.stubGlobal("fetch", fetchMock);
 
 vi.mock("@/lib/auth", () => {
   throw new Error("public auth pages must not import server auth/session code");
@@ -23,6 +26,13 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 
 describe("public auth pages without a database", () => {
+  beforeEach(() => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ providers: { google: true } }),
+    });
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -38,7 +48,7 @@ describe("public auth pages without a database", () => {
     ).toBeDefined();
     expect(screen.getByRole("img", { name: "Linear logo" })).toBeDefined();
     expect(
-      screen.getByRole("button", { name: /Continue with Google/i }),
+      await screen.findByRole("button", { name: /Continue with Google/i }),
     ).toBeDefined();
     expect(screen.queryByText(/Internal Server Error/i)).toBeNull();
   });
