@@ -158,6 +158,7 @@ export default function CycleDetailPage() {
               {group.issues.map((iss) => (
                 <IssueRow
                   key={iss.id}
+                  href={`/team/${params.key}/issue/${iss.identifier}`}
                   identifier={iss.identifier}
                   title={iss.title}
                   priority={priorityMap[iss.priority] ?? 0}
