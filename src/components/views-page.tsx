@@ -3,6 +3,7 @@
 import { Avatar } from "@/components/avatar";
 import { EmptyState } from "@/components/empty-state";
 import type { FilterCondition } from "@/components/filter-bar";
+import { TeamRouteErrorState } from "@/components/team-route-error-state";
 import {
   type ProjectViewSortOption,
   type ProjectViewStatusFilter,
@@ -12,7 +13,7 @@ import {
   projectViewSortOptions,
   projectViewStatusOptions,
 } from "@/lib/views";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 interface ViewTeam {
@@ -535,8 +536,17 @@ function CreateViewModal({
   );
 }
 
-export function ViewsPage({ initialTab }: { initialTab: ViewEntityType }) {
+export function ViewsPage({
+  initialTab,
+  initialTeamKey,
+  initialTeamKeyFromRoute = false,
+}: {
+  initialTab: ViewEntityType;
+  initialTeamKey?: string;
+  initialTeamKeyFromRoute?: boolean;
+}) {
   const router = useRouter();
+  const params = useParams<{ key?: string }>();
   const searchParams = useSearchParams();
   const [views, setViews] = useState<ViewSummary[]>([]);
   const [teams, setTeams] = useState<ViewTeam[]>([]);
@@ -545,7 +555,9 @@ export function ViewsPage({ initialTab }: { initialTab: ViewEntityType }) {
   const [editingView, setEditingView] = useState<ViewSummary | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  const activeTeamKey = searchParams.get("team");
+  const routeTeamKey = initialTeamKeyFromRoute ? params.key : undefined;
+  const activeTeamKey =
+    initialTeamKey ?? routeTeamKey ?? searchParams.get("team");
 
   const fetchViews = useCallback(async () => {
     try {
@@ -587,9 +599,15 @@ export function ViewsPage({ initialTab }: { initialTab: ViewEntityType }) {
   const personalViews = filteredViews.filter((view) => view.isPersonal);
   const sharedViews = filteredViews.filter((view) => !view.isPersonal);
   const activeTeam = teams.find((team) => team.key === activeTeamKey) ?? null;
+  const teamRouteNotFound = Boolean(activeTeamKey && !activeTeam);
 
   const handleTabChange = (tab: ViewEntityType) => {
     setActiveTab(tab);
+    if (initialTeamKey || routeTeamKey) {
+      router.push(`/team/${encodeURIComponent(activeTeamKey ?? "")}/views`);
+      return;
+    }
+
     const basePath = tab === "issues" ? "/views/issues" : "/views/projects";
     const query = activeTeamKey
       ? `?team=${encodeURIComponent(activeTeamKey)}`
@@ -651,6 +669,10 @@ export function ViewsPage({ initialTab }: { initialTab: ViewEntityType }) {
         Loading...
       </div>
     );
+  }
+
+  if (teamRouteNotFound) {
+    return <TeamRouteErrorState teamKey={activeTeamKey ?? ""} />;
   }
 
   return (

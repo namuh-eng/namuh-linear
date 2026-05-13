@@ -2,7 +2,9 @@
 
 import { EmptyState } from "@/components/empty-state";
 import { ProjectRow } from "@/components/project-row";
+import { TeamRouteErrorState } from "@/components/team-route-error-state";
 import { useProjectViewState } from "@/hooks/use-project-view-state";
+import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 interface ProjectData {
@@ -36,23 +38,79 @@ function compareTargetDates(left: string | null, right: string | null): number {
   return new Date(left).getTime() - new Date(right).getTime();
 }
 
-export function ProjectsPage() {
+export function ProjectsPage({
+  initialTeamKey,
+  initialTeamKeyFromRoute = false,
+}: {
+  initialTeamKey?: string;
+  initialTeamKeyFromRoute?: boolean;
+} = {}) {
+  const params = useParams<{ key?: string }>();
+  const routeTeamKey = initialTeamKeyFromRoute ? params.key : undefined;
+  const teamKey = initialTeamKey ?? routeTeamKey ?? null;
   const [projects, setProjects] = useState<ProjectData[]>([]);
+  const [activeTeam, setActiveTeam] = useState<{
+    id: string;
+    key: string;
+    name: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadState, setLoadState] = useState<"ready" | "not-found" | "error">(
+    "ready",
+  );
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const { state: viewState, updateState } = useProjectViewState("workspace");
+  const { state: viewState, updateState } = useProjectViewState(
+    teamKey ? `team:${teamKey}` : "workspace",
+  );
 
   const fetchProjects = useCallback(async () => {
+    setLoading(true);
     try {
+      let teamRecord: { id: string; key: string; name: string } | null = null;
+
+      if (teamKey) {
+        const teamRes = await fetch(
+          `/api/teams/${encodeURIComponent(teamKey)}/settings`,
+        );
+
+        if (!teamRes.ok) {
+          setProjects([]);
+          setActiveTeam(null);
+          setLoadState(teamRes.status === 404 ? "not-found" : "error");
+          return;
+        }
+
+        const teamData = await teamRes.json();
+        teamRecord = teamData.team ?? null;
+
+        if (!teamRecord) {
+          setProjects([]);
+          setActiveTeam(null);
+          setLoadState("not-found");
+          return;
+        }
+      }
+
       const res = await fetch("/api/projects");
       if (res.ok) {
         const data = await res.json();
         setProjects(data.projects ?? []);
+        setActiveTeam(teamRecord);
+        setLoadState("ready");
+        return;
       }
+
+      setProjects([]);
+      setActiveTeam(teamRecord);
+      setLoadState("error");
+    } catch {
+      setProjects([]);
+      setActiveTeam(null);
+      setLoadState("error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [teamKey]);
 
   useEffect(() => {
     fetchProjects();
@@ -88,7 +146,23 @@ export function ProjectsPage() {
     );
   }
 
-  if (projects.length === 0) {
+  if (loadState !== "ready") {
+    return (
+      <TeamRouteErrorState
+        teamKey={teamKey ?? ""}
+        variant={loadState}
+        onRetry={loadState === "error" ? fetchProjects : undefined}
+      />
+    );
+  }
+
+  const scopedProjects = teamKey
+    ? projects.filter((project) =>
+        project.teams.some((team) => team.key === teamKey),
+      )
+    : projects;
+
+  if (scopedProjects.length === 0) {
     return (
       <div className="flex h-full flex-col">
         {showCreateForm ? (
@@ -130,7 +204,11 @@ export function ProjectsPage() {
         ) : (
           <EmptyState
             title="No projects"
-            description="Projects are time-bound deliverables that group issues across teams. Create one to start tracking progress."
+            description={
+              teamKey && activeTeam
+                ? `No projects are associated with ${activeTeam.name} yet.`
+                : "Projects are time-bound deliverables that group issues across teams. Create one to start tracking progress."
+            }
             icon={
               <svg
                 width="22"
@@ -159,8 +237,9 @@ export function ProjectsPage() {
     );
   }
 
-  const filteredProjects = projects.filter((project) => {
+  const filteredProjects = scopedProjects.filter((project) => {
     if (
+      !teamKey &&
       viewState.teamId &&
       !project.teams.some((team) => team.id === viewState.teamId)
     ) {
@@ -193,17 +272,19 @@ export function ProjectsPage() {
     }
   });
 
-  const activeTeamName = viewState.teamId
-    ? (projects
-        .flatMap((project) => project.teams)
-        .find((team) => team.id === viewState.teamId)?.name ?? null)
-    : null;
+  const activeTeamName = teamKey
+    ? (activeTeam?.name ?? null)
+    : viewState.teamId
+      ? (projects
+          .flatMap((project) => project.teams)
+          .find((team) => team.id === viewState.teamId)?.name ?? null)
+      : null;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center border-b border-[var(--color-border)] px-4 py-2">
         <h1 className="mr-4 text-[15px] font-medium text-[var(--color-text-primary)]">
-          Projects
+          {activeTeamName ? `${activeTeamName} Projects` : "Projects"}
         </h1>
         <div className="flex items-center gap-0.5">
           <span className="rounded-md bg-[var(--color-surface-active)] px-2.5 py-1 text-[13px] text-[var(--color-text-primary)]">
@@ -255,7 +336,7 @@ export function ProjectsPage() {
         >
           New project
         </button>
-        {activeTeamName && (
+        {activeTeamName && !teamKey && (
           <button
             type="button"
             onClick={() => updateState({ teamId: null })}
@@ -265,7 +346,7 @@ export function ProjectsPage() {
           </button>
         )}
         <span className="text-[12px] text-[var(--color-text-secondary)]">
-          {visibleProjects.length} of {projects.length} projects
+          {visibleProjects.length} of {scopedProjects.length} projects
         </span>
       </div>
 

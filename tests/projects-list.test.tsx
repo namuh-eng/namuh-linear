@@ -273,4 +273,80 @@ describe("ProjectsPage", () => {
       );
     });
   });
+
+  it("renders team-scoped projects and validates the team route", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      if (url === "/api/teams/ONB/settings") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            team: { id: "team-1", key: "ONB", name: "Onboarding QA Team" },
+          }),
+        } as Response);
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          projects: [
+            {
+              id: "project-1",
+              name: "Onboarding roadmap",
+              icon: "O",
+              slug: "onboarding-roadmap",
+              status: "started",
+              priority: "high",
+              health: "No updates",
+              lead: null,
+              teams: [{ id: "team-1", key: "ONB", name: "Onboarding QA Team" }],
+              targetDate: null,
+              progress: 25,
+              createdAt: "2026-04-05T00:00:00.000Z",
+            },
+            {
+              id: "project-2",
+              name: "Platform roadmap",
+              icon: "P",
+              slug: "platform-roadmap",
+              status: "started",
+              priority: "medium",
+              health: "No updates",
+              lead: null,
+              teams: [{ id: "team-2", key: "PLT", name: "Platform" }],
+              targetDate: null,
+              progress: 50,
+              createdAt: "2026-04-06T00:00:00.000Z",
+            },
+          ],
+        }),
+      } as Response);
+    });
+
+    render(<ProjectsPage initialTeamKey="ONB" />);
+
+    expect(
+      await screen.findByText("Onboarding QA Team Projects"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Onboarding roadmap")).toBeInTheDocument();
+    expect(screen.queryByText("Platform roadmap")).not.toBeInTheDocument();
+    expect(screen.getByText("1 of 1 projects")).toBeInTheDocument();
+  });
+
+  it("shows the team not found state for unknown team project routes", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: "Team not found" }),
+    } as Response);
+
+    render(<ProjectsPage initialTeamKey="NOPE" />);
+
+    expect(await screen.findByText("Team not found")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "The team NOPE doesn't exist or you don't have access to it.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No projects")).not.toBeInTheDocument();
+  });
 });

@@ -15,6 +15,7 @@ let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn(), back: vi.fn() }),
   useSearchParams: () => searchParams,
+  useParams: () => ({ key: "ONB" }),
 }));
 
 const mockFetch = vi.fn();
@@ -142,6 +143,38 @@ describe("ViewsPage", () => {
     await waitForLoaded();
 
     expect(screen.getByText("No views")).toBeInTheDocument();
+  });
+
+  it("renders only views for the team-scoped route", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => buildViewsResponse(),
+    });
+
+    render(<ViewsPage initialTab="issues" initialTeamKey="ONB" />);
+    await waitForLoaded();
+
+    expect(screen.getByText("Onboarding QA Team")).toBeInTheDocument();
+    expect(screen.getByText("High priority onboarding")).toBeInTheDocument();
+    expect(screen.queryByText("Project progress")).not.toBeInTheDocument();
+  });
+
+  it("shows team not found for unknown team view routes", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => buildViewsResponse(),
+    });
+
+    render(<ViewsPage initialTab="issues" initialTeamKey="NOPE" />);
+    await waitForLoaded();
+
+    expect(screen.getByText("Team not found")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "The team NOPE doesn't exist or you don't have access to it.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No views")).not.toBeInTheDocument();
   });
 
   it("creates issue views with captured team filters", async () => {
