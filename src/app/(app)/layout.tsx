@@ -8,7 +8,7 @@ import {
   shouldRenderDatabaseBootstrapError,
 } from "@/lib/dev-database-error";
 import { isAppRoutePrefix, normalizeAppPath } from "@/lib/workspace-paths";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "./app-shell";
@@ -103,13 +103,31 @@ export default async function AppLayout({
       }
     }
 
-    const ws = requestedWorkspaceSlug
+    let ws = requestedWorkspaceSlug
       ? memberships.find(
           (membership) => membership.workspaceSlug === requestedWorkspaceSlug,
         )
       : (memberships.find(
           (membership) => membership.workspaceId === preferredWorkspaceId,
         ) ?? memberships[0]);
+
+    if (!ws && requestedWorkspaceSlug) {
+      [ws] = await db
+        .select({
+          workspaceId: member.workspaceId,
+          workspaceName: workspace.name,
+          workspaceSlug: workspace.urlSlug,
+        })
+        .from(member)
+        .innerJoin(workspace, eq(member.workspaceId, workspace.id))
+        .where(
+          and(
+            eq(member.userId, session.user.id),
+            eq(workspace.urlSlug, requestedWorkspaceSlug),
+          ),
+        )
+        .limit(1);
+    }
 
     if (!ws) {
       notFound();
