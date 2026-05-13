@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppShellContext } from "@/app/(app)/app-shell";
+import { stripWorkspaceSlug, withWorkspaceSlug } from "@/lib/workspace-paths";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -79,14 +80,16 @@ function SettingsSidebarLink({
   href,
   label,
   active,
+  workspaceSlug,
 }: {
   href: string;
   label: string;
   active: boolean;
+  workspaceSlug?: string;
 }) {
   return (
     <Link
-      href={href}
+      href={withWorkspaceSlug(href, workspaceSlug)}
       className={`block rounded-md px-2 py-[5px] text-[13px] transition-colors ${
         active
           ? "bg-[var(--color-surface-active)] text-[var(--color-text-primary)]"
@@ -111,8 +114,9 @@ export default function SettingsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
   const shellContext = useAppShellContext();
+  const workspaceSlug = shellContext?.workspaceSlug;
+  const pathname = stripWorkspaceSlug(usePathname(), workspaceSlug);
   const sectionsWithTeams =
     shellContext?.teams && shellContext.teams.length > 0
       ? [
@@ -132,7 +136,7 @@ export default function SettingsLayout({
       {/* Settings sidebar */}
       <aside className="max-h-[40vh] w-full shrink-0 overflow-y-auto border-b border-[var(--color-border)] px-3 py-4 md:max-h-none md:w-[220px] md:border-b-0 md:border-r">
         <Link
-          href="/"
+          href={withWorkspaceSlug("/inbox", workspaceSlug)}
           className="mb-4 flex items-center gap-1.5 px-2 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
         >
           <svg
@@ -165,6 +169,7 @@ export default function SettingsLayout({
                   href={item.href}
                   label={item.label}
                   active={isActiveSettingsPath(pathname, item.href)}
+                  workspaceSlug={workspaceSlug}
                 />
               ))}
             </div>

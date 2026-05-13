@@ -1,3 +1,8 @@
+import {
+  getPathSegments,
+  isAppRoutePrefix,
+  isPublicRoutePrefix,
+} from "@/lib/workspace-paths";
 import { type NextRequest, NextResponse } from "next/server";
 
 const publicPaths = [
@@ -14,6 +19,31 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
+function isStaticPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon") ||
+    pathname.includes(".")
+  );
+}
+
+function getSlugRewrite(pathname: string) {
+  const segments = getPathSegments(pathname);
+
+  if (
+    segments.length > 1 &&
+    !isPublicRoutePrefix(segments[0]) &&
+    isAppRoutePrefix(segments[1])
+  ) {
+    return {
+      slug: decodeURIComponent(segments[0]),
+      pathname: `/${segments.slice(1).join("/")}`,
+    };
+  }
+
+  return null;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
@@ -23,11 +53,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Allow static assets and Next.js internals
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    pathname.includes(".")
-  ) {
+  if (isStaticPath(pathname)) {
     return NextResponse.next();
   }
 
@@ -42,7 +68,20 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-workspace-source-path", pathname);
+
+  const slugRewrite = getSlugRewrite(pathname);
+  if (slugRewrite) {
+    requestHeaders.set("x-workspace-slug", slugRewrite.slug);
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = slugRewrite.pathname;
+    return NextResponse.rewrite(rewriteUrl, {
+      request: { headers: requestHeaders },
+    });
+  }
+
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

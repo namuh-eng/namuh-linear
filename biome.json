@@ -30,6 +30,7 @@
       "coverage",
       ".omc",
       ".omx",
+      ".scratch",
       "drizzle",
       "*.d.ts",
       "public",
