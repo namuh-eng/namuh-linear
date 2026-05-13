@@ -111,7 +111,7 @@ function FooterLinks({ mode }: { mode: AuthMode }) {
       </Link>{" "}
       or{" "}
       <a
-        href="https://linear.app"
+        href="https://linear.app/homepage"
         className="font-medium text-[var(--auth-link)] transition-opacity hover:opacity-80"
       >
         learn more
@@ -394,7 +394,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
         {step === "sso-input" && (
           <form onSubmit={handleSsoSubmit} className="space-y-3">
             <input
-              type="text"
+              type="email"
               value={ssoIdentifier}
               onChange={(e) => {
                 setSsoIdentifier(e.target.value);

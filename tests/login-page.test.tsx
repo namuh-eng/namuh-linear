@@ -81,9 +81,9 @@ describe("Login page", () => {
     );
 
     expect(screen.getByText("What’s your email address?")).toBeDefined();
-    expect(
-      screen.getByPlaceholderText("Enter your email address…"),
-    ).toBeDefined();
+    const samlInput = screen.getByPlaceholderText("Enter your email address…");
+    expect(samlInput).toBeDefined();
+    expect(samlInput.getAttribute("type")).toBe("email");
     expect(
       screen.getByRole("button", { name: "Continue with SAML" }),
     ).toBeDefined();
@@ -220,7 +220,9 @@ describe("Login page", () => {
       "Don’t have an account? Sign up or learn more",
     );
     expect(screen.getByText("Sign up")).toBeDefined();
-    expect(screen.getByText("learn more")).toBeDefined();
+    const learnMore = screen.getByText("learn more");
+    expect(learnMore).toBeDefined();
+    expect(learnMore.getAttribute("href")).toBe("https://linear.app/homepage");
     expect(screen.queryByText("Terms of Service")).toBeNull();
     expect(screen.queryByText("Privacy Policy")).toBeNull();
   });
