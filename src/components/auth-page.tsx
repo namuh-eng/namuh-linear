@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type AuthMode = "login" | "signup";
-type LoginStep = "choose" | "email-input" | "email-code";
+type LoginStep = "choose" | "email-input" | "email-code" | "sso-input";
 
 const authErrorMessages: Record<string, string> = {
   INVALID_TOKEN:
@@ -187,6 +187,21 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     }
   }
 
+  function handlePasskeyLogin() {
+    setError(
+      "Passkey login is not configured for this workspace yet. Use Google, email, or SAML SSO to continue.",
+    );
+  }
+
+  function handleSsoSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+
+    setError(
+      "SAML SSO is not configured for this workspace yet. Contact your workspace admin or use another login method.",
+    );
+  }
+
   function handleCodeSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -282,7 +297,61 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                 <rect width="20" height="16" x="2" y="4" rx="2" />
                 <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
               </svg>
-              Continue with Email
+              Continue with email
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setStep("sso-input");
+                setError("");
+              }}
+              disabled={loading}
+              className="auth-secondary-button flex h-11 w-full items-center justify-center gap-3 rounded-full border px-4 text-[14px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                role="img"
+                aria-label="SAML SSO"
+              >
+                <path d="M12 3 3 7.5 12 12l9-4.5L12 3Z" />
+                <path d="M3 12.5 12 17l9-4.5" />
+                <path d="M3 17.5 12 22l9-4.5" />
+              </svg>
+              Continue with SAML SSO
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePasskeyLogin}
+              disabled={loading}
+              className="auth-secondary-button flex h-11 w-full items-center justify-center gap-3 rounded-full border px-4 text-[14px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                role="img"
+                aria-label="Passkey"
+              >
+                <circle cx="7.5" cy="15.5" r="4.5" />
+                <path d="M12 15.5h9" />
+                <path d="M17 15.5v-3" />
+                <path d="M20 15.5v-2" />
+              </svg>
+              Log in with passkey
             </button>
 
             {error && (
@@ -291,6 +360,42 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
               </p>
             )}
           </div>
+        )}
+
+        {step === "sso-input" && (
+          <form onSubmit={handleSsoSubmit} className="space-y-3">
+            <input
+              type="text"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your work email or workspace URL..."
+              required
+              className="auth-input h-11 w-full rounded-full border px-4 text-[14px] outline-none transition-colors"
+            />
+            <button
+              type="submit"
+              disabled={!email.trim()}
+              className="auth-primary-button flex h-11 w-full items-center justify-center rounded-full border border-transparent px-4 text-[14px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Continue with SAML SSO
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStep("choose");
+                setError("");
+                setEmail("");
+              }}
+              className="w-full pt-1 text-center text-[13px] text-[var(--auth-muted)] transition-opacity hover:opacity-80"
+            >
+              Back to login options
+            </button>
+            {error && (
+              <p className="text-center text-sm text-[var(--auth-error)]">
+                {error}
+              </p>
+            )}
+          </form>
         )}
 
         {step === "email-input" && (
@@ -308,7 +413,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
               disabled={loading || !email.trim()}
               className="auth-primary-button flex h-11 w-full items-center justify-center rounded-full border border-transparent px-4 text-[14px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? "Sending..." : "Continue with Email"}
+              {loading ? "Sending..." : "Continue with email"}
             </button>
             <button
               type="button"
