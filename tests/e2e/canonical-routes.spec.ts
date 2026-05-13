@@ -25,6 +25,20 @@ test.describe("Canonical Forever Browsing routes", () => {
       page.locator('a[href="/foreverbrowsing/team/ENG/all"]').first(),
     ).toHaveAttribute("href", "/foreverbrowsing/team/ENG/all");
 
+    await page.goto("/foreverbrowsing/team/ENG/board");
+    await expect(page).toHaveURL(/\/foreverbrowsing\/team\/ENG\/board$/);
+    await expect(
+      page.getByText(
+        "The team ENG doesn't exist or you don't have access to it.",
+      ),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /No issues|Backlog|Todo|In Progress/ }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("This page could not be found"),
+    ).not.toBeVisible();
+
     await page.goto("/foreverbrowsing/team/ENG/cycles");
     await expect(page).toHaveURL(/\/foreverbrowsing\/team\/ENG\/cycles$/);
     await expect(
@@ -34,7 +48,10 @@ test.describe("Canonical Forever Browsing routes", () => {
     ).not.toBeVisible();
     await expect(page.getByText("Cycles").first()).toBeVisible();
 
-    await page.goto("/team/ENG/all");
-    await expect(page).toHaveURL(/\/foreverbrowsing\/team\/ENG\/all$/);
+    await page.goto("/team/ENG/board");
+    await expect(page).toHaveURL(/\/foreverbrowsing\/team\/ENG\/board$/);
+    await expect(
+      page.getByText("This page could not be found"),
+    ).not.toBeVisible();
   });
 });

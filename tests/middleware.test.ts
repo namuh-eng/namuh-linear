@@ -179,6 +179,23 @@ describe("Auth proxy", () => {
     expect(mockRewrite.mock.calls[0]?.[0].pathname).toBe("/members");
   });
 
+  it("rewrites authenticated workspace-prefixed team routes without changing the browser URL", async () => {
+    mockRewrite.mockClear();
+    mockRedirect.mockClear();
+    const { proxy } = await import("@/proxy");
+    const req = createMockRequest(
+      "/foreverbrowsing/team/ENG/board?group=status",
+      {
+        "better-auth.session_token": "valid-session-token",
+      },
+    );
+    await proxy(req as never);
+    expect(mockRedirect).not.toHaveBeenCalled();
+    expect(mockRewrite).toHaveBeenCalled();
+    expect(mockRewrite.mock.calls[0]?.[0].pathname).toBe("/team/ENG/board");
+    expect(mockRewrite.mock.calls[0]?.[0].search).toBe("?group=status");
+  });
+
   it("does not rewrite settings teams routes as workspace-prefixed directory routes", async () => {
     mockRewrite.mockClear();
     mockNext.mockClear();
