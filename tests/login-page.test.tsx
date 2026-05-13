@@ -15,6 +15,7 @@ const assignMock = vi.fn();
 const mockLocation = {
   ...window.location,
   assign: assignMock,
+  origin: "http://localhost:3015",
   search: "",
 };
 
@@ -113,7 +114,7 @@ describe("Login page", () => {
     fireEvent.click(screen.getByText("Continue with Google"));
     expect(signIn.social).toHaveBeenCalledWith({
       provider: "google",
-      callbackURL: "http://localhost:3000/",
+      callbackURL: "http://localhost:3015/",
     });
   });
 
@@ -123,7 +124,7 @@ describe("Login page", () => {
     fireEvent.click(screen.getByText("Continue with Google"));
     expect(signIn.social).toHaveBeenCalledWith({
       provider: "google",
-      callbackURL: "http://localhost:3000/team/ABC/board",
+      callbackURL: "http://localhost:3015/team/ABC/board",
     });
   });
 
@@ -168,8 +169,8 @@ describe("Login page", () => {
 
     expect(signIn.magicLink).toHaveBeenCalledWith({
       email: "test@example.com",
-      callbackURL: "http://localhost:3000/",
-      errorCallbackURL: "http://localhost:3000/login",
+      callbackURL: "http://localhost:3015/",
+      errorCallbackURL: "http://localhost:3015/login",
     });
   });
 
@@ -185,9 +186,9 @@ describe("Login page", () => {
     await vi.waitFor(() => {
       expect(signIn.magicLink).toHaveBeenCalledWith({
         email: "test@example.com",
-        callbackURL: "http://localhost:3000/team/ABC/board",
+        callbackURL: "http://localhost:3015/team/ABC/board",
         errorCallbackURL:
-          "http://localhost:3000/login?callbackUrl=%2Fteam%2FABC%2Fboard",
+          "http://localhost:3015/login?callbackUrl=%2Fteam%2FABC%2Fboard",
       });
     });
   });
@@ -205,9 +206,9 @@ describe("Login page", () => {
     await vi.waitFor(() => {
       expect(signIn.magicLink).toHaveBeenCalledWith({
         email: "invitee@example.com",
-        callbackURL: "http://localhost:3000/accept-invite?token=signed-token",
+        callbackURL: "http://localhost:3015/accept-invite?token=signed-token",
         errorCallbackURL:
-          "http://localhost:3000/login?callbackUrl=%2Faccept-invite%3Ftoken%3Dsigned-token",
+          "http://localhost:3015/login?callbackUrl=%2Faccept-invite%3Ftoken%3Dsigned-token",
       });
     });
   });
@@ -286,7 +287,7 @@ describe("Login page", () => {
     fireEvent.submit(codeInput.closest("form") as HTMLFormElement);
 
     expect(assignMock).toHaveBeenCalledWith(
-      "http://localhost:3000/api/auth/magic-link/verify?token=123456&callbackURL=http%3A%2F%2Flocalhost%3A3000%2F&errorCallbackURL=http%3A%2F%2Flocalhost%3A3000%2Flogin",
+      "http://localhost:3015/api/auth/magic-link/verify?token=123456&callbackURL=http%3A%2F%2Flocalhost%3A3015%2F&errorCallbackURL=http%3A%2F%2Flocalhost%3A3015%2Flogin",
     );
   });
 
@@ -308,7 +309,7 @@ describe("Login page", () => {
     fireEvent.submit(codeInput.closest("form") as HTMLFormElement);
 
     expect(assignMock).toHaveBeenCalledWith(
-      "http://localhost:3000/api/auth/magic-link/verify?token=123456&callbackURL=http%3A%2F%2Flocalhost%3A3000%2Fteam%2FABC%2Fboard&errorCallbackURL=http%3A%2F%2Flocalhost%3A3000%2Flogin%3FcallbackUrl%3D%252Fteam%252FABC%252Fboard",
+      "http://localhost:3015/api/auth/magic-link/verify?token=123456&callbackURL=http%3A%2F%2Flocalhost%3A3015%2Fteam%2FABC%2Fboard&errorCallbackURL=http%3A%2F%2Flocalhost%3A3015%2Flogin%3FcallbackUrl%3D%252Fteam%252FABC%252Fboard",
     );
   });
 
@@ -331,7 +332,7 @@ describe("Login page", () => {
     fireEvent.submit(codeInput.closest("form") as HTMLFormElement);
 
     expect(assignMock).toHaveBeenCalledWith(
-      "http://localhost:3000/api/auth/magic-link/verify?token=123456&callbackURL=http%3A%2F%2Flocalhost%3A3000%2Faccept-invite%3Ftoken%3Dsigned-token&errorCallbackURL=http%3A%2F%2Flocalhost%3A3000%2Flogin%3FcallbackUrl%3D%252Faccept-invite%253Ftoken%253Dsigned-token",
+      "http://localhost:3015/api/auth/magic-link/verify?token=123456&callbackURL=http%3A%2F%2Flocalhost%3A3015%2Faccept-invite%3Ftoken%3Dsigned-token&errorCallbackURL=http%3A%2F%2Flocalhost%3A3015%2Flogin%3FcallbackUrl%3D%252Faccept-invite%253Ftoken%253Dsigned-token",
     );
   });
 
