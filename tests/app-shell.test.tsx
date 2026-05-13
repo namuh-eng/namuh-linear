@@ -133,6 +133,21 @@ describe("Sidebar", () => {
     expect(screen.getByText("Issues")).toBeDefined();
   });
 
+  it("links team Projects and Views to team-scoped pages", () => {
+    render(<Sidebar teamName="Engineering" teamKey="ENG" />);
+
+    expect(
+      screen
+        .getAllByRole("link", { name: /Projects/i })
+        .some((link) => link.getAttribute("href") === "/team/ENG/projects"),
+    ).toBe(true);
+    expect(
+      screen
+        .getAllByRole("link", { name: /Views/i })
+        .some((link) => link.getAttribute("href") === "/team/ENG/views"),
+    ).toBe(true);
+  });
+
   it("renders Initiatives and Cycles in Try section", () => {
     render(<Sidebar />);
     expect(screen.getByText("Initiatives")).toBeDefined();
