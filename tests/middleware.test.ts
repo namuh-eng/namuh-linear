@@ -179,6 +179,28 @@ describe("Auth proxy", () => {
     expect(mockRewrite.mock.calls[0]?.[0].pathname).toBe("/members");
   });
 
+  it.each(["/all", "/board"])(
+    "rewrites authenticated workspace-prefixed team%s routes without changing the browser URL",
+    async (teamRoute) => {
+      mockRewrite.mockClear();
+      mockRedirect.mockClear();
+      const { proxy } = await import("@/proxy");
+      const req = createMockRequest(
+        `/foreverbrowsing/team/ENG${teamRoute}?group=status`,
+        {
+          "better-auth.session_token": "valid-session-token",
+        },
+      );
+      await proxy(req as never);
+      expect(mockRedirect).not.toHaveBeenCalled();
+      expect(mockRewrite).toHaveBeenCalled();
+      expect(mockRewrite.mock.calls[0]?.[0].pathname).toBe(
+        `/team/ENG${teamRoute}`,
+      );
+      expect(mockRewrite.mock.calls[0]?.[0].search).toBe("?group=status");
+    },
+  );
+
   it("does not rewrite settings teams routes as workspace-prefixed directory routes", async () => {
     mockRewrite.mockClear();
     mockNext.mockClear();
@@ -191,18 +213,23 @@ describe("Auth proxy", () => {
     expect(mockNext).toHaveBeenCalled();
   });
 
-  it("redirects legacy canonical ENG team routes to workspace-scoped routes", async () => {
-    mockRedirect.mockClear();
-    const { proxy } = await import("@/proxy");
-    const req = createMockRequest("/team/ENG/all?view=list", {
-      "__Secure-better-auth.session_token": "valid-session-token",
-    });
-    await proxy(req as never);
-    expect(mockRedirect).toHaveBeenCalled();
-    const redirectUrl = mockRedirect.mock.calls[0][0] as URL;
-    expect(redirectUrl.pathname).toBe("/foreverbrowsing/team/ENG/all");
-    expect(redirectUrl.search).toBe("?view=list");
-  });
+  it.each(["/all", "/board"])(
+    "redirects legacy canonical ENG team%s routes to workspace-scoped routes",
+    async (teamRoute) => {
+      mockRedirect.mockClear();
+      const { proxy } = await import("@/proxy");
+      const req = createMockRequest(`/team/ENG${teamRoute}?view=list`, {
+        "__Secure-better-auth.session_token": "valid-session-token",
+      });
+      await proxy(req as never);
+      expect(mockRedirect).toHaveBeenCalled();
+      const redirectUrl = mockRedirect.mock.calls[0][0] as URL;
+      expect(redirectUrl.pathname).toBe(
+        `/foreverbrowsing/team/ENG${teamRoute}`,
+      );
+      expect(redirectUrl.search).toBe("?view=list");
+    },
+  );
 
   it("preserves callback URL in redirect", async () => {
     mockRedirect.mockClear();
