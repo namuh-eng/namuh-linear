@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
-const membershipsLimitMock = vi.fn();
+const resolveActiveWorkspaceIdMock = vi.fn();
 const labelsOrderByMock = vi.fn();
 const insertReturningMock = vi.fn();
 
@@ -16,17 +16,6 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/db", () => ({
   db: {
     select: vi.fn((selection?: Record<string, unknown>) => {
-      // resolveWorkspaceId lookup
-      if (selection && "workspaceId" in selection) {
-        return {
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: membershipsLimitMock,
-            }),
-          }),
-        };
-      }
-
       // GET labels with issueCount
       if (selection && "issueCount" in selection) {
         return {
@@ -56,6 +45,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/lib/active-workspace", () => ({
+  resolveActiveWorkspaceId: resolveActiveWorkspaceIdMock,
+}));
+
 vi.mock("next/headers", () => ({
   headers: async () => new Headers(),
 }));
@@ -65,7 +58,7 @@ describe("labels collection route", () => {
     vi.resetModules();
     vi.clearAllMocks();
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
-    membershipsLimitMock.mockResolvedValue([{ workspaceId: "workspace-1" }]);
+    resolveActiveWorkspaceIdMock.mockResolvedValue("workspace-1");
     labelsOrderByMock.mockReturnValue([
       {
         id: "label-1",

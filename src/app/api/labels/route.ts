@@ -1,6 +1,7 @@
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
-import { issueLabel, label, member } from "@/lib/db/schema";
+import { issueLabel, label } from "@/lib/db/schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -10,17 +11,11 @@ export async function GET() {
     return authResponse;
   }
 
-  const memberships = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .limit(1);
+  const workspaceId = await resolveActiveWorkspaceId(session.user.id);
 
-  if (memberships.length === 0) {
+  if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
-
-  const workspaceId = memberships[0].workspaceId;
 
   // Get workspace-scoped labels (teamId is null) with issue counts
   const labels = await db
@@ -60,28 +55,23 @@ export async function POST(request: Request) {
     return authResponse;
   }
 
-  const memberships = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, session.user.id))
-    .limit(1);
+  const workspaceId = await resolveActiveWorkspaceId(session.user.id);
 
-  if (memberships.length === 0) {
+  if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
-
-  const workspaceId = memberships[0].workspaceId;
   const body = await request.json();
   const { name, color, description, parentLabelId } = body;
+  const trimmedName = typeof name === "string" ? name.trim() : "";
 
-  if (!name) {
+  if (!trimmedName) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
 
   const [newLabel] = await db
     .insert(label)
     .values({
-      name,
+      name: trimmedName,
       color: color || "#6b6f76",
       description: description || null,
       workspaceId,
