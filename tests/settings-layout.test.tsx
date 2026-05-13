@@ -97,6 +97,14 @@ describe("Settings Layout Shell", () => {
     // "Notifications" link in sidebar
     const notifLinks = screen.getAllByText("Notifications");
     expect(notifLinks.length).toBeGreaterThanOrEqual(1);
+
+    const connectedAccountsLink = screen
+      .getByText("Connected accounts")
+      .closest("a");
+    expect(connectedAccountsLink).toHaveAttribute(
+      "href",
+      "/settings/account/connections",
+    );
   });
 
   it("renders Administration section links", () => {
