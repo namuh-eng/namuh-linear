@@ -6,6 +6,22 @@ import { useEffect, useState } from "react";
 
 type AuthMode = "login" | "signup";
 type LoginStep = "choose" | "email-input" | "email-code" | "sso-input";
+type ProviderCapabilities = {
+  providers?: {
+    google?: boolean;
+  };
+};
+type SocialSignInResult = {
+  data?: {
+    url?: string;
+    redirect?: boolean;
+  } | null;
+  error?: {
+    code?: string;
+    message?: string;
+    status?: number;
+  } | null;
+};
 
 const authErrorMessages: Record<string, string> = {
   INVALID_TOKEN:
@@ -167,13 +183,22 @@ function FooterLinks({ mode }: { mode: AuthMode }) {
   );
 }
 
-export function AuthPage({ mode }: { mode: AuthMode }) {
+export function AuthPage({
+  mode,
+  initialGoogleConfigured = false,
+}: {
+  mode: AuthMode;
+  initialGoogleConfigured?: boolean;
+}) {
   const [step, setStep] = useState<LoginStep>("choose");
   const [email, setEmail] = useState("");
   const [ssoIdentifier, setSsoIdentifier] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [passkeyPending, setPasskeyPending] = useState(false);
+  const [googleConfigured, setGoogleConfigured] = useState<boolean | null>(
+    initialGoogleConfigured,
+  );
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -184,14 +209,74 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     }
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadProviderCapabilities() {
+      try {
+        const response = await fetch("/api/auth/provider-capabilities", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error("Failed to load auth provider capabilities.");
+        }
+        const data = (await response.json()) as ProviderCapabilities;
+        setGoogleConfigured(data.providers?.google === true);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setGoogleConfigured(false);
+        setError(
+          "Google sign-in is unavailable right now. Use email or SAML SSO instead.",
+        );
+      }
+    }
+
+    loadProviderCapabilities();
+
+    return () => controller.abort();
+  }, []);
+
   async function handleGoogleLogin() {
+    if (googleConfigured !== true) {
+      setError(
+        "Google sign-in is not configured. Use email or SAML SSO instead.",
+      );
+      return;
+    }
+
     setLoading(true);
     setError("");
-    const callbackPath = getSafeCallbackPath();
-    await signIn.social({
-      provider: "google",
-      callbackURL: getAbsoluteCallbackUrl(callbackPath),
-    });
+    try {
+      const callbackPath = getSafeCallbackPath();
+      const result = (await signIn.social({
+        provider: "google",
+        callbackURL: getAbsoluteCallbackUrl(callbackPath),
+      })) as SocialSignInResult | undefined;
+
+      if (result?.error) {
+        const isMissingProvider =
+          result.error.status === 404 ||
+          result.error.code === "PROVIDER_NOT_FOUND";
+        setError(
+          isMissingProvider
+            ? "Google sign-in is not configured. Use email or SAML SSO instead."
+            : (result.error.message ??
+                "Google sign-in failed. Try again or use another method."),
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (result?.data?.url) {
+        window.location.assign(result.data.url);
+      }
+    } catch {
+      setError("Google sign-in failed. Try again or use another method.");
+      setLoading(false);
+    }
   }
 
   async function handleEmailSubmit(e: React.FormEvent) {
@@ -296,7 +381,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              disabled={loading}
+              disabled={loading || googleConfigured !== true}
               className="auth-primary-button flex h-11 w-full items-center justify-center gap-3 rounded-full border border-transparent px-4 text-[14px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               <svg
@@ -323,8 +408,15 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                   fill="#EA4335"
                 />
               </svg>
-              Continue with Google
+              {googleConfigured === null
+                ? "Checking Google sign-in"
+                : "Continue with Google"}
             </button>
+            {googleConfigured === false && (
+              <p className="pt-1 text-center text-sm text-[var(--auth-error)]">
+                Google sign-in is not configured. Use email or SAML SSO instead.
+              </p>
+            )}
 
             <button
               type="button"

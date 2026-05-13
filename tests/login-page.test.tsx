@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth-client", () => ({
   signIn: {
@@ -13,6 +13,7 @@ vi.mock("@/lib/auth-client", () => ({
 }));
 
 const assignMock = vi.fn();
+const fetchMock = vi.fn();
 const mockLocation = {
   ...window.location,
   assign: assignMock,
@@ -21,12 +22,20 @@ const mockLocation = {
 };
 
 vi.stubGlobal("location", mockLocation);
+vi.stubGlobal("fetch", fetchMock);
 
 import LoginPage from "@/app/(auth)/login/page";
 import SignupPage from "@/app/(auth)/signup/page";
 import { signIn, signInWithPasskey } from "@/lib/auth-client";
 
 describe("Login page", () => {
+  beforeEach(() => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ providers: { google: true } }),
+    });
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -44,9 +53,11 @@ describe("Login page", () => {
     expect(screen.getByText("Log in to Linear")).toBeDefined();
   });
 
-  it("shows Continue with Google button", () => {
+  it("shows Continue with Google button", async () => {
     render(<LoginPage />);
-    expect(screen.getByText("Continue with Google")).toBeDefined();
+    expect(
+      await screen.findByRole("button", { name: /Continue with Google/i }),
+    ).toBeDefined();
   });
 
   it("shows Continue with email button", () => {
@@ -54,8 +65,9 @@ describe("Login page", () => {
     expect(screen.getByText("Continue with email")).toBeDefined();
   });
 
-  it("matches Linear's login auth method surface", () => {
+  it("matches Linear's login auth method surface", async () => {
     render(<LoginPage />);
+    await screen.findByRole("button", { name: /Continue with Google/i });
 
     expect(
       screen.getAllByRole("button").map((button) => button.textContent?.trim()),
@@ -154,46 +166,116 @@ describe("Login page", () => {
     ).toBe(false);
   });
 
-  it("calls signIn.social with google provider on Google click", () => {
+  it("calls signIn.social with google provider on Google click", async () => {
     render(<LoginPage />);
-    fireEvent.click(screen.getByText("Continue with Google"));
-    expect(signIn.social).toHaveBeenCalledWith({
-      provider: "google",
-      callbackURL: "http://localhost:3015/",
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Continue with Google/i }),
+    );
+    await vi.waitFor(() => {
+      expect(signIn.social).toHaveBeenCalledWith({
+        provider: "google",
+        callbackURL: "http://localhost:3015/",
+      });
     });
   });
 
-  it("uses the callbackUrl query param for Google sign-in", () => {
+  it("starts Google OAuth and uses the callbackUrl query param for Google sign-in", async () => {
+    vi.mocked(signIn.social).mockResolvedValueOnce({
+      data: {
+        url: "https://accounts.google.com/o/oauth2/v2/auth?client_id=test",
+        redirect: true,
+      },
+    });
     mockLocation.search = "?callbackUrl=%2Fteam%2FABC%2Fboard";
     render(<LoginPage />);
-    fireEvent.click(screen.getByText("Continue with Google"));
-    expect(signIn.social).toHaveBeenCalledWith({
-      provider: "google",
-      callbackURL: "http://localhost:3015/team/ABC/board",
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Continue with Google/i }),
+    );
+    await vi.waitFor(() => {
+      expect(signIn.social).toHaveBeenCalledWith({
+        provider: "google",
+        callbackURL: "http://localhost:3015/team/ABC/board",
+      });
+      expect(assignMock).toHaveBeenCalledWith(
+        "https://accounts.google.com/o/oauth2/v2/auth?client_id=test",
+      );
     });
   });
 
-  it("uses the current workspace deep-link URL for Google sign-in when login is rendered by rewrite", () => {
+  it("uses the current workspace deep-link URL for Google sign-in when login is rendered by rewrite", async () => {
     mockLocation.pathname = "/foreverbrowsing/settings/account/security";
     mockLocation.search = "?tab=sessions";
     render(<LoginPage />);
-    fireEvent.click(screen.getByText("Continue with Google"));
-    expect(signIn.social).toHaveBeenCalledWith({
-      provider: "google",
-      callbackURL:
-        "http://localhost:3015/foreverbrowsing/settings/account/security?tab=sessions",
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Continue with Google/i }),
+    );
+    await vi.waitFor(() => {
+      expect(signIn.social).toHaveBeenCalledWith({
+        provider: "google",
+        callbackURL:
+          "http://localhost:3015/foreverbrowsing/settings/account/security?tab=sessions",
+      });
     });
   });
 
-  it("sanitizes explicit callbackUrl values before falling back to the rewritten workspace URL", () => {
+  it("sanitizes explicit callbackUrl values before falling back to the rewritten workspace URL", async () => {
     mockLocation.pathname = "/foreverbrowsing/projects";
     mockLocation.search = "?callbackUrl=https%3A%2F%2Fevil.example%2Fphish";
     render(<LoginPage />);
-    fireEvent.click(screen.getByText("Continue with Google"));
-    expect(signIn.social).toHaveBeenCalledWith({
-      provider: "google",
-      callbackURL:
-        "http://localhost:3015/foreverbrowsing/projects?callbackUrl=https%3A%2F%2Fevil.example%2Fphish",
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Continue with Google/i }),
+    );
+    await vi.waitFor(() => {
+      expect(signIn.social).toHaveBeenCalledWith({
+        provider: "google",
+        callbackURL:
+          "http://localhost:3015/foreverbrowsing/projects?callbackUrl=https%3A%2F%2Fevil.example%2Fphish",
+      });
+    });
+  });
+
+  it("does not call Better Auth social sign-in when Google is not configured", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ providers: { google: false } }),
+    });
+    render(<LoginPage />);
+
+    const button = await screen.findByRole("button", {
+      name: /Continue with Google/i,
+    });
+
+    expect(button.hasAttribute("disabled")).toBe(true);
+    expect(
+      screen.getByText(
+        "Google sign-in is not configured. Use email or SAML SSO instead.",
+      ),
+    ).toBeDefined();
+    expect(signIn.social).not.toHaveBeenCalled();
+  });
+
+  it("shows a visible Google error and clears loading when Better Auth reports a missing provider", async () => {
+    vi.mocked(signIn.social).mockResolvedValueOnce({
+      error: {
+        code: "PROVIDER_NOT_FOUND",
+        status: 404,
+        message: "Provider not found",
+      },
+    });
+    render(<LoginPage />);
+
+    const button = await screen.findByRole("button", {
+      name: /Continue with Google/i,
+    });
+    fireEvent.click(button);
+
+    await vi.waitFor(() => {
+      expect(
+        screen.getByText(
+          "Google sign-in is not configured. Use email or SAML SSO instead.",
+        ),
+      ).toBeDefined();
+      expect(button.hasAttribute("disabled")).toBe(false);
     });
   });
 
@@ -214,11 +296,13 @@ describe("Login page", () => {
     expect(screen.queryByText("Back to login options")).toBeNull();
   });
 
-  it("returns to choose step when clicking back", () => {
+  it("returns to choose step when clicking back", async () => {
     render(<LoginPage />);
     fireEvent.click(screen.getByText("Continue with email"));
     fireEvent.click(screen.getByText("Back to login"));
-    expect(screen.getByText("Continue with Google")).toBeDefined();
+    expect(
+      await screen.findByRole("button", { name: /Continue with Google/i }),
+    ).toBeDefined();
   });
 
   it("shows email-sent step after submitting email", async () => {
@@ -346,7 +430,9 @@ describe("Login page", () => {
     });
 
     fireEvent.click(screen.getByText("Use a different method"));
-    expect(screen.getByText("Continue with Google")).toBeDefined();
+    expect(
+      await screen.findByRole("button", { name: /Continue with Google/i }),
+    ).toBeDefined();
   });
 
   it("displays the submitted email in confirmation", async () => {
@@ -437,8 +523,9 @@ describe("Login page", () => {
     expect(screen.getByText("Data Processing Agreement")).toBeDefined();
   });
 
-  it("matches Linear's signup auth method surface", () => {
+  it("matches Linear's signup auth method surface", async () => {
     render(<SignupPage />);
+    await screen.findByRole("button", { name: /Continue with Google/i });
 
     expect(
       screen.getAllByRole("button").map((button) => button.textContent?.trim()),
@@ -461,6 +548,32 @@ describe("Login page", () => {
     ).toBeNull();
   });
 
+  it("starts Google OAuth from signup with a safe local callback", async () => {
+    vi.mocked(signIn.social).mockResolvedValueOnce({
+      data: {
+        url: "https://accounts.google.com/o/oauth2/v2/auth?signup=1",
+        redirect: true,
+      },
+    });
+    mockLocation.pathname = "/signup";
+    mockLocation.search = "?callbackUrl=https%3A%2F%2Fevil.example%2Fphish";
+    render(<SignupPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Continue with Google/i }),
+    );
+
+    await vi.waitFor(() => {
+      expect(signIn.social).toHaveBeenCalledWith({
+        provider: "google",
+        callbackURL: "http://localhost:3015/",
+      });
+      expect(assignMock).toHaveBeenCalledWith(
+        "https://accounts.google.com/o/oauth2/v2/auth?signup=1",
+      );
+    });
+  });
+
   it("matches Linear's focused signup email step", () => {
     const { container } = render(<SignupPage />);
 
@@ -481,7 +594,7 @@ describe("Login page", () => {
     ).toBeDefined();
   });
 
-  it("matches Linear's focused signup SAML step", () => {
+  it("matches Linear's focused signup SAML step", async () => {
     render(<SignupPage />);
 
     fireEvent.click(
@@ -501,7 +614,7 @@ describe("Login page", () => {
 
     fireEvent.click(screen.getByText("Back to signup"));
     expect(
-      screen.getByRole("button", { name: /Continue with Google/i }),
+      await screen.findByRole("button", { name: /Continue with Google/i }),
     ).toBeDefined();
     expect(
       screen.getByRole("button", { name: /Continue with email/i }),

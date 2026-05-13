@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import { getConfiguredAppUrl } from "@/lib/app-url";
+import { isGoogleOAuthConfigured } from "@/lib/auth-providers";
 import { db } from "@/lib/db";
 import { sendMagicLinkEmail } from "@/lib/email";
 import { betterAuth } from "better-auth";
@@ -28,14 +29,17 @@ function getBetterAuthSecret() {
 }
 
 function getSocialProviders() {
-  if (!process.env.AUTH_GOOGLE_ID || !process.env.AUTH_GOOGLE_SECRET) {
+  const clientId = process.env.AUTH_GOOGLE_ID;
+  const clientSecret = process.env.AUTH_GOOGLE_SECRET;
+
+  if (!isGoogleOAuthConfigured() || !clientId || !clientSecret) {
     return {};
   }
 
   return {
     google: {
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
+      clientId,
+      clientSecret,
     },
   };
 }
