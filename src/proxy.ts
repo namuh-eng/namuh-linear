@@ -85,6 +85,20 @@ function getSlugRewrite(pathname: string) {
   return null;
 }
 
+function getWorkspacePrefixedSettingsRoute(pathname: string) {
+  const segments = getPathSegments(pathname);
+
+  if (
+    segments.length > 2 &&
+    isWorkspaceSlugSegment(segments[0]) &&
+    segments[1] === "settings"
+  ) {
+    return { slug: decodeURIComponent(segments[0]) };
+  }
+
+  return null;
+}
+
 function getWorkspacePrefixedProjectsRoute(pathname: string) {
   const segments = getPathSegments(pathname);
 
@@ -215,6 +229,13 @@ export async function proxy(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-workspace-source-path", pathname);
+
+  const workspacePrefixedSettingsRoute =
+    getWorkspacePrefixedSettingsRoute(pathname);
+  if (workspacePrefixedSettingsRoute) {
+    requestHeaders.set("x-workspace-slug", workspacePrefixedSettingsRoute.slug);
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
 
   const workspacePrefixedProjectsRoute =
     getWorkspacePrefixedProjectsRoute(pathname);
