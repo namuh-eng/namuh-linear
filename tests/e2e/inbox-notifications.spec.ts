@@ -59,6 +59,55 @@ test.describe("Canonical inbox notifications", () => {
     await expect(page.getByText("No unread notifications")).toBeVisible();
   });
 
+  test("notification row click opens the referenced issue directly", async ({
+    page,
+  }) => {
+    await page.goto("/foreverbrowsing/inbox");
+
+    const row = page
+      .getByTestId("notification-row")
+      .filter({ hasText: "ENG-179" })
+      .first();
+    await expect(row).toBeVisible();
+
+    await row.click();
+
+    await expect(page).toHaveURL(/\/foreverbrowsing\/issue\/ENG-179$/);
+    await expect(page.getByText("ENG-179").first()).toBeVisible();
+    await expect(
+      page.getByText("Issue added to FOREVER-AGENT").first(),
+    ).toBeVisible();
+  });
+
+  test("notification row keyboard activation opens the referenced issue", async ({
+    page,
+  }) => {
+    await page.goto("/foreverbrowsing/inbox");
+
+    const row = page
+      .getByTestId("notification-row")
+      .filter({ hasText: "ENG-179" })
+      .first();
+    await expect(row).toBeVisible();
+
+    await row.focus();
+    await page.keyboard.press("Enter");
+
+    await expect(page).toHaveURL(/\/foreverbrowsing\/issue\/ENG-179$/);
+
+    await page.goto("/foreverbrowsing/inbox");
+    const spaceRow = page
+      .getByTestId("notification-row")
+      .filter({ hasText: "ENG-179" })
+      .first();
+    await expect(spaceRow).toBeVisible();
+
+    await spaceRow.focus();
+    await page.keyboard.press("Space");
+
+    await expect(page).toHaveURL(/\/foreverbrowsing\/issue\/ENG-179$/);
+  });
+
   test("Open issue CTA navigates from workspace inbox to selected issue detail", async ({
     page,
   }) => {
