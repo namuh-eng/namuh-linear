@@ -63,7 +63,7 @@ describe("dev database outage handling", () => {
     render(ui);
 
     expect(
-      screen.getByText("Local database is unavailable"),
+      screen.getByText("Local database needs bootstrapping"),
     ).toBeInTheDocument();
     expect(screen.getByText(/make dev-services/)).toBeInTheDocument();
     expect(screen.getByText(/npm run db:push/)).toBeInTheDocument();
@@ -86,7 +86,7 @@ describe("dev database outage handling", () => {
     render(ui);
 
     expect(
-      screen.getByText("Local database is unavailable"),
+      screen.getByText("Local database needs bootstrapping"),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
   });
@@ -106,6 +106,18 @@ describe("dev database outage handling", () => {
     expect(
       isDatabaseBootstrapError(
         new Error("password authentication failed for user"),
+      ),
+    ).toBe(true);
+    expect(
+      isDatabaseBootstrapError(
+        Object.assign(new Error('relation "user" does not exist'), {
+          code: "42P01",
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isDatabaseBootstrapError(
+        new Error("column workspace.url_slug does not exist"),
       ),
     ).toBe(true);
     expect(

@@ -38,13 +38,15 @@ vi.mock("@/lib/db", () => ({
     select: vi.fn(() => ({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue(userLimitMock()),
+          limit: vi.fn().mockImplementation(async () => userLimitMock()),
         }),
       }),
     })),
     insert: vi.fn(() => ({
       values: vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue(insertReturningMock()),
+        returning: vi
+          .fn()
+          .mockImplementation(async () => insertReturningMock()),
       }),
     })),
   },
@@ -115,7 +117,31 @@ describe("test create session route", () => {
 
     expect(response.status).toBe(503);
     const payload = await response.json();
-    expect(payload.error).toBe("Local database is unavailable");
+    expect(payload.error).toBe("Local database needs bootstrapping");
     expect(payload.setup).toContain("make dev-services");
+  });
+
+  it("returns 503 with setup instructions when the auth schema is missing", async () => {
+    userLimitMock.mockImplementation(() => {
+      throw Object.assign(new Error('relation "user" does not exist'), {
+        code: "42P01",
+      });
+    });
+    const { POST } = await import("@/app/api/test/create-session/route");
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ email: "test@test.com" }),
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    const payload = await response.json();
+    expect(payload.error).toBe("Local database needs bootstrapping");
+    expect(payload.message).toMatch(
+      /schema required by authenticated app routes/,
+    );
+    expect(payload.setup).toEqual(["make dev-services", "npm run db:push"]);
   });
 });

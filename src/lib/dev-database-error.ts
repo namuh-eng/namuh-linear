@@ -4,6 +4,9 @@ const DATABASE_BOOTSTRAP_CODES = new Set([
   "EHOSTUNREACH",
   "ETIMEDOUT",
   "ECONNRESET",
+  "42P01",
+  "42703",
+  "42704",
 ]);
 
 const DATABASE_BOOTSTRAP_MESSAGE_PATTERNS = [
@@ -14,6 +17,9 @@ const DATABASE_BOOTSTRAP_MESSAGE_PATTERNS = [
   /no pg_hba\.conf entry/i,
   /connection terminated unexpectedly/i,
   /remaining connection slots are reserved/i,
+  /relation .* does not exist/i,
+  /column .* does not exist/i,
+  /type .* does not exist/i,
 ];
 
 export function isDatabaseBootstrapError(error: unknown) {
@@ -56,6 +62,10 @@ export function shouldRenderDatabaseBootstrapError(error: unknown) {
   );
 }
 
-export const DATABASE_BOOTSTRAP_TITLE = "Local database is unavailable";
+export const DATABASE_BOOTSTRAP_TITLE = "Local database needs bootstrapping";
 export const DATABASE_BOOTSTRAP_MESSAGE =
-  "Whetline could not connect to Postgres while loading the authenticated app shell. Start the local services, or point DATABASE_URL at an existing host Postgres if Docker is unavailable, apply the schema, then reload.";
+  "Whetline could not use the local Postgres schema required by authenticated app routes. Start the local services, apply the Drizzle schema, then reload.";
+export const DATABASE_BOOTSTRAP_SETUP_COMMANDS = [
+  "make dev-services",
+  "npm run db:push",
+] as const;
