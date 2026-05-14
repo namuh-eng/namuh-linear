@@ -34,11 +34,8 @@ function securityPayload(overrides: Record<string, unknown> = {}) {
   return {
     sessions: [],
     passkeys: [],
-    apiKeys: [],
     authorizedApplications: [],
     passkeyEnabled: true,
-    canCreateApiKeys: true,
-    activeWorkspace: { id: "workspace-1", name: "Linear QA" },
     ...overrides,
   };
 }
@@ -75,16 +72,17 @@ describe("AccountSecurityPage component", () => {
       screen.getByRole("heading", { name: "Passkeys" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Personal API keys" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: "Personal API keys" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("API key name")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Create API key" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Authorized applications" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText("No active sessions were found for this account."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("No personal API keys have been created."),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(/Two-factor authentication/i),
@@ -216,64 +214,36 @@ describe("AccountSecurityPage component", () => {
     ).toBeInTheDocument();
   });
 
-  it("creates and revokes personal API keys with one-time token reveal", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(securityPayload()), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify(
-            securityPayload({
-              apiKeys: [
-                {
-                  id: "api-key-1",
-                  name: "CLI",
-                  keyPrefix: "lin_api_123…",
-                  workspaceName: "Linear QA",
-                  createdAt: "2026-01-07T10:00:00.000Z",
-                  lastUsedAt: null,
-                },
-              ],
-              createdApiKey: { label: "CLI API key", token: "lin_api_secret" },
-            }),
-          ),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify(securityPayload({ apiKeys: [] })), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
+  it("does not render personal API key controls from account security", async () => {
+    const fetchMock = mockSecurityFetch(
+      securityPayload({
+        apiKeys: [
+          {
+            id: "api-key-1",
+            name: "CLI",
+            keyPrefix: "lin_api_123…",
+            workspaceName: "Linear QA",
+            createdAt: "2026-01-07T10:00:00.000Z",
+            lastUsedAt: null,
+          },
+        ],
+      }),
+    );
 
     render(<AccountSecurityPage />);
-    await screen.findByRole("heading", { name: "Personal API keys" });
 
-    fireEvent.change(screen.getByLabelText("API key name"), {
-      target: { value: "CLI" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Create API key" }));
+    await screen.findByRole("heading", { name: "Security & access" });
 
-    await screen.findByText("lin_api_secret");
-    expect(screen.getByText("CLI")).toBeInTheDocument();
-    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
-      action: "createApiKey",
-      name: "CLI",
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({
-      action: "revokeApiKey",
-      apiKeyId: "api-key-1",
-    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("heading", { name: "Personal API keys" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("API key name")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Create API key" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("CLI")).not.toBeInTheDocument();
+    expect(screen.queryByText(/lin_api_/)).not.toBeInTheDocument();
   });
 
   it("renders an error state when the account security API fails", async () => {

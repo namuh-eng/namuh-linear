@@ -15,15 +15,6 @@ type SecuritySession = {
   expiresAt: string;
 };
 
-type PersonalApiKey = {
-  id: string;
-  name: string;
-  keyPrefix: string;
-  workspaceName: string;
-  createdAt: string;
-  lastUsedAt: string | null;
-};
-
 type AuthorizedApplication = {
   id: string;
   name: string;
@@ -45,16 +36,11 @@ type Passkey = {
 type AccountSecurityState = {
   sessions: SecuritySession[];
   passkeys: Passkey[];
-  apiKeys: PersonalApiKey[];
   authorizedApplications: AuthorizedApplication[];
   passkeyEnabled: boolean;
-  canCreateApiKeys: boolean;
-  activeWorkspace: { id: string; name: string } | null;
 };
 
-type MutationResponse = AccountSecurityState & {
-  createdApiKey?: { label: string; token: string };
-};
+type MutationResponse = AccountSecurityState;
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -155,11 +141,6 @@ export default function AccountSecurityPage() {
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
     null,
   );
-  const [apiKeyName, setApiKeyName] = useState("Personal automation");
-  const [revealedApiKey, setRevealedApiKey] = useState<{
-    label: string;
-    token: string;
-  } | null>(null);
   const [passkeySupported, setPasskeySupported] = useState(false);
 
   const loadSecurityState = useCallback(async (signal?: AbortSignal) => {
@@ -177,13 +158,10 @@ export default function AccountSecurityPage() {
     setSecurityState({
       sessions: Array.isArray(data.sessions) ? data.sessions : [],
       passkeys: Array.isArray(data.passkeys) ? data.passkeys : [],
-      apiKeys: Array.isArray(data.apiKeys) ? data.apiKeys : [],
       authorizedApplications: Array.isArray(data.authorizedApplications)
         ? data.authorizedApplications
         : [],
       passkeyEnabled: data.passkeyEnabled !== false,
-      canCreateApiKeys: Boolean(data.canCreateApiKeys),
-      activeWorkspace: data.activeWorkspace ?? null,
     });
   }, []);
 
@@ -236,13 +214,9 @@ export default function AccountSecurityPage() {
       setSecurityState({
         sessions: data.sessions,
         passkeys: data.passkeys,
-        apiKeys: data.apiKeys,
         authorizedApplications: data.authorizedApplications,
         passkeyEnabled: data.passkeyEnabled,
-        canCreateApiKeys: data.canCreateApiKeys,
-        activeWorkspace: data.activeWorkspace,
       });
-      setRevealedApiKey(data.createdApiKey ?? null);
       setStatus(successMessage);
       return true;
     } finally {
@@ -286,16 +260,6 @@ export default function AccountSecurityPage() {
     }
   }
 
-  async function createApiKey() {
-    const didCreate = await mutate(
-      { action: "createApiKey", name: apiKeyName },
-      "Personal API key created.",
-    );
-    if (didCreate) {
-      setApiKeyName("Personal automation");
-    }
-  }
-
   if (loading) {
     return (
       <div className="max-w-[720px]">
@@ -331,8 +295,7 @@ export default function AccountSecurityPage() {
         Security & access
       </h1>
       <p className="mt-3 text-[14px] text-[var(--color-text-secondary)]">
-        Manage sessions, passkeys, personal API keys, and application access for
-        your account.
+        Manage sessions, passkeys, and application access for your account.
       </p>
 
       {status ? (
@@ -346,19 +309,6 @@ export default function AccountSecurityPage() {
           role="alert"
         >
           {error}
-        </div>
-      ) : null}
-      {revealedApiKey ? (
-        <div className="mt-5 rounded-xl border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-4 py-3">
-          <div className="text-[13px] font-medium text-[var(--color-text-primary)]">
-            {revealedApiKey.label}
-          </div>
-          <div className="mt-1 break-all font-mono text-[12px] text-[var(--color-text-secondary)]">
-            {revealedApiKey.token}
-          </div>
-          <div className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
-            Save this token now. It will not be shown again.
-          </div>
         </div>
       ) : null}
 
@@ -542,67 +492,6 @@ export default function AccountSecurityPage() {
             No passkeys have been added yet. Add a passkey to enable passkey
             sign-in for this account.
           </EmptyState>
-        )}
-      </Section>
-
-      <Section
-        title="Personal API keys"
-        description={`Create tokens for scripts and integrations that act as you${
-          securityState.activeWorkspace
-            ? ` in ${securityState.activeWorkspace.name}`
-            : ""
-        }.`}
-      >
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row">
-          <input
-            aria-label="API key name"
-            value={apiKeyName}
-            onChange={(event) => setApiKeyName(event.target.value)}
-            className="min-w-0 flex-1 rounded-md border border-[var(--color-border)] bg-transparent px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
-          />
-          <SmallButton
-            disabled={saving || !securityState.canCreateApiKeys}
-            onClick={createApiKey}
-          >
-            Create API key
-          </SmallButton>
-        </div>
-        {securityState.apiKeys.length ? (
-          <div className="divide-y divide-[var(--color-border)]">
-            {securityState.apiKeys.map((key) => (
-              <div
-                key={key.id}
-                className="flex items-start justify-between gap-3 py-4 first:pt-0 last:pb-0"
-              >
-                <div className="min-w-0">
-                  <h3 className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                    {key.name}
-                  </h3>
-                  <p className="mt-1 text-[12px] text-[var(--color-text-secondary)]">
-                    {key.keyPrefix} · {key.workspaceName}
-                  </p>
-                  <p className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
-                    Created {formatDate(key.createdAt)} · Last used{" "}
-                    {formatDate(key.lastUsedAt)}
-                  </p>
-                </div>
-                <SmallButton
-                  tone="danger"
-                  disabled={saving}
-                  onClick={() =>
-                    mutate(
-                      { action: "revokeApiKey", apiKeyId: key.id },
-                      "Personal API key revoked.",
-                    )
-                  }
-                >
-                  Revoke
-                </SmallButton>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <EmptyState>No personal API keys have been created.</EmptyState>
         )}
       </Section>
 

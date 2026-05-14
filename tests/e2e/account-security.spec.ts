@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Account security and access", () => {
-  test("shows Linear-style sections and supports session/API key revocation", async ({
+  test("shows Linear-style sections and renders sessions/passkeys without account API key controls", async ({
     page,
   }) => {
     const suffix = Date.now().toString(36);
@@ -42,7 +42,11 @@ test.describe("Account security and access", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Personal API keys" }),
-    ).toBeVisible();
+    ).toHaveCount(0);
+    await expect(page.getByLabel("API key name")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Create API key" }),
+    ).toHaveCount(0);
     await expect(
       page.getByRole("heading", { name: "Authorized applications" }),
     ).toBeVisible();
@@ -67,23 +71,18 @@ test.describe("Account security and access", () => {
       }
     }
     await expect(page.getByText("Session revoked.")).toBeVisible();
+  });
 
-    await page.getByLabel("API key name").fill(`E2E key ${suffix}`);
-    await page.getByRole("button", { name: "Create API key" }).click();
-    await expect(page.getByText("Personal API key created.")).toBeVisible();
-    await expect(page.getByText(/lin_api_/).first()).toBeVisible();
-    const apiKeyHeading = page.getByRole("heading", {
-      name: `E2E key ${suffix}`,
+  test("rejects direct account-security API key creation", async ({ page }) => {
+    const response = await page.request.post("/api/account/security", {
+      data: { action: "createApiKey", name: "E2E direct key" },
     });
-    await expect(apiKeyHeading).toBeVisible();
 
-    const apiKeyRow = apiKeyHeading.locator(
-      "xpath=ancestor::div[contains(@class, 'py-4')][1]",
+    expect(response.status()).toBe(404);
+    await expect(response.json()).resolves.toEqual(
+      expect.objectContaining({
+        error: expect.stringMatching(/workspace API settings/i),
+      }),
     );
-    await apiKeyRow
-      .getByRole("button", { name: "Revoke", exact: true })
-      .click();
-    await expect(page.getByText("Personal API key revoked.")).toBeVisible();
-    await expect(apiKeyHeading).toHaveCount(0);
   });
 });
