@@ -51,17 +51,6 @@ const mocks = vi.hoisted(() => ({
     },
   ],
   passkeyRows: [],
-  apiKeyRows: [
-    {
-      id: "api-key-1",
-      name: "CLI",
-      keyPrefix: "lin_api_123…",
-      createdAt: new Date("2026-01-07T10:00:00.000Z"),
-      lastUsedAt: null,
-      workspaceId: "workspace-1",
-      workspaceName: "Linear QA",
-    },
-  ],
 }));
 
 vi.mock("node:crypto", async (importOriginal) => {
@@ -121,9 +110,6 @@ function setupDbMock() {
     }
     if (keys.includes("credentialID")) {
       return queryBuilder(mocks.passkeyRows, "orderBy");
-    }
-    if (keys.includes("keyPrefix")) {
-      return queryBuilder(mocks.apiKeyRows, "orderBy");
     }
     if (keys.includes("providerId")) {
       return queryBuilder(mocks.providerRows, "orderBy");
@@ -199,16 +185,9 @@ describe("Account Security API Route", () => {
       ]),
     );
     expect(data.passkeys).toEqual([]);
-    expect(data.apiKeys).toEqual([
-      expect.objectContaining({
-        id: "api-key-1",
-        name: "CLI",
-        keyPrefix: "lin_api_123…",
-        workspaceName: "Linear QA",
-      }),
-    ]);
+    expect(data).not.toHaveProperty("apiKeys");
+    expect(data).not.toHaveProperty("canCreateApiKeys");
     expect(data.authorizedApplications).toEqual([]);
-    expect(data.canCreateApiKeys).toBe(true);
     expect(serialized).not.toMatch(
       /accessToken|refreshToken|idToken|password|keyHash/i,
     );
@@ -311,7 +290,7 @@ describe("Account Security API Route", () => {
     expect(mocks.dbDelete).toHaveBeenCalledTimes(2);
   });
 
-  it("creates and revokes personal API keys", async () => {
+  it("rejects account-security API key creation and revocation", async () => {
     authenticate();
 
     const { POST } = await import("@/app/api/account/security/route");
@@ -323,16 +302,10 @@ describe("Account Security API Route", () => {
     );
     const createData = await create.json();
 
-    expect(create.status).toBe(200);
-    expect(mocks.insertValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: "CLI",
-        keyPrefix: expect.stringContaining("lin_api_"),
-        userId: currentUserId,
-        workspaceId: "workspace-1",
-      }),
-    );
-    expect(createData.createdApiKey.token).toContain("lin_api_");
+    expect(create.status).toBe(404);
+    expect(createData.error).toMatch(/workspace API settings/i);
+    expect(mocks.dbInsert).not.toHaveBeenCalled();
+    expect(mocks.insertValues).not.toHaveBeenCalled();
 
     const revoke = await POST(
       new Request("http://localhost/api/account/security", {
@@ -340,8 +313,10 @@ describe("Account Security API Route", () => {
         body: JSON.stringify({ action: "revokeApiKey", apiKeyId: "api-key-1" }),
       }),
     );
+    const revokeData = await revoke.json();
 
-    expect(revoke.status).toBe(200);
-    expect(mocks.dbDelete).toHaveBeenCalled();
+    expect(revoke.status).toBe(404);
+    expect(revokeData.error).toMatch(/workspace API settings/i);
+    expect(mocks.dbDelete).not.toHaveBeenCalled();
   });
 });
