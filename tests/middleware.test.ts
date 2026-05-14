@@ -228,6 +228,29 @@ describe("Auth proxy", () => {
     },
   );
 
+  it("lets authenticated workspace-prefixed settings routes render canonically", async () => {
+    mockRewrite.mockClear();
+    mockRedirect.mockClear();
+    mockNext.mockClear();
+    const { proxy } = await import("@/proxy");
+    const req = createMockRequest(
+      "/foreverbrowsing/settings/project-updates?tab=reminders",
+      {
+        "better-auth.session_token": "valid-session-token",
+      },
+    );
+    await proxy(req as never);
+    expect(mockRedirect).not.toHaveBeenCalled();
+    expect(mockRewrite).not.toHaveBeenCalled();
+    expect(mockNext).toHaveBeenCalled();
+    const nextOptions = mockNext.mock.calls[0]?.[0] as
+      | { request?: { headers?: Headers } }
+      | undefined;
+    expect(nextOptions?.request?.headers?.get("x-workspace-slug")).toBe(
+      "foreverbrowsing",
+    );
+  });
+
   it.each([
     "/foreverbrowsing/projects",
     "/foreverbrowsing/projects/all",
