@@ -1,10 +1,9 @@
 "use client";
 
-import { EmptyState } from "@/components/empty-state";
 import { linkSocialAccount } from "@/lib/auth-client";
 import { useEffect, useMemo, useState } from "react";
 
-type ProviderId = "google";
+type ProviderId = string;
 
 type ConnectedProvider = {
   id: string;
@@ -15,21 +14,47 @@ type ConnectedProvider = {
 };
 
 type ProviderCapabilities = {
-  providers?: {
-    google?: boolean;
-  };
+  providers?: Record<string, boolean | undefined>;
 };
 
 type AccountSecurityPayload = {
   providers?: ConnectedProvider[];
 };
 
+type ProviderRegistryEntry = {
+  id: ProviderId;
+  label: string;
+  capabilityKey: string;
+  unavailableReason: string;
+};
+
+type ProviderRow = ProviderRegistryEntry & {
+  configured: boolean;
+  connectedProvider?: ConnectedProvider;
+  status: "connected" | "available" | "unavailable";
+};
+
 type Notice = { tone: "success" | "error" | "neutral"; message: string };
 
 const CONNECTIONS_PATH = "/settings/account/connections";
 
+// Backend account-linking currently supports Google only. Add providers here as
+// their capability flag and link handler become available; the render path below
+// is intentionally provider-row based rather than Google-page based.
+const ACCOUNT_PROVIDER_REGISTRY: ProviderRegistryEntry[] = [
+  {
+    id: "google",
+    label: "Google",
+    capabilityKey: "google",
+    unavailableReason: "Google account linking is not configured",
+  },
+];
+
 function providerLabel(providerId: string) {
-  if (providerId === "google") return "Google";
+  const registeredProvider = ACCOUNT_PROVIDER_REGISTRY.find(
+    (provider) => provider.id === providerId,
+  );
+  if (registeredProvider) return registeredProvider.label;
   if (providerId === "credential") return "Email";
   return providerId
     .split(/[-_]/u)
@@ -82,7 +107,7 @@ function noticeFromSearch() {
 export default function ConnectedAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ConnectedProvider[]>([]);
-  const [googleConfigured, setGoogleConfigured] = useState(false);
+  const [capabilities, setCapabilities] = useState<ProviderCapabilities>({});
   const [chooserOpen, setChooserOpen] = useState(false);
   const [linkingProvider, setLinkingProvider] = useState<ProviderId | null>(
     null,
@@ -117,13 +142,13 @@ export default function ConnectedAccountsPage() {
 
         const securityData =
           (await securityResponse.json()) as AccountSecurityPayload;
-        const capabilities =
+        const providerCapabilities =
           (await capabilitiesResponse.json()) as ProviderCapabilities;
 
         setProviders(
           Array.isArray(securityData.providers) ? securityData.providers : [],
         );
-        setGoogleConfigured(capabilities.providers?.google === true);
+        setCapabilities(providerCapabilities);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
@@ -134,7 +159,7 @@ export default function ConnectedAccountsPage() {
             "Unable to load connected accounts. Refresh the page or contact an admin.",
         });
         setProviders([]);
-        setGoogleConfigured(false);
+        setCapabilities({});
       } finally {
         if (!controller.signal.aborted) {
           setLoading(false);
@@ -151,24 +176,61 @@ export default function ConnectedAccountsPage() {
     () => providers.filter(isLinkableProvider),
     [providers],
   );
-  const googleAlreadyConnected = providers.some(
-    (provider) => provider.providerId === "google",
+
+  const providerRows = useMemo<ProviderRow[]>(() => {
+    return ACCOUNT_PROVIDER_REGISTRY.map((provider) => {
+      const connectedProvider = providers.find(
+        (accountProvider) => accountProvider.providerId === provider.id,
+      );
+      const configured =
+        capabilities.providers?.[provider.capabilityKey] === true;
+      return {
+        ...provider,
+        configured,
+        connectedProvider,
+        status: connectedProvider
+          ? "connected"
+          : configured
+            ? "available"
+            : "unavailable",
+      };
+    });
+  }, [capabilities.providers, providers]);
+
+  const linkableProviders = providerRows.filter(
+    (provider) => provider.status === "available",
   );
-  const linkableProviders =
-    googleConfigured && !googleAlreadyConnected ? ["google" as const] : [];
   const hasLinkableProvider = linkableProviders.length > 0;
 
-  async function startGoogleLink() {
-    if (!googleConfigured) {
+  async function startProviderLink(providerId: ProviderId) {
+    const provider = providerRows.find((row) => row.id === providerId);
+    if (!provider) return;
+
+    if (provider.status === "connected") {
       setNotice({
-        tone: "error",
-        message:
-          "Account linking is not configured for this workspace. Ask an admin to configure a social login provider.",
+        tone: "neutral",
+        message: `${provider.label} is already connected.`,
       });
       return;
     }
 
-    setLinkingProvider("google");
+    if (provider.status === "unavailable") {
+      setNotice({
+        tone: "error",
+        message: `${provider.unavailableReason}. Ask an admin to configure ${provider.label} OAuth.`,
+      });
+      return;
+    }
+
+    if (provider.id !== "google") {
+      setNotice({
+        tone: "error",
+        message: `${provider.label} account linking is not supported yet.`,
+      });
+      return;
+    }
+
+    setLinkingProvider(provider.id);
     setNotice(null);
     try {
       const successParams = new URLSearchParams({ connection: "linked" });
@@ -246,9 +308,12 @@ export default function ConnectedAccountsPage() {
         </div>
       )}
 
-      <div className="mt-8">
+      <section className="mt-8">
+        <h2 className="text-[14px] font-medium text-[var(--color-text-primary)]">
+          Connected accounts
+        </h2>
         {connectedAccounts.length > 0 ? (
-          <div className="space-y-3">
+          <div className="mt-3 space-y-3">
             {connectedAccounts.map((provider) => (
               <div
                 className="flex items-center justify-between rounded-lg border border-[#2c2d33] bg-[#141519] px-4 py-3"
@@ -268,39 +333,78 @@ export default function ConnectedAccountsPage() {
                 </span>
               </div>
             ))}
-
-            {hasLinkableProvider ? (
-              <button
-                className="rounded-md bg-[#5E6AD2] px-4 py-[8px] text-[13px] font-medium text-white transition-colors hover:bg-[#4F5ABF] disabled:cursor-not-allowed disabled:opacity-60"
-                type="button"
-                onClick={() => setChooserOpen(true)}
-              >
-                Connect account
-              </button>
-            ) : (
-              <p className="text-[13px] text-[var(--color-text-tertiary)]">
-                No additional account providers are available to connect.
-              </p>
-            )}
           </div>
         ) : (
-          <EmptyState
-            title="No connected accounts"
-            description={
-              hasLinkableProvider
-                ? "You are currently signed in via email. Link other accounts for easier access."
-                : "Account linking is unavailable because no social login providers are configured for this workspace."
-            }
-            action={{
-              label: "Connect account",
-              disabled: !hasLinkableProvider,
-              disabledReason:
-                "Ask an admin to configure Google OAuth before connecting accounts.",
-              onClick: () => setChooserOpen(true),
-            }}
-          />
+          <p className="mt-2 text-[13px] text-[var(--color-text-tertiary)]">
+            No connected accounts yet.
+          </p>
         )}
-      </div>
+      </section>
+
+      <section className="mt-8">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-[14px] font-medium text-[var(--color-text-primary)]">
+              Available providers
+            </h2>
+            <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
+              Connect another sign-in provider when it is configured for this
+              workspace.
+            </p>
+          </div>
+          {hasLinkableProvider && (
+            <button
+              className="rounded-md bg-[#5E6AD2] px-4 py-[8px] text-[13px] font-medium text-white transition-colors hover:bg-[#4F5ABF] disabled:cursor-not-allowed disabled:opacity-60"
+              type="button"
+              onClick={() => setChooserOpen(true)}
+            >
+              Connect account
+            </button>
+          )}
+        </div>
+
+        <div className="mt-3 space-y-3">
+          {providerRows.map((provider) => (
+            <div
+              className="flex items-center justify-between gap-4 rounded-lg border border-[#2c2d33] bg-[#141519] px-4 py-3"
+              key={provider.id}
+            >
+              <div>
+                <div className="text-[14px] font-medium text-[var(--color-text-primary)]">
+                  {provider.label}
+                </div>
+                <div className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
+                  {provider.status === "connected"
+                    ? "This provider is already connected to your account."
+                    : provider.status === "available"
+                      ? "Available to connect."
+                      : provider.unavailableReason}
+                </div>
+              </div>
+              {provider.status === "connected" ? (
+                <span className="rounded-full border border-emerald-500/30 px-2 py-0.5 text-[12px] text-emerald-200">
+                  Connected
+                </span>
+              ) : provider.status === "available" ? (
+                <button
+                  className="rounded-md border border-[#2c2d33] px-3 py-2 text-[13px] text-[var(--color-text-primary)] transition-colors hover:bg-[#1b1c22] disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  disabled={linkingProvider === provider.id}
+                  onClick={() => void startProviderLink(provider.id)}
+                >
+                  {linkingProvider === provider.id
+                    ? `Connecting ${provider.label}...`
+                    : `Connect ${provider.label}`}
+                </button>
+              ) : (
+                <span className="rounded-full border border-[#3a3b42] px-2 py-0.5 text-[12px] text-[var(--color-text-tertiary)]">
+                  Unavailable
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
 
       {chooserOpen && (
         <div className="mt-6 rounded-lg border border-[#2c2d33] bg-[#111217] p-4">
@@ -312,18 +416,19 @@ export default function ConnectedAccountsPage() {
             linking finishes.
           </p>
           <div className="mt-4 flex gap-2">
-            {linkableProviders.includes("google") && (
+            {linkableProviders.map((provider) => (
               <button
                 className="rounded-md border border-[#2c2d33] px-3 py-2 text-[13px] text-[var(--color-text-primary)] transition-colors hover:bg-[#1b1c22] disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
-                disabled={linkingProvider === "google"}
-                onClick={startGoogleLink}
+                disabled={linkingProvider === provider.id}
+                key={provider.id}
+                onClick={() => void startProviderLink(provider.id)}
               >
-                {linkingProvider === "google"
-                  ? "Connecting Google..."
-                  : "Google"}
+                {linkingProvider === provider.id
+                  ? `Connecting ${provider.label}...`
+                  : provider.label}
               </button>
-            )}
+            ))}
             <button
               className="rounded-md px-3 py-2 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:bg-[#1b1c22]"
               type="button"

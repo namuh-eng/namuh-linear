@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Connected accounts", () => {
-  test("Connect account is disabled with configuration-required copy when no link provider is configured", async ({
+  test("Connected accounts renders provider-level configured and unavailable states", async ({
     page,
   }) => {
     const suffix = Date.now().toString(36);
@@ -17,9 +17,11 @@ test.describe("Connected accounts", () => {
     await page.goto(`/${workspaceSlug}/settings/account/connections`);
 
     await expect(
-      page.getByRole("heading", { name: "Connected accounts", exact: true }),
+      page.getByRole("heading", { level: 1, name: "Connected accounts" }),
     ).toBeVisible();
-    await expect(page.getByText("No connected accounts")).toBeVisible();
+    await expect(page.getByText("No connected accounts yet.")).toBeVisible();
+    await expect(page.getByText("Available providers")).toBeVisible();
+    await expect(page.getByText(/^Google$/)).toBeVisible();
 
     const capabilities = await page.request.get(
       "/api/auth/provider-capabilities",
@@ -38,15 +40,11 @@ test.describe("Connected accounts", () => {
       ).toBeVisible();
       await expect(page.getByRole("button", { name: "Google" })).toBeVisible();
     } else {
-      await expect(connectButton).toBeDisabled();
+      await expect(connectButton).toHaveCount(0);
       await expect(
-        page.getByText(
-          /Account linking is unavailable because no social login providers are configured/,
-        ),
+        page.getByText("Google account linking is not configured"),
       ).toBeVisible();
-      await expect(
-        page.getByText(/Ask an admin to configure Google OAuth/),
-      ).toBeVisible();
+      await expect(page.getByText("Unavailable")).toBeVisible();
       await expect(page.getByText("Choose an account to connect")).toHaveCount(
         0,
       );
