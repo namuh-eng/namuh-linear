@@ -8,7 +8,9 @@ const mockRedirect = vi.fn(
       headers: { Location: url.toString() },
     }),
 );
-const mockNext = vi.fn(() => new Response(null, { status: 200 }));
+const mockNext = vi.fn(
+  (_init?: unknown) => new Response(null, { status: 200 }),
+);
 const mockRewrite = vi.fn(
   (url: URL) => new Response(url.toString(), { status: 200 }),
 );
@@ -186,8 +188,6 @@ describe("Auth proxy", () => {
 
   it.each([
     ["/foreverbrowsing/members", "/members"],
-    ["/foreverbrowsing/projects", "/projects"],
-    ["/foreverbrowsing/projects/all", "/projects/all"],
     ["/foreverbrowsing/project/roadmap/overview", "/project/roadmap/overview"],
   ])(
     "rewrites authenticated workspace-prefixed app route %s without changing the browser URL",
@@ -228,22 +228,32 @@ describe("Auth proxy", () => {
     },
   );
 
-  it("lets the explicit workspace-prefixed team projects route render canonically", async () => {
-    mockRewrite.mockClear();
-    mockRedirect.mockClear();
-    mockNext.mockClear();
-    const { proxy } = await import("@/proxy");
-    const req = createMockRequest(
-      "/foreverbrowsing/team/ENG/projects?view=list",
-      {
+  it.each([
+    "/foreverbrowsing/projects",
+    "/foreverbrowsing/projects/all",
+    "/foreverbrowsing/team/ENG/projects",
+  ])(
+    "lets explicit workspace-prefixed projects route %s render canonically",
+    async (path) => {
+      mockRewrite.mockClear();
+      mockRedirect.mockClear();
+      mockNext.mockClear();
+      const { proxy } = await import("@/proxy");
+      const req = createMockRequest(`${path}?view=list`, {
         "better-auth.session_token": "valid-session-token",
-      },
-    );
-    await proxy(req as never);
-    expect(mockRedirect).not.toHaveBeenCalled();
-    expect(mockRewrite).not.toHaveBeenCalled();
-    expect(mockNext).toHaveBeenCalled();
-  });
+      });
+      await proxy(req as never);
+      expect(mockRedirect).not.toHaveBeenCalled();
+      expect(mockRewrite).not.toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalled();
+      const nextOptions = mockNext.mock.calls[0]?.[0] as
+        | { request?: { headers?: Headers } }
+        | undefined;
+      expect(nextOptions?.request?.headers?.get("x-workspace-slug")).toBe(
+        "foreverbrowsing",
+      );
+    },
+  );
 
   it("does not rewrite settings teams routes as workspace-prefixed directory routes", async () => {
     mockRewrite.mockClear();
