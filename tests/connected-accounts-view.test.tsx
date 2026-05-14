@@ -71,7 +71,7 @@ describe("ConnectedAccountsPage component", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the connected accounts settings page with a disabled explanatory action when no provider is configured", async () => {
+  it("renders provider-level unavailable state when no provider is configured", async () => {
     const fetchMock = mockFetch({ googleConfigured: false });
 
     render(<ConnectedAccountsPage />);
@@ -87,21 +87,20 @@ describe("ConnectedAccountsPage component", () => {
       );
     });
 
-    expect(screen.getByText("Connected accounts")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Connected accounts" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Manage your social logins/)).toBeInTheDocument();
-    expect(screen.getByText("No connected accounts")).toBeInTheDocument();
+    expect(screen.getByText("No connected accounts yet.")).toBeInTheDocument();
+    expect(screen.getByText("Available providers")).toBeInTheDocument();
+    expect(screen.getByText("Google")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /Account linking is unavailable because no social login providers are configured/,
-      ),
+      screen.getByText("Google account linking is not configured"),
     ).toBeInTheDocument();
-
-    const button = screen.getByRole("button", { name: "Connect account" });
-    expect(button).toBeDisabled();
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(
-      screen.getByText(/Ask an admin to configure Google OAuth/),
-    ).toBeInTheDocument();
-    fireEvent.click(button);
+      screen.queryByRole("button", { name: "Connect account" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByText("Choose an account to connect"),
     ).not.toBeInTheDocument();
@@ -183,15 +182,48 @@ describe("ConnectedAccountsPage component", () => {
 
     render(<ConnectedAccountsPage />);
 
-    expect(await screen.findByText("Google")).toBeInTheDocument();
-    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(await screen.findAllByText("Google")).toHaveLength(2);
+    expect(screen.getAllByText("Connected")).toHaveLength(2);
     expect(screen.getByText(/ending in 123456/)).toBeInTheDocument();
-    expect(screen.queryByText("No connected accounts")).not.toBeInTheDocument();
     expect(
-      screen.getByText(
-        "No additional account providers are available to connect.",
-      ),
+      screen.queryByText("No connected accounts yet."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("This provider is already connected to your account."),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the provider surface extensible when capabilities include non-account-linking providers", async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      const path = String(url);
+      if (path === "/api/account/security") {
+        return new Response(JSON.stringify({ providers: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (path === "/api/auth/provider-capabilities") {
+        return new Response(
+          JSON.stringify({ providers: { google: true, passkey: true } }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+      return new Response("Not found", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ConnectedAccountsPage />);
+
+    expect(
+      await screen.findByRole("button", { name: "Connect account" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Connect Google" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Passkey")).not.toBeInTheDocument();
   });
 
   it("surfaces cancelled and failed OAuth callback states from the URL", async () => {
