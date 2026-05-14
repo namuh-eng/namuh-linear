@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { user } from "@/lib/db/schema";
 import {
   DATABASE_BOOTSTRAP_MESSAGE,
+  DATABASE_BOOTSTRAP_SETUP_COMMANDS,
   DATABASE_BOOTSTRAP_TITLE,
   shouldRenderDatabaseBootstrapError,
 } from "@/lib/dev-database-error";
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
         {
           error: DATABASE_BOOTSTRAP_TITLE,
           message: DATABASE_BOOTSTRAP_MESSAGE,
-          setup: ["make dev-services", "npm run db:push"],
+          setup: DATABASE_BOOTSTRAP_SETUP_COMMANDS,
         },
         { status: 503 },
       );

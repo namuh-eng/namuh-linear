@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { member, team, workspace } from "@/lib/db/schema";
 import {
   DATABASE_BOOTSTRAP_MESSAGE,
+  DATABASE_BOOTSTRAP_SETUP_COMMANDS,
   DATABASE_BOOTSTRAP_TITLE,
   shouldRenderDatabaseBootstrapError,
 } from "@/lib/dev-database-error";
@@ -27,8 +28,9 @@ function DatabaseBootstrapError() {
           {DATABASE_BOOTSTRAP_MESSAGE}
         </p>
         <div className="mt-6 rounded-xl bg-[#0d0f15] p-4 font-mono text-sm text-[#d7dae3]">
-          <div>make dev-services</div>
-          <div>npm run db:push</div>
+          {DATABASE_BOOTSTRAP_SETUP_COMMANDS.map((command) => (
+            <div key={command}>{command}</div>
+          ))}
           <div>PLAYWRIGHT_TEST=true npm run dev -- -p 3015</div>
         </div>
         <p className="mt-5 text-sm text-[#9aa1b3]">
