@@ -1,7 +1,11 @@
 "use client";
 
 import { useAppShellContext } from "@/app/(app)/app-shell";
-import type { AgentRun, AgentSuggestionStatus } from "@/lib/agent-runs";
+import type {
+  AgentRun,
+  AgentSuggestion,
+  AgentSuggestionStatus,
+} from "@/lib/agent-runs";
 import { withWorkspaceSlug } from "@/lib/workspace-paths";
 import Link from "next/link";
 import {
@@ -43,6 +47,20 @@ function formatTimestamp(value: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+}
+
+function contextHrefForSuggestion(
+  suggestion: AgentSuggestion,
+  workspaceSlug?: string | null,
+) {
+  if (suggestion.isExternalContext) {
+    return suggestion.contextUrl;
+  }
+
+  return withWorkspaceSlug(
+    suggestion.contextUrl || "/search?q=context",
+    workspaceSlug,
+  );
 }
 
 function statusClassName(status: AgentRun["status"]) {
@@ -477,10 +495,20 @@ export function AgentDashboard() {
                               Decline
                             </button>
                             <Link
-                              href={withWorkspaceSlug(
-                                "/my-issues/assigned",
+                              href={contextHrefForSuggestion(
+                                suggestion,
                                 workspaceSlug,
                               )}
+                              target={
+                                suggestion.isExternalContext
+                                  ? "_blank"
+                                  : undefined
+                              }
+                              rel={
+                                suggestion.isExternalContext
+                                  ? "noreferrer"
+                                  : undefined
+                              }
                               className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[12px] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]"
                             >
                               Open context

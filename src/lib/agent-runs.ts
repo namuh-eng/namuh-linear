@@ -12,6 +12,8 @@ export interface AgentSuggestion {
   title: string;
   summary: string;
   target: string;
+  contextUrl: string;
+  isExternalContext?: boolean;
   status: AgentSuggestionStatus;
 }
 
@@ -45,6 +47,64 @@ interface CreateAgentRunInput {
 
 const fallbackCreatedAt = "2026-05-15T12:00:00.000Z";
 
+function encodePathSegment(value: string) {
+  return encodeURIComponent(value.trim());
+}
+
+function slugifyProjectContext(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function resolveAgentContextLink(
+  target: string,
+  teamKey: string,
+): { href: string; isExternal?: boolean } {
+  const normalizedTarget = target.trim();
+  const normalizedTeamKey = teamKey.trim().toUpperCase() || "EXP";
+
+  if (!normalizedTarget) {
+    return { href: "/search?q=context" };
+  }
+
+  if (/^https?:\/\//i.test(normalizedTarget)) {
+    return { href: normalizedTarget, isExternal: true };
+  }
+
+  const issueMatch = normalizedTarget.match(/\b([A-Z][A-Z0-9]+-\d+)\b/i);
+  if (issueMatch) {
+    const identifier = issueMatch[1].toUpperCase();
+    return {
+      href: `/team/${encodePathSegment(normalizedTeamKey)}/issue/${encodePathSegment(identifier)}`,
+    };
+  }
+
+  const projectMatch = normalizedTarget.match(/^project\s*:?\s*(.+)$/i);
+  if (projectMatch) {
+    const slug = slugifyProjectContext(projectMatch[1]);
+    if (slug) {
+      return { href: `/project/${encodePathSegment(slug)}/overview` };
+    }
+  }
+
+  return { href: `/search?q=${encodeURIComponent(normalizedTarget)}` };
+}
+
+function suggestionWithContext(
+  suggestion: Omit<AgentSuggestion, "contextUrl" | "isExternalContext">,
+  teamKey: string,
+): AgentSuggestion {
+  const contextLink = resolveAgentContextLink(suggestion.target, teamKey);
+  return {
+    ...suggestion,
+    contextUrl: contextLink.href,
+    isExternalContext: contextLink.isExternal,
+  };
+}
+
 const seededRuns: AgentRun[] = [
   {
     id: "agent-run-seed-triage",
@@ -73,22 +133,28 @@ const seededRuns: AgentRun[] = [
       "Prepared two suggestions for human review.",
     ],
     suggestions: [
-      {
-        id: "suggestion-assign-agent-sidebar",
-        title: "Assign Agent sidebar follow-up",
-        summary:
-          "Route placeholder work to the product engineering queue and link it to issue #300.",
-        target: "EXP-300",
-        status: "open",
-      },
-      {
-        id: "suggestion-prioritize-inbox",
-        title: "Prioritize inbox notification regression",
-        summary:
-          "Move the unread count regression into the current cycle because it affects daily triage.",
-        target: "EXP-297",
-        status: "open",
-      },
+      suggestionWithContext(
+        {
+          id: "suggestion-assign-agent-sidebar",
+          title: "Assign Agent sidebar follow-up",
+          summary:
+            "Route placeholder work to the product engineering queue and link it to issue #300.",
+          target: "EXP-300",
+          status: "open",
+        },
+        "EXP",
+      ),
+      suggestionWithContext(
+        {
+          id: "suggestion-prioritize-inbox",
+          title: "Prioritize inbox notification regression",
+          summary:
+            "Move the unread count regression into the current cycle because it affects daily triage.",
+          target: "EXP-297",
+          status: "open",
+        },
+        "EXP",
+      ),
     ],
   },
 ];
@@ -156,14 +222,17 @@ export function createAgentRun(
       "Queued deterministic mock execution for product validation.",
     ],
     suggestions: [
-      {
-        id: `${id}-suggestion-open-issue`,
-        title: "Open linked workspace context",
-        summary:
-          "Review the selected team and target context before handing this task to the real executor.",
-        target: `${teamKey} workspace`,
-        status: "open",
-      },
+      suggestionWithContext(
+        {
+          id: `${id}-suggestion-open-issue`,
+          title: "Open linked workspace context",
+          summary:
+            "Review the selected team and target context before handing this task to the real executor.",
+          target: normalizedContext,
+          status: "open",
+        },
+        teamKey,
+      ),
     ],
   };
 
