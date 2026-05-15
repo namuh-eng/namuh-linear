@@ -43,6 +43,9 @@ test.describe("Agent dashboard", () => {
     await expect(
       page.getByRole("heading", { name: "Run history" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Open context" }).first(),
+    ).toHaveAttribute("href", "/foreverbrowsing/team/ENG/issue/EXP-300");
 
     await page.getByRole("button", { name: "Accept" }).first().click();
     await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
