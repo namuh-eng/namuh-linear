@@ -1,4 +1,11 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProjectLabelsPage from "../src/app/(app)/settings/project-labels/page";
 
@@ -63,6 +70,128 @@ describe("ProjectLabelsPage component", () => {
     await waitFor(() => {
       expect(screen.getByText("No project labels")).toBeDefined();
     });
+  });
+
+  it("opens create modal from the toolbar and posts a new project label", async () => {
+    (fetch as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockLabelsData,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ label: { id: "l3" } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          labels: [
+            ...mockLabelsData.labels,
+            {
+              id: "l3",
+              name: "Customer facing",
+              color: "#3b82f6",
+              description: "Visible roadmap",
+              issueCount: 0,
+            },
+          ],
+        }),
+      });
+
+    render(<ProjectLabelsPage />);
+    await waitFor(() => screen.getByText("Roadmap"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Create label" }));
+    expect(
+      screen.getByRole("heading", { name: "Create project label" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Project label name"), {
+      target: { value: "Customer facing" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Add project label description..."),
+      {
+        target: { value: "Visible roadmap" },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Color #3b82f6" }));
+    const createButtons = screen.getAllByRole("button", {
+      name: "Create label",
+    });
+    fireEvent.click(createButtons[createButtons.length - 1]);
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/labels",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.stringContaining('"name":"Customer facing"'),
+        }),
+      );
+    });
+    expect(await screen.findByText("Customer facing")).toBeInTheDocument();
+  });
+
+  it("opens create modal from empty state action", async () => {
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({ labels: [] }),
+    });
+
+    render(<ProjectLabelsPage />);
+    await waitFor(() => screen.getByText("No project labels"));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create project label" }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Create project label" }),
+    ).toBeInTheDocument();
+  });
+
+  it("edits an existing project label", async () => {
+    (fetch as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockLabelsData,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ label: { id: "l1" } }),
+      });
+
+    render(<ProjectLabelsPage />);
+    await waitFor(() => screen.getByText("Roadmap"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Roadmap" }));
+    expect(
+      screen.getByRole("heading", { name: "Edit project label" }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Project label name"), {
+      target: { value: "Roadmap updated" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Add project label description..."),
+      {
+        target: { value: "Updated description" },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/labels/l1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.stringContaining('"name":"Roadmap updated"'),
+        }),
+      );
+    });
+    expect(screen.getByText("Roadmap updated")).toBeInTheDocument();
+    expect(screen.getByText("Updated description")).toBeInTheDocument();
   });
 
   it("shows error message when fetch fails", async () => {
