@@ -2193,6 +2193,34 @@ export function IssueDetailView({
                 cycle={issue.cycle}
                 parentIssue={issue.parentIssue}
                 relations={issue.relations}
+                issueId={issue.id}
+                onRelationAdded={(relation) =>
+                  setIssue((current) =>
+                    current
+                      ? {
+                          ...current,
+                          relations: [...current.relations, relation],
+                        }
+                      : current,
+                  )
+                }
+                onRelationRemoved={(relationId) =>
+                  setIssue((current) =>
+                    current
+                      ? {
+                          ...current,
+                          relations: current.relations.filter(
+                            (relation) => relation.id !== relationId,
+                          ),
+                        }
+                      : current,
+                  )
+                }
+                onNavigateToIssue={(identifier) =>
+                  router.push(
+                    withWorkspaceSlug(`/issue/${identifier}`, workspaceSlug),
+                  )
+                }
               />
             )}
           </div>
