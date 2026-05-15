@@ -120,4 +120,76 @@ test.describe("Issue detail actions", () => {
     await page.waitForURL(/\/team\/ENG\/all$/);
     expect(deleteRequests).toHaveLength(1);
   });
+
+  test("workspace-prefixed sub-issue links use issue identifiers", async ({
+    page,
+  }) => {
+    const parentIssue = {
+      ...issueDetail,
+      id: "5efda6f1-6ac0-45f8-b383-a4f3bb872a8d",
+      identifier: "ENG-173",
+      title: "Parent issue with child",
+      subIssues: [
+        {
+          id: "bcf4e6bf-4b72-480f-a301-c6ec8d4bc90d",
+          identifier: "ENG-174",
+          title: "Child issue keeps canonical URL",
+          priority: "medium",
+          state: {
+            name: "Todo",
+            category: "unstarted",
+            color: "#999999",
+          },
+        },
+      ],
+    };
+    const childIssue = {
+      ...issueDetail,
+      id: "bcf4e6bf-4b72-480f-a301-c6ec8d4bc90d",
+      identifier: "ENG-174",
+      title: "Child issue keeps canonical URL",
+      subIssues: [],
+    };
+
+    await page.route("**/api/issues/*/history", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ history: [] }),
+      });
+    });
+    await page.route("**/api/issues/ENG-173", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(parentIssue),
+      });
+    });
+    await page.route("**/api/issues/ENG-174", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(childIssue),
+      });
+    });
+
+    await page.goto("/foreverbrowsing/team/ENG/issue/ENG-173");
+    await expect(page.getByText("Parent issue with child")).toBeVisible();
+
+    const childLink = page
+      .locator('a[href="/foreverbrowsing/team/ENG/issue/ENG-174"]')
+      .filter({ hasText: "Child issue keeps canonical URL" });
+    await expect(childLink).toHaveAttribute(
+      "href",
+      "/foreverbrowsing/team/ENG/issue/ENG-174",
+    );
+
+    await childLink.click();
+    await expect(page).toHaveURL(
+      /\/foreverbrowsing\/team\/ENG\/issue\/ENG-174$/,
+    );
+    await expect(
+      page.getByText("Child issue keeps canonical URL"),
+    ).toBeVisible();
+  });
 });
