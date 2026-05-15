@@ -1,15 +1,19 @@
 "use client";
 
 import { Avatar } from "@/components/avatar";
+import {
+  OAUTH_SCOPE_OPTIONS,
+  validateOAuthRedirectUrl,
+} from "@/lib/api-settings";
 import type {
   ApiSettingsPayload,
   OAuthApplicationRecord,
+  OAuthScope,
   PermissionLevel,
   WebhookEventType,
   WorkspaceApiKeyRecord,
   WorkspaceWebhookRecord,
 } from "@/lib/api-settings";
-import { validateOAuthRedirectUrl } from "@/lib/api-settings";
 import { useEffect, useState } from "react";
 
 type CreateResponse = {
@@ -22,8 +26,11 @@ type CreateResponse = {
 };
 
 type OAuthFormState = {
+  id: string | null;
   name: string;
-  redirectUrl: string;
+  description: string;
+  redirectUrls: string;
+  scopes: OAuthScope[];
 };
 
 type WebhookFormState = {
@@ -191,6 +198,15 @@ function Field({
   );
 }
 
+function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      {...props}
+      className="min-h-[82px] w-full rounded-lg border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-accent)]"
+    />
+  );
+}
+
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
@@ -216,11 +232,15 @@ function OAuthApplicationsList({
   items,
   canManage,
   onCreate,
+  onEdit,
+  onRotate,
   onDelete,
 }: {
   items: OAuthApplicationRecord[];
   canManage: boolean;
   onCreate: () => void;
+  onEdit: (item: OAuthApplicationRecord) => void;
+  onRotate: (item: OAuthApplicationRecord) => void;
   onDelete: (item: OAuthApplicationRecord) => void;
 }) {
   if (items.length === 0) {
@@ -256,14 +276,29 @@ function OAuthApplicationsList({
               <div className="mt-1 break-all text-[12px] text-[var(--color-text-tertiary)]">
                 Redirect URL: {item.redirectUrl}
               </div>
+              <div className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
+                Scopes: {(item.scopes ?? ["read"]).join(", ")}
+              </div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2 text-right text-[12px] text-[var(--color-text-tertiary)]">
               <div>Created {formatDate(item.createdAt)}</div>
-              <ActionButton
-                label="Delete OAuth application"
-                onClick={() => onDelete(item)}
-                disabled={!canManage}
-              />
+              <div className="flex flex-wrap justify-end gap-2">
+                <ActionButton
+                  label="Edit OAuth application"
+                  onClick={() => onEdit(item)}
+                  disabled={!canManage}
+                />
+                <ActionButton
+                  label="Rotate client secret"
+                  onClick={() => onRotate(item)}
+                  disabled={!canManage}
+                />
+                <ActionButton
+                  label="Delete OAuth application"
+                  onClick={() => onDelete(item)}
+                  disabled={!canManage}
+                />
+              </div>
             </div>
           </div>
         </SurfaceRow>
@@ -409,8 +444,23 @@ function ApiKeysList({
 
 function buildDefaultOauthForm(): OAuthFormState {
   return {
+    id: null,
     name: "",
-    redirectUrl: "",
+    description: "",
+    redirectUrls: "",
+    scopes: ["read"],
+  };
+}
+
+function buildOauthFormFromApplication(
+  item: OAuthApplicationRecord,
+): OAuthFormState {
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description ?? "",
+    redirectUrls: (item.redirectUrls ?? [item.redirectUrl]).join("\n"),
+    scopes: item.scopes ?? ["read"],
   };
 }
 
@@ -533,13 +583,23 @@ export default function ApiSettingsPage() {
       return;
     }
 
-    const redirectUrlValidation = validateOAuthRedirectUrl(
-      oauthForm.redirectUrl,
+    const redirectUrls = oauthForm.redirectUrls
+      .split(/[\n,]+/)
+      .map((url) => url.trim())
+      .filter(Boolean);
+    const firstRedirectValidation = validateOAuthRedirectUrl(
+      redirectUrls[0] ?? "",
     );
-    if (!redirectUrlValidation.ok) {
+    if (!firstRedirectValidation.ok) {
       setStatusMessage(null);
       setRevealedCredential(null);
-      setErrorMessage(redirectUrlValidation.error);
+      setErrorMessage(firstRedirectValidation.error);
+      return;
+    }
+    if (oauthForm.scopes.length === 0) {
+      setStatusMessage(null);
+      setRevealedCredential(null);
+      setErrorMessage("At least one OAuth scope is required.");
       return;
     }
 
@@ -548,12 +608,20 @@ export default function ApiSettingsPage() {
       {
         method: "POST",
         body: JSON.stringify({
-          action: "createOAuthApplication",
+          action: oauthForm.id
+            ? "updateOAuthApplication"
+            : "createOAuthApplication",
+          id: oauthForm.id ?? undefined,
           name,
-          redirectUrl: redirectUrlValidation.url,
+          description: oauthForm.description,
+          redirectUrl: redirectUrls[0],
+          redirectUrls,
+          scopes: oauthForm.scopes,
         }),
       },
-      "OAuth application created.",
+      oauthForm.id
+        ? "OAuth application updated."
+        : "OAuth application created.",
     );
 
     if (didPersist) {
@@ -600,6 +668,33 @@ export default function ApiSettingsPage() {
       setApiKeyModalOpen(false);
       setApiKeyName("Workspace automation");
     }
+  }
+
+  function editOAuthApplication(item: OAuthApplicationRecord) {
+    setOauthForm(buildOauthFormFromApplication(item));
+    setOauthModalOpen(true);
+  }
+
+  async function rotateOAuthApplicationSecret(item: OAuthApplicationRecord) {
+    if (
+      !window.confirm(
+        `Rotate client secret for "${item.name}"? Existing tokens will be revoked.`,
+      )
+    ) {
+      return;
+    }
+
+    await mutate(
+      "/api/workspaces/current/api",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action: "rotateOAuthApplicationSecret",
+          id: item.id,
+        }),
+      },
+      "OAuth client secret rotated.",
+    );
   }
 
   async function deleteOAuthApplication(item: OAuthApplicationRecord) {
@@ -747,7 +842,12 @@ export default function ApiSettingsPage() {
         <OAuthApplicationsList
           items={data.oauthApplications}
           canManage={data.canManageWorkspaceApi}
-          onCreate={() => setOauthModalOpen(true)}
+          onCreate={() => {
+            setOauthForm(buildDefaultOauthForm());
+            setOauthModalOpen(true);
+          }}
+          onEdit={editOAuthApplication}
+          onRotate={rotateOAuthApplicationSecret}
           onDelete={deleteOAuthApplication}
         />
 
@@ -814,8 +914,10 @@ export default function ApiSettingsPage() {
 
       {oauthModalOpen ? (
         <Modal
-          title="New OAuth application"
-          description="Create an OAuth application with a redirect callback URL."
+          title={
+            oauthForm.id ? "Edit OAuth application" : "New OAuth application"
+          }
+          description="Create an OAuth application with redirect callbacks and explicit permissions."
           onClose={() => setOauthModalOpen(false)}
         >
           <div className="space-y-4">
@@ -833,27 +935,76 @@ export default function ApiSettingsPage() {
               />
             </Field>
 
-            <Field label="Redirect URL">
+            <Field label="Description">
               <TextInput
-                aria-label="Redirect URL"
-                value={oauthForm.redirectUrl}
+                aria-label="Description"
+                value={oauthForm.description}
                 onChange={(event) =>
                   setOauthForm((current) => ({
                     ...current,
-                    redirectUrl: event.target.value,
+                    description: event.target.value,
+                  }))
+                }
+                placeholder="Syncs Linear issues into the partner portal"
+              />
+            </Field>
+
+            <Field label="Redirect URL">
+              <TextArea
+                aria-label="Redirect URL"
+                value={oauthForm.redirectUrls}
+                onChange={(event) =>
+                  setOauthForm((current) => ({
+                    ...current,
+                    redirectUrls: event.target.value,
                   }))
                 }
                 placeholder="https://example.com/oauth/callback"
               />
               <p className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
-                Use a public HTTPS callback URL. Localhost, private network
-                URLs, and URL fragments are not accepted.
+                Add one public HTTPS callback URL per line. Localhost, private
+                network URLs, and URL fragments are not accepted.
               </p>
             </Field>
 
+            <fieldset>
+              <legend className="mb-1.5 text-[12px] font-medium text-[var(--color-text-secondary)]">
+                Permissions
+              </legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {OAUTH_SCOPE_OPTIONS.map((scope) => {
+                  const checked = oauthForm.scopes.includes(scope);
+                  return (
+                    <label
+                      key={scope}
+                      className="flex items-center gap-2 text-[13px] text-[var(--color-text-primary)]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) =>
+                          setOauthForm((current) => ({
+                            ...current,
+                            scopes: event.target.checked
+                              ? [...current.scopes, scope]
+                              : current.scopes.filter((item) => item !== scope),
+                          }))
+                        }
+                      />
+                      {scope}
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+
             <div className="flex justify-end gap-3">
               <ActionButton
-                label="Create OAuth application"
+                label={
+                  oauthForm.id
+                    ? "Save OAuth application"
+                    : "Create OAuth application"
+                }
                 onClick={submitOAuthApplication}
                 disabled={saving}
               />

@@ -11,13 +11,56 @@ export { asRecord, isPermissionLevel, readPermissionLevel };
 export type { PermissionLevel, WorkspaceMemberRole };
 export type WebhookEventType = "created" | "updated" | "deleted";
 
+export const OAUTH_SCOPE_OPTIONS = [
+  "read",
+  "write",
+  "issues:read",
+  "issues:write",
+  "comments:write",
+  "webhooks:write",
+] as const;
+
+export type OAuthScope = (typeof OAUTH_SCOPE_OPTIONS)[number];
+
 export type OAuthApplicationRecord = {
   id: string;
   name: string;
+  description?: string | null;
   clientId: string;
   clientSecretPreview: string;
+  clientSecretHash?: string;
   redirectUrl: string;
+  redirectUrls?: string[];
+  scopes?: OAuthScope[];
+  createdByUserId?: string | null;
   createdAt: string;
+  updatedAt?: string;
+};
+
+export type OAuthAuthorizationCodeRecord = {
+  codeHash: string;
+  applicationId: string;
+  clientId: string;
+  workspaceId: string;
+  userId: string;
+  redirectUri: string;
+  scopes: OAuthScope[];
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type OAuthTokenRecord = {
+  id: string;
+  tokenHash: string;
+  refreshTokenHash: string;
+  applicationId: string;
+  clientId: string;
+  workspaceId: string;
+  userId: string;
+  scopes: OAuthScope[];
+  revokedAt: string | null;
+  createdAt: string;
+  expiresAt: string;
 };
 
 export type WorkspaceWebhookRecord = {
@@ -70,12 +113,16 @@ const WEBHOOK_EVENT_TYPES = new Set<WebhookEventType>([
   "deleted",
 ]);
 
-type WorkspaceApiSettingsState = {
+export type WorkspaceApiSettingsState = {
   oauthApplications: OAuthApplicationRecord[];
+  oauthAuthorizationCodes: OAuthAuthorizationCodeRecord[];
+  oauthTokens: OAuthTokenRecord[];
 };
 
 const DEFAULT_WORKSPACE_API_SETTINGS: WorkspaceApiSettingsState = {
   oauthApplications: [],
+  oauthAuthorizationCodes: [],
+  oauthTokens: [],
 };
 
 export function normalizeWebhookEvents(value: unknown): WebhookEventType[] {
@@ -191,6 +238,78 @@ export function validateOAuthRedirectUrl(
   return { ok: true, url: url.toString() };
 }
 
+export type OAuthRedirectListValidationResult =
+  | { ok: true; urls: string[] }
+  | { ok: false; error: string };
+
+export function validateOAuthRedirectUrls(
+  value: unknown,
+): OAuthRedirectListValidationResult {
+  const rawUrls = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\n,]+/)
+      : [];
+  const urls: string[] = [];
+  const seen = new Set<string>();
+
+  for (const rawUrl of rawUrls) {
+    if (typeof rawUrl !== "string" || !rawUrl.trim()) {
+      continue;
+    }
+    const validation = validateOAuthRedirectUrl(rawUrl);
+    if (!validation.ok) {
+      return validation;
+    }
+    if (seen.has(validation.url)) {
+      return { ok: false, error: "Redirect URLs must be unique." };
+    }
+    seen.add(validation.url);
+    urls.push(validation.url);
+  }
+
+  if (urls.length === 0) {
+    return { ok: false, error: "At least one redirect URL is required." };
+  }
+
+  return { ok: true, urls };
+}
+
+export function normalizeOAuthScopes(value: unknown): OAuthScope[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const allowed = new Set<string>(OAUTH_SCOPE_OPTIONS);
+  return Array.from(
+    new Set(
+      value.filter(
+        (scope): scope is OAuthScope =>
+          typeof scope === "string" && allowed.has(scope),
+      ),
+    ),
+  );
+}
+
+export function parseRequestedOAuthScopes(value: unknown): OAuthScope[] {
+  if (Array.isArray(value)) {
+    return normalizeOAuthScopes(value);
+  }
+  if (typeof value !== "string") {
+    return [];
+  }
+  return normalizeOAuthScopes(value.split(/[\s,]+/).filter(Boolean));
+}
+
+export function hasUnsupportedOAuthScopes(value: unknown) {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\s,]+/).filter(Boolean)
+      : [];
+  const allowed = new Set<string>(OAUTH_SCOPE_OPTIONS);
+  return raw.some((scope) => typeof scope !== "string" || !allowed.has(scope));
+}
+
 function isIsoDate(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(new Date(value).getTime());
 }
@@ -205,9 +324,29 @@ function readOAuthApplication(value: unknown): OAuthApplicationRecord | null {
     typeof record.clientSecretPreview === "string"
       ? record.clientSecretPreview.trim()
       : "";
-  const redirectUrl =
+  const clientSecretHash =
+    typeof record.clientSecretHash === "string"
+      ? record.clientSecretHash.trim()
+      : "";
+  const legacyRedirectUrl =
     typeof record.redirectUrl === "string" ? record.redirectUrl.trim() : "";
+  const redirectUrls = Array.isArray(record.redirectUrls)
+    ? record.redirectUrls.filter(
+        (url): url is string => typeof url === "string" && Boolean(url.trim()),
+      )
+    : legacyRedirectUrl
+      ? [legacyRedirectUrl]
+      : [];
+  const redirectUrl = redirectUrls[0] ?? legacyRedirectUrl;
+  const scopes = normalizeOAuthScopes(record.scopes);
   const createdAt = isIsoDate(record.createdAt) ? record.createdAt : null;
+  const updatedAt = isIsoDate(record.updatedAt) ? record.updatedAt : createdAt;
+  const description =
+    typeof record.description === "string" && record.description.trim()
+      ? record.description.trim()
+      : null;
+  const createdByUserId =
+    typeof record.createdByUserId === "string" ? record.createdByUserId : null;
 
   if (
     !id ||
@@ -223,10 +362,16 @@ function readOAuthApplication(value: unknown): OAuthApplicationRecord | null {
   return {
     id,
     name,
+    description,
     clientId,
     clientSecretPreview,
+    clientSecretHash,
     redirectUrl,
+    redirectUrls,
+    scopes: scopes.length ? scopes : ["read"],
+    createdByUserId,
     createdAt,
+    updatedAt: updatedAt ?? createdAt,
   };
 }
 
@@ -242,8 +387,33 @@ export function readWorkspaceApiSettings(
         )
     : DEFAULT_WORKSPACE_API_SETTINGS.oauthApplications;
 
+  const oauthAuthorizationCodes = Array.isArray(
+    apiSettings.oauthAuthorizationCodes,
+  )
+    ? apiSettings.oauthAuthorizationCodes.filter(
+        (code): code is OAuthAuthorizationCodeRecord => {
+          const record = asRecord(code);
+          return (
+            typeof record.codeHash === "string" &&
+            typeof record.applicationId === "string"
+          );
+        },
+      )
+    : [];
+  const oauthTokens = Array.isArray(apiSettings.oauthTokens)
+    ? apiSettings.oauthTokens.filter((token): token is OAuthTokenRecord => {
+        const record = asRecord(token);
+        return (
+          typeof record.tokenHash === "string" &&
+          typeof record.applicationId === "string"
+        );
+      })
+    : [];
+
   return {
     oauthApplications,
+    oauthAuthorizationCodes,
+    oauthTokens,
   };
 }
 
@@ -252,6 +422,12 @@ export function serializeWorkspaceApiSettings(
 ) {
   return {
     oauthApplications: apiSettings.oauthApplications,
+    ...(apiSettings.oauthAuthorizationCodes.length
+      ? { oauthAuthorizationCodes: apiSettings.oauthAuthorizationCodes }
+      : {}),
+    ...(apiSettings.oauthTokens.length
+      ? { oauthTokens: apiSettings.oauthTokens }
+      : {}),
   };
 }
 
