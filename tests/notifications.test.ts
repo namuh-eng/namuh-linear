@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { user } from "@/lib/db/schema";
 import {
   buildNotificationValues,
+  extractCanonicalMentionUserIds,
   extractMentionTokens,
   filterNotificationInputsByAccountSettings,
   resolveMentionedUserIdsFromCandidates,
@@ -69,6 +70,14 @@ describe("notifications helpers", () => {
     ).toEqual(["jaeyun"]);
   });
 
+  it("extracts canonical mention user ids from serialized mention tokens", () => {
+    expect(
+      extractCanonicalMentionUserIds(
+        "Please review @[Ashley](user:user-2) and @[Ashley](user:user-3)",
+      ),
+    ).toEqual(["user-2", "user-3"]);
+  });
+
   it("resolves mentioned users from workspace member candidates", () => {
     const mentionedUserIds = resolveMentionedUserIdsFromCandidates(
       "Looping in @test and @ashley",
@@ -87,6 +96,26 @@ describe("notifications helpers", () => {
     );
 
     expect(mentionedUserIds).toEqual(["user-1", "user-2"]);
+  });
+
+  it("prefers canonical user ids over duplicate display-name guessing", () => {
+    const mentionedUserIds = resolveMentionedUserIdsFromCandidates(
+      "Looping in @[Sam Lee](user:user-2)",
+      [
+        {
+          userId: "user-1",
+          email: "sam.one@example.com",
+          name: "Sam Lee",
+        },
+        {
+          userId: "user-2",
+          email: "sam.two@example.com",
+          name: "Sam Lee",
+        },
+      ],
+    );
+
+    expect(mentionedUserIds).toEqual(["user-2"]);
   });
 
   it("deduplicates recipient ids and skips actor self-notifications when building notification rows", () => {

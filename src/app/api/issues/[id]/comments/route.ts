@@ -55,6 +55,25 @@ function isFileLike(value: FormDataEntryValue): value is File {
   return value instanceof File;
 }
 
+function parseMentionedUserIds(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string");
+  }
+
+  if (typeof value !== "string" || !value.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((entry): entry is string => typeof entry === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -78,14 +97,22 @@ export async function POST(
   const contentType = request.headers.get("content-type") ?? "";
   let nextBody = "";
   let attachments: File[] = [];
+  let canonicalMentionedUserIds: string[] = [];
 
   if (contentType.includes("multipart/form-data")) {
     const formData = await request.formData();
     nextBody = formData.get("body")?.toString().trim() ?? "";
+    canonicalMentionedUserIds = parseMentionedUserIds(
+      formData.get("mentionedUserIds")?.toString(),
+    );
     attachments = formData.getAll("attachments").filter(isFileLike);
   } else {
-    const body = (await request.json()) as { body?: string };
+    const body = (await request.json()) as {
+      body?: string;
+      mentionedUserIds?: unknown;
+    };
     nextBody = body.body?.trim() ?? "";
+    canonicalMentionedUserIds = parseMentionedUserIds(body.mentionedUserIds);
   }
 
   if (!nextBody && attachments.length === 0) {
@@ -119,6 +146,7 @@ export async function POST(
   const mentionedUserIds = await resolveMentionedUserIds({
     workspaceId: currentIssue.workspaceId,
     body: nextBody,
+    userIds: canonicalMentionedUserIds,
   });
 
   try {

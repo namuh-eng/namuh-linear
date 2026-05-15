@@ -289,6 +289,172 @@ describe("IssueDetailView UI", () => {
     expect(screen.getAllByText("notes.txt").length).toBeGreaterThan(0);
   });
 
+  it("opens searchable member mention picker, inserts canonical token, and renders posted mention chip", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      const href = url.toString();
+      if (href.includes("/api/workspaces/members")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            members: [
+              {
+                userId: "sam-1",
+                name: "Sam Lee",
+                email: "sam.one@example.com",
+                image: null,
+                status: "active",
+              },
+              {
+                userId: "sam-2",
+                name: "Sam Lee",
+                email: "sam.two@example.com",
+                image: null,
+                status: "active",
+              },
+              {
+                userId: "ashley-1",
+                name: "Ashley Ha",
+                email: "ashley@example.com",
+                image: null,
+                status: "active",
+              },
+            ],
+          }),
+        } as Response);
+      }
+
+      if (href.includes("/api/issues/iss-1/comments")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            id: "c-mentioned",
+            body: "Please review @[Sam Lee](user:sam-2)",
+            user: { name: "Ashley", image: null },
+            createdAt: new Date().toISOString(),
+            reactions: [],
+            attachments: [],
+          }),
+        } as Response);
+      }
+
+      if (href.includes("/history")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ history: [] }),
+        } as Response);
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => mockIssueDetail,
+      } as Response);
+    });
+
+    render(<IssueDetailView issueId="iss-1" />);
+    await screen.findByText("A bug to fix");
+
+    const textarea = screen.getByPlaceholderText("Leave a comment...");
+    fireEvent.change(textarea, { target: { value: "Please review @sam" } });
+
+    const picker = await screen.findByRole("menu", {
+      name: "Mention members",
+    });
+    expect(picker).toBeInTheDocument();
+    expect(screen.getByText("sam.two@example.com")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("sam.two@example.com"));
+
+    expect(await screen.findByLabelText("Selected mentions")).toHaveTextContent(
+      "@Sam Lee",
+    );
+    expect(textarea).toHaveValue("Please review @[Sam Lee](user:sam-2) ");
+
+    fireEvent.click(screen.getByRole("button", { name: "Comment" }));
+
+    await waitFor(() => {
+      const commentCall = fetchSpy.mock.calls.find((call) =>
+        call[0].toString().includes("/api/issues/iss-1/comments"),
+      );
+      expect(commentCall).toBeDefined();
+      if (commentCall) {
+        const requestInit = commentCall[1] as RequestInit & { body: FormData };
+        expect(requestInit.body.get("body")).toBe(
+          "Please review @[Sam Lee](user:sam-2)",
+        );
+        expect(requestInit.body.get("mentionedUserIds")).toBe(
+          JSON.stringify(["sam-2"]),
+        );
+      }
+    });
+
+    expect(await screen.findByText("@Sam Lee")).toBeInTheDocument();
+  });
+
+  it("supports keyboard navigation and Escape dismissal for mention picker", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      const href = url.toString();
+      if (href.includes("/api/workspaces/members")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            members: [
+              {
+                userId: "ashley-1",
+                name: "Ashley Ha",
+                email: "ashley@example.com",
+                image: null,
+                status: "active",
+              },
+              {
+                userId: "morgan-1",
+                name: "Morgan",
+                email: "morgan@example.com",
+                image: null,
+                status: "active",
+              },
+            ],
+          }),
+        } as Response);
+      }
+
+      if (href.includes("/history")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ history: [] }),
+        } as Response);
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => mockIssueDetail,
+      } as Response);
+    });
+
+    render(<IssueDetailView issueId="iss-1" />);
+    await screen.findByText("A bug to fix");
+
+    const textarea = screen.getByPlaceholderText("Leave a comment...");
+    fireEvent.click(screen.getByRole("button", { name: "Mention" }));
+    expect(
+      await screen.findByRole("menu", { name: "Mention members" }),
+    ).toBeInTheDocument();
+
+    fireEvent.keyDown(textarea, { key: "ArrowDown" });
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    expect(textarea).toHaveValue("@[Morgan](user:morgan-1) ");
+
+    fireEvent.change(textarea, { target: { value: "@" } });
+    expect(
+      await screen.findByRole("menu", { name: "Mention members" }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(textarea, { key: "Escape" });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("menu", { name: "Mention members" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   it("applies rich text toolbar commands to the description", async () => {
     const execCommandSpy = vi.fn(() => true);
     Object.defineProperty(document, "execCommand", {

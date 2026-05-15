@@ -33,6 +33,7 @@ const NOTIFICATION_TYPE_EVENT_KEY: Partial<
 };
 
 const mentionPattern = /(^|\s)@([a-z0-9][\w.-]*)/gi;
+const canonicalMentionPattern = /@\[[^\]]+]\(user:([^)]+)\)/g;
 
 function normalizeMentionToken(value: string) {
   return value.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
@@ -62,6 +63,19 @@ function getMentionAliases(candidate: MentionCandidate) {
   return aliases;
 }
 
+export function extractCanonicalMentionUserIds(value: string) {
+  const userIds = new Set<string>();
+
+  for (const match of value.matchAll(canonicalMentionPattern)) {
+    const userId = match[1]?.trim();
+    if (userId) {
+      userIds.add(userId);
+    }
+  }
+
+  return [...userIds];
+}
+
 export function extractMentionTokens(value: string) {
   const matches = value.matchAll(mentionPattern);
   const tokens = new Set<string>();
@@ -81,14 +95,28 @@ export const extractMentionHandles = extractMentionTokens;
 export function resolveMentionedUserIdsFromCandidates(
   body: string,
   candidates: MentionCandidate[],
+  canonicalUserIds: string[] = [],
 ) {
+  const candidateUserIds = new Set(
+    candidates.map((candidate) => candidate.userId),
+  );
+  const mentionedUserIds = new Set<string>();
+
+  for (const userId of [
+    ...canonicalUserIds,
+    ...extractCanonicalMentionUserIds(body),
+  ]) {
+    if (candidateUserIds.has(userId)) {
+      mentionedUserIds.add(userId);
+    }
+  }
+
   const tokens = extractMentionTokens(body);
   if (tokens.length === 0) {
-    return [];
+    return [...mentionedUserIds];
   }
 
   const remaining = new Set(tokens);
-  const mentionedUserIds = new Set<string>();
 
   for (const candidate of candidates) {
     const aliases = getMentionAliases(candidate);
@@ -210,9 +238,14 @@ async function getMentionCandidates(workspaceId: string) {
 export async function resolveMentionedUserIds(input: {
   body: string;
   workspaceId: string;
+  userIds?: string[];
 }) {
   const candidates = await getMentionCandidates(input.workspaceId);
-  return resolveMentionedUserIdsFromCandidates(input.body, candidates);
+  return resolveMentionedUserIdsFromCandidates(
+    input.body,
+    candidates,
+    input.userIds,
+  );
 }
 
 export async function createAssignmentNotification(input: {
