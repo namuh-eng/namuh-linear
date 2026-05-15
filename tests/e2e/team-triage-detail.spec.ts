@@ -48,7 +48,9 @@ const issueDetail = {
   reactions: [],
   discussionSummary: {
     enabled: true,
-    text: "1 comment from 1 participant. Latest: Needs review before backlog.",
+    text: "• Overview: Morgan and Ashley discussed customer escalation triage.\n• Decision/status: Ashley: We decided to accept this into Ready.\n• Next steps: Morgan: Next, product will review the escalation before backlog.",
+    generatedAt: "2026-05-15T10:00:00.000Z",
+    sourceCommentCount: 2,
   },
   comments: [
     {
