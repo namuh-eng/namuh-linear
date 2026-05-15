@@ -21,7 +21,7 @@ import {
   isWorkspaceAdminRole,
   readWorkspacePermissionSettings,
 } from "@/lib/workspace-permissions";
-import { and, count, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, count, eq, inArray, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 type EstimateTypeValue = "not_in_use" | "linear" | "exponential" | "tshirt";
@@ -62,6 +62,7 @@ async function buildTeamResponse(
     memberCountResult,
     labelCountResult,
     statusCountResult,
+    workflowStateRows,
     workspaceRow,
     workspaceMemberRow,
     parentTeamRow,
@@ -79,6 +80,17 @@ async function buildTeamResponse(
       .select({ value: count() })
       .from(workflowState)
       .where(eq(workflowState.teamId, teamRecord.id)),
+    db
+      .select({
+        id: workflowState.id,
+        name: workflowState.name,
+        category: workflowState.category,
+        color: workflowState.color,
+        position: workflowState.position,
+      })
+      .from(workflowState)
+      .where(eq(workflowState.teamId, teamRecord.id))
+      .orderBy(asc(workflowState.position), asc(workflowState.name)),
     db
       .select({ urlSlug: workspace.urlSlug, settings: workspace.settings })
       .from(workspace)
@@ -124,6 +136,12 @@ async function buildTeamResponse(
   ]);
 
   const flags = readTeamSettings(teamRecord.settings);
+  const acceptDestinationStates = workflowStateRows.filter((state) =>
+    ["backlog", "unstarted", "started", "completed"].includes(state.category),
+  );
+  const declineDestinationStates = workflowStateRows.filter(
+    (state) => state.category === "canceled",
+  );
   const workspaceSlug = workspaceRow[0]?.urlSlug ?? "workspace";
   const eligibleTeamIds = eligibleParentRows.map((row) => row.id);
   const eligibleMembershipRows =
@@ -178,6 +196,10 @@ async function buildTeamResponse(
         ? "none"
         : (teamRecord.estimateType ?? "none"),
     triageEnabled: teamRecord.triageEnabled ?? true,
+    triageAcceptDestinationStateId: flags.triageAcceptDestinationStateId,
+    triageDeclineDestinationStateId: flags.triageDeclineDestinationStateId,
+    acceptDestinationStates,
+    declineDestinationStates,
     cyclesEnabled: teamRecord.cyclesEnabled ?? false,
     cycleStartDay: teamRecord.cycleStartDay ?? 1,
     cycleDurationWeeks: teamRecord.cycleDurationWeeks ?? 2,
@@ -248,6 +270,8 @@ export async function PATCH(
     timezone?: string;
     estimateType?: string;
     triageEnabled?: boolean;
+    triageAcceptDestinationStateId?: string | null;
+    triageDeclineDestinationStateId?: string | null;
     cyclesEnabled?: boolean;
     cycleStartDay?: number;
     cycleDurationWeeks?: number;
@@ -335,6 +359,78 @@ export async function PATCH(
     );
   }
 
+  const normalizeDestinationStateId = (value: string | null | undefined) =>
+    typeof value === "string" ? value.trim() || null : (value ?? null);
+
+  const requestedTriageDestinationIds = [
+    normalizeDestinationStateId(body.triageAcceptDestinationStateId),
+    normalizeDestinationStateId(body.triageDeclineDestinationStateId),
+  ].filter((value): value is string => Boolean(value));
+
+  let requestedTriageDestinationRows: {
+    id: string;
+    category: string;
+    teamId: string;
+  }[] = [];
+  if (requestedTriageDestinationIds.length > 0) {
+    requestedTriageDestinationRows = await db
+      .select({
+        id: workflowState.id,
+        category: workflowState.category,
+        teamId: workflowState.teamId,
+      })
+      .from(workflowState)
+      .where(
+        and(
+          eq(workflowState.teamId, teamRecord.id),
+          inArray(workflowState.id, requestedTriageDestinationIds),
+        ),
+      );
+  }
+  const requestedTriageDestinationById = new Map(
+    requestedTriageDestinationRows.map((state) => [state.id, state]),
+  );
+  const isAcceptDestinationCategory = (category: string) =>
+    ["backlog", "unstarted", "started", "completed"].includes(category);
+
+  if (body.triageAcceptDestinationStateId !== undefined) {
+    const destinationId = normalizeDestinationStateId(
+      body.triageAcceptDestinationStateId,
+    );
+    if (
+      destinationId &&
+      !isAcceptDestinationCategory(
+        requestedTriageDestinationById.get(destinationId)?.category ?? "",
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Accept destination status must belong to this team's workflow",
+        },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (body.triageDeclineDestinationStateId !== undefined) {
+    const destinationId = normalizeDestinationStateId(
+      body.triageDeclineDestinationStateId,
+    );
+    if (
+      destinationId &&
+      requestedTriageDestinationById.get(destinationId)?.category !== "canceled"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Decline destination status must be a canceled status for this team",
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   if (nextKey !== teamRecord.key) {
     const [duplicateTeam] = await db
       .select({ id: team.id })
@@ -414,6 +510,14 @@ export async function PATCH(
 
   const currentFlags = readTeamSettings(teamRecord.settings);
   const currentSettings = getMutableTeamSettings(teamRecord.settings);
+  const nextTriageAcceptDestinationStateId =
+    body.triageAcceptDestinationStateId === undefined
+      ? currentFlags.triageAcceptDestinationStateId
+      : normalizeDestinationStateId(body.triageAcceptDestinationStateId);
+  const nextTriageDeclineDestinationStateId =
+    body.triageDeclineDestinationStateId === undefined
+      ? currentFlags.triageDeclineDestinationStateId
+      : normalizeDestinationStateId(body.triageDeclineDestinationStateId);
   const nextAgentGuidance =
     body.agentGuidance === undefined
       ? currentFlags.agentGuidance
@@ -475,6 +579,8 @@ export async function PATCH(
         discussionSummariesEnabled:
           body.discussionSummariesEnabled ??
           currentFlags.discussionSummariesEnabled,
+        triageAcceptDestinationStateId: nextTriageAcceptDestinationStateId,
+        triageDeclineDestinationStateId: nextTriageDeclineDestinationStateId,
       },
       parentTeamId: nextParentTeamId,
       updatedAt: new Date(),

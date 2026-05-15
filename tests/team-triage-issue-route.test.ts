@@ -143,6 +143,34 @@ describe("team triage issue route", () => {
     expect((await response.json()).error).toMatch(/Destination/);
   });
 
+  it("uses the configured accept destination when the request omits one", async () => {
+    findAccessibleTeamMock.mockResolvedValue({
+      id: "team-1",
+      name: "Engineering",
+      key: "ENG",
+      workspaceId: "workspace-1",
+      settings: { triageAcceptDestinationStateId: "state-backlog" },
+    });
+    const { PATCH } = await import(
+      "@/app/api/teams/[key]/triage/[issueId]/route"
+    );
+
+    const response = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "accept", confirmed: true }),
+      }),
+      {
+        params: Promise.resolve({ key: "ENG", issueId: "issue-1" }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).decision.destinationState.id).toBe(
+      "state-backlog",
+    );
+  });
+
   it("requires explicit confirmation", async () => {
     const { PATCH } = await import(
       "@/app/api/teams/[key]/triage/[issueId]/route"
