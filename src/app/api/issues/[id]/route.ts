@@ -23,8 +23,28 @@ import {
   insertNotifications,
 } from "@/lib/notifications";
 import { getDownloadUrl } from "@/lib/s3";
+import { readTeamSettings } from "@/lib/team-settings";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
+
+function buildDiscussionSummary(
+  comments: { body: string; userName: string | null; createdAt: Date }[],
+) {
+  if (comments.length === 0) {
+    return "No comments have been added yet.";
+  }
+
+  const latestComment = comments[comments.length - 1];
+  const participantCount = new Set(
+    comments.map((currentComment) => currentComment.userName ?? "Unknown user"),
+  ).size;
+  const latestPreview = latestComment?.body.trim().replace(/\s+/g, " ") ?? "";
+  const previewSuffix = latestPreview
+    ? ` Latest: ${latestPreview.slice(0, 140)}${latestPreview.length > 140 ? "…" : ""}`
+    : "";
+
+  return `${comments.length} comment${comments.length === 1 ? "" : "s"} from ${participantCount} participant${participantCount === 1 ? "" : "s"}.${previewSuffix}`;
+}
 
 function isUuidLike(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -361,6 +381,9 @@ export async function GET(
     }),
   );
 
+  const discussionSummariesEnabled = readTeamSettings(
+    iss.teamSettings,
+  ).discussionSummariesEnabled;
   const state = stateRows[0];
   const assignee = assigneeRows[0] ?? null;
   const creator = creatorRows[0] ?? null;
@@ -435,6 +458,9 @@ export async function GET(
         reactedByMe: data.reactedByMe,
       }),
     ),
+    discussionSummary: discussionSummariesEnabled
+      ? { enabled: true, text: buildDiscussionSummary(commentRows) }
+      : { enabled: false, text: null },
     comments: commentRows.map((c) => ({
       id: c.id,
       body: c.body,

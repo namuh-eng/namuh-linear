@@ -420,6 +420,7 @@ describe("issue detail route", () => {
       identifier: "ENG-1",
       title: "Broken route",
       description: "<p>Hello</p>",
+      discussionSummary: { enabled: false, text: null },
       priority: "high",
       estimate: 3,
       dueDate: "2026-04-30T00:00:00.000Z",

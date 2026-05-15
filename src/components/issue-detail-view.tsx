@@ -93,6 +93,7 @@ interface IssueDetail {
   }[];
   labels: { name: string; color: string }[];
   reactions: IssueReaction[];
+  discussionSummary: { enabled: boolean; text: string | null };
   comments: IssueComment[];
   subIssues: IssueSubIssue[];
   createdAt: string;
@@ -430,7 +431,13 @@ export function IssueDetailView({ issueId }: { issueId: string }) {
       const res = await fetch(`/api/issues/${issueId}`);
       if (res.ok) {
         const json = (await res.json()) as IssueDetail;
-        setIssue(json);
+        setIssue({
+          ...json,
+          discussionSummary: json.discussionSummary ?? {
+            enabled: false,
+            text: null,
+          },
+        });
         setDescriptionDraft(
           normalizeIssueDescriptionHtml(json.description) ?? "",
         );
@@ -1102,6 +1109,21 @@ export function IssueDetailView({ issueId }: { issueId: string }) {
               <h2 className="mb-4 text-[13px] font-medium text-[var(--color-text-secondary)]">
                 Activity
               </h2>
+
+              {issue.discussionSummary.enabled ? (
+                <div
+                  className="mb-5 rounded-[18px] border border-[var(--color-border)] bg-[var(--color-content-bg)] px-4 py-3"
+                  aria-label="Discussion summary"
+                >
+                  <div className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]">
+                    Discussion summary
+                  </div>
+                  <p className="mt-2 text-[13px] leading-relaxed text-[var(--color-text-primary)]">
+                    {issue.discussionSummary.text ??
+                      "No comments have been added yet."}
+                  </p>
+                </div>
+              ) : null}
 
               {historyLoading && (
                 <div className="mb-4 rounded-[18px] border border-[var(--color-border)] bg-[var(--color-content-bg)] px-4 py-3 text-[13px] text-[var(--color-text-secondary)]">

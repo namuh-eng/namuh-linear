@@ -7,6 +7,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 const TEST_USER_ID = "15000000-0000-0000-0000-000000000001";
 const TEST_WS_ID = "15000000-0000-0000-0000-000000000002";
 const TEST_TEAM_ID = "15000000-0000-0000-0000-000000000003";
+const TEST_PARENT_TEAM_ID = "15000000-0000-0000-0000-000000000004";
+const TEST_CHILD_TEAM_ID = "15000000-0000-0000-0000-000000000005";
 
 // Mock next/headers
 vi.mock("next/headers", () => ({
@@ -35,6 +37,10 @@ describe("Team Settings API Route", () => {
   beforeAll(async () => {
     // Cleanup
     await db.delete(teamMember).where(eq(teamMember.teamId, TEST_TEAM_ID));
+    await db.delete(team).where(eq(team.id, TEST_CHILD_TEAM_ID));
+    await db.delete(team).where(eq(team.id, TEST_PARENT_TEAM_ID));
+    await db.delete(team).where(eq(team.id, TEST_CHILD_TEAM_ID));
+    await db.delete(team).where(eq(team.id, TEST_PARENT_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_TEAM_ID));
     await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
     await db.delete(user).where(eq(user.id, TEST_USER_ID));
@@ -58,14 +64,28 @@ describe("Team Settings API Route", () => {
       role: "admin",
     });
 
-    await db.insert(team).values({
-      id: TEST_TEAM_ID,
-      workspaceId: TEST_WS_ID,
-      name: "Initial Team",
-      key: "INIT",
-      icon: "⚙️",
-      timezone: "America/Los_Angeles",
-    });
+    await db.insert(team).values([
+      {
+        id: TEST_TEAM_ID,
+        workspaceId: TEST_WS_ID,
+        name: "Initial Team",
+        key: "INIT",
+        icon: "⚙️",
+        timezone: "America/Los_Angeles",
+      },
+      {
+        id: TEST_PARENT_TEAM_ID,
+        workspaceId: TEST_WS_ID,
+        name: "Parent Team",
+        key: "PAR",
+      },
+      {
+        id: TEST_CHILD_TEAM_ID,
+        workspaceId: TEST_WS_ID,
+        name: "Child Team",
+        key: "CHD",
+      },
+    ]);
 
     await db.insert(teamMember).values({
       userId: TEST_USER_ID,
@@ -75,6 +95,8 @@ describe("Team Settings API Route", () => {
 
   afterAll(async () => {
     await db.delete(teamMember).where(eq(teamMember.teamId, TEST_TEAM_ID));
+    await db.delete(team).where(eq(team.id, TEST_CHILD_TEAM_ID));
+    await db.delete(team).where(eq(team.id, TEST_PARENT_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_TEAM_ID));
     await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
     await db.delete(user).where(eq(user.id, TEST_USER_ID));
@@ -208,6 +230,88 @@ describe("Team Settings API Route", () => {
 
     expect(enableRes.status).toBe(200);
     expect((await enableRes.json()).team.triageEnabled).toBe(true);
+  });
+
+  it("PATCH persists discussion summaries and parent team settings", async () => {
+    getSessionMock.mockResolvedValue({
+      session: {
+        id: "session-id",
+        userId: TEST_USER_ID,
+        token: "token",
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      user: {
+        id: TEST_USER_ID,
+        name: "Test User",
+        email: "test@example.com",
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    const res = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({
+          discussionSummariesEnabled: true,
+          parentTeamId: TEST_PARENT_TEAM_ID,
+        }),
+      }),
+      { params: Promise.resolve({ key: "UPDT" }) },
+    );
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.team.discussionSummariesEnabled).toBe(true);
+    expect(data.team.parentTeamId).toBe(TEST_PARENT_TEAM_ID);
+    expect(data.team.parentTeam.name).toBe("Parent Team");
+
+    const getRes = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "UPDT" }),
+    });
+    const getData = await getRes.json();
+    expect(getData.team.discussionSummariesEnabled).toBe(true);
+    expect(getData.team.parentTeamId).toBe(TEST_PARENT_TEAM_ID);
+  });
+
+  it("PATCH rejects cyclic parent team hierarchy", async () => {
+    getSessionMock.mockResolvedValue({
+      session: {
+        id: "session-id",
+        userId: TEST_USER_ID,
+        token: "token",
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      user: {
+        id: TEST_USER_ID,
+        name: "Test User",
+        email: "test@example.com",
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    await db
+      .update(team)
+      .set({ parentTeamId: TEST_TEAM_ID })
+      .where(eq(team.id, TEST_CHILD_TEAM_ID));
+
+    const res = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ parentTeamId: TEST_CHILD_TEAM_ID }),
+      }),
+      { params: Promise.resolve({ key: "UPDT" }) },
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/cycle/i);
   });
 
   it("POST leave team action removes membership", async () => {

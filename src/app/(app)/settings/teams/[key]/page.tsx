@@ -13,6 +13,9 @@ interface TeamData {
   statusCount: number;
   triageEnabled: boolean;
   cyclesEnabled: boolean;
+  autoAssignment?: boolean;
+  discussionSummariesEnabled?: boolean;
+  parentTeam?: { name: string; key: string } | null;
 }
 
 function SettingsCard({
@@ -386,11 +389,15 @@ export default function TeamSettingsHubPage() {
           title="Agents"
           description="AI agent guidance for this team"
           href={`${teamPath}/${PLACEHOLDER_ROUTES.agents}`}
+          badge={team.autoAssignment ? "Auto-assign on" : "Auto-assign off"}
         />
         <SettingsCard
           title="Discussion summaries"
           description="Auto-generate AI summaries of discussions"
           href={`${teamPath}/${PLACEHOLDER_ROUTES.discussionSummaries}`}
+          badge={
+            team.discussionSummariesEnabled ? "Summaries on" : "Summaries off"
+          }
         />
       </div>
 
@@ -401,7 +408,7 @@ export default function TeamSettingsHubPage() {
           title="Parent team"
           description="Set this team as a sub-team of another team"
           href={`${teamPath}/${PLACEHOLDER_ROUTES.hierarchy}`}
-          badge="None"
+          badge={team.parentTeam ? team.parentTeam.name : "None"}
         />
       </div>
 

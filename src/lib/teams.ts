@@ -107,6 +107,7 @@ export async function findAccessibleTeam(
       cyclesEnabled: team.cyclesEnabled,
       cycleStartDay: team.cycleStartDay,
       cycleDurationWeeks: team.cycleDurationWeeks,
+      parentTeamId: team.parentTeamId,
       settings: team.settings,
     })
     .from(team)

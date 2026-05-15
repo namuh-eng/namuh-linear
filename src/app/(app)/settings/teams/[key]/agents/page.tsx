@@ -124,7 +124,7 @@ export default function TeamAgentsSettingsPage() {
         Agents
       </h1>
       <p className="mt-2 text-[13px] text-[var(--color-text-tertiary)]">
-        Manage AI agent guidance and team-specific automation behavior.
+        Manage team instructions and assignment automation behavior.
       </p>
 
       <div className="mt-8 space-y-6">
@@ -133,8 +133,9 @@ export default function TeamAgentsSettingsPage() {
             Agent guidance
           </h3>
           <p className="mb-4 text-[13px] text-[var(--color-text-secondary)]">
-            Custom instructions for AI agents when they are working on issues
-            for this team.
+            Saved team instructions for future AI agent prompts. This clone does
+            not run team-scoped AI agents yet, so guidance is stored but not
+            active in an agent runtime.
           </p>
           <textarea
             value={agentGuidance}
@@ -150,8 +151,8 @@ export default function TeamAgentsSettingsPage() {
             Auto-assignment
           </h3>
           <p className="text-[13px] text-[var(--color-text-secondary)]">
-            AI agents can automatically assign issues to team members based on
-            their expertise and current load.
+            When enabled, newly created unassigned issues are assigned to the
+            team member with the lightest current issue load.
           </p>
           <div className="mt-4 flex items-center justify-between">
             <span className="text-[13px] text-[var(--color-text-primary)]">

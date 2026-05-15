@@ -1,14 +1,21 @@
 import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
-import { issue, issueLabel, team, workflowState } from "@/lib/db/schema";
+import {
+  issue,
+  issueLabel,
+  team,
+  teamMember,
+  workflowState,
+} from "@/lib/db/schema";
 import { normalizeIssueDescriptionHtml } from "@/lib/issue-description";
 import { insertIssueHistoryEvent } from "@/lib/issue-history";
 import {
   buildNotificationValues,
   insertNotifications,
 } from "@/lib/notifications";
-import { and, eq, sql } from "drizzle-orm";
+import { readTeamSettings } from "@/lib/team-settings";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -98,6 +105,43 @@ export async function POST(request: Request) {
     );
   }
 
+  let finalAssigneeId = assigneeId || null;
+  const teamFlags = readTeamSettings(teamRecord.settings);
+  if (!finalAssigneeId && teamFlags.autoAssignment) {
+    const candidateMembers = await db
+      .select({ userId: teamMember.userId })
+      .from(teamMember)
+      .where(eq(teamMember.teamId, teamId));
+
+    const candidateUserIds = candidateMembers.map(
+      (candidate) => candidate.userId,
+    );
+    if (candidateUserIds.length > 0) {
+      const loadRows = await db
+        .select({ assigneeId: issue.assigneeId, value: sql<number>`COUNT(*)` })
+        .from(issue)
+        .where(
+          and(
+            eq(issue.teamId, teamId),
+            inArray(issue.assigneeId, candidateUserIds),
+          ),
+        )
+        .groupBy(issue.assigneeId);
+      const loadByUserId = new Map(
+        loadRows.flatMap((row) =>
+          row.assigneeId ? [[row.assigneeId, Number(row.value)]] : [],
+        ),
+      );
+
+      finalAssigneeId =
+        [...candidateUserIds].sort((left, right) => {
+          const loadDelta =
+            (loadByUserId.get(left) ?? 0) - (loadByUserId.get(right) ?? 0);
+          return loadDelta === 0 ? left.localeCompare(right) : loadDelta;
+        })[0] ?? null;
+    }
+  }
+
   const normalizedDescription = normalizeIssueDescriptionHtml(description);
   const uniqueLabelIds = Array.isArray(labelIds)
     ? [...new Set(labelIds.filter((value): value is string => Boolean(value)))]
@@ -115,7 +159,7 @@ export async function POST(request: Request) {
         stateId: finalStateId,
         creatorId: session.user.id,
         priority: priority || "none",
-        assigneeId: assigneeId || null,
+        assigneeId: finalAssigneeId,
         projectId: projectId || null,
         parentIssueId: parentIssueId || null,
       })

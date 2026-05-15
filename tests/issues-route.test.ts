@@ -4,6 +4,8 @@ const getSessionMock = vi.fn();
 const teamLimitMock = vi.fn();
 const maxWhereMock = vi.fn();
 const defaultStateLimitMock = vi.fn();
+const teamMemberWhereMock = vi.fn();
+const loadGroupByMock = vi.fn();
 const insertIssueValuesMock = vi.fn();
 const insertLabelsValuesMock = vi.fn();
 const insertHistoryValuesMock = vi.fn();
@@ -44,6 +46,24 @@ vi.mock("@/lib/db", () => ({
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
               limit: teamLimitMock,
+            }),
+          }),
+        };
+      }
+
+      if ("userId" in selection) {
+        return {
+          from: vi.fn().mockReturnValue({
+            where: teamMemberWhereMock,
+          }),
+        };
+      }
+
+      if ("assigneeId" in selection && "value" in selection) {
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              groupBy: loadGroupByMock,
             }),
           }),
         };
@@ -125,10 +145,11 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/db/schema", () => ({
-  issue: { __name: "issue" },
+  issue: { __name: "issue", assigneeId: "issue.assigneeId" },
   issueHistory: { __name: "issueHistory" },
   issueLabel: { __name: "issueLabel" },
   team: {},
+  teamMember: {},
   workflowState: {},
 }));
 
@@ -146,10 +167,12 @@ describe("issues route", () => {
     });
     resolveActiveWorkspaceIdMock.mockResolvedValue("workspace-1");
     teamLimitMock.mockResolvedValue([
-      { id: "team-1", key: "ENG", workspaceId: "workspace-1" },
+      { id: "team-1", key: "ENG", workspaceId: "workspace-1", settings: {} },
     ]);
     maxWhereMock.mockResolvedValue([{ maxNum: 7 }]);
     defaultStateLimitMock.mockResolvedValue([{ id: "state-backlog" }]);
+    teamMemberWhereMock.mockResolvedValue([]);
+    loadGroupByMock.mockResolvedValue([]);
     normalizeIssueDescriptionHtmlMock.mockReturnValue("<p>normalized</p>");
     buildNotificationValuesMock.mockReturnValue([
       { type: "assigned", userId: "user-2" },
@@ -292,5 +315,39 @@ describe("issues route", () => {
       projectId: "project-1",
       parentIssueId: null,
     });
+  });
+
+  it("auto-assigns new unassigned issues to the lightest-loaded team member", async () => {
+    teamLimitMock.mockResolvedValue([
+      {
+        id: "team-1",
+        key: "ENG",
+        workspaceId: "workspace-1",
+        settings: { autoAssignment: true },
+      },
+    ]);
+    teamMemberWhereMock.mockResolvedValue([
+      { userId: "user-heavy" },
+      { userId: "user-light" },
+    ]);
+    loadGroupByMock.mockResolvedValue([{ assigneeId: "user-heavy", value: 3 }]);
+
+    const { POST } = await import("@/app/api/issues/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/issues", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Triage me",
+          teamId: "team-1",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(insertIssueValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ assigneeId: "user-light" }),
+    );
   });
 });
