@@ -7,6 +7,10 @@ import {
   OPEN_CREATE_ISSUE_FULLSCREEN_EVENT,
   OPEN_PROJECT_UPDATE_EVENT,
 } from "@/lib/command-palette";
+import {
+  isCommandPaletteShortcut,
+  isEditableShortcutTarget,
+} from "@/lib/keyboard-shortcuts";
 import { stripWorkspaceSlug, withWorkspaceSlug } from "@/lib/workspace-paths";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -39,28 +43,6 @@ interface CommandItem {
   group: string;
   closeOnSelect?: boolean;
   action: () => void;
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-
-  const tagName = target.tagName.toLowerCase();
-  return (
-    target.isContentEditable ||
-    target.closest('[contenteditable=""], [contenteditable="true"]') !== null ||
-    tagName === "input" ||
-    tagName === "textarea" ||
-    tagName === "select"
-  );
-}
-
-function isCommandPaletteShortcut(event: KeyboardEvent): boolean {
-  return (
-    (event.metaKey || event.ctrlKey) &&
-    (event.key.toLowerCase() === "k" || event.code === "KeyK")
-  );
 }
 
 export function CommandPalette({
@@ -439,7 +421,8 @@ export function CommandPalette({
   // Global Cmd/Ctrl+K listener
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (isEditableTarget(e.target)) {
+      if (isEditableShortcutTarget(e.target)) {
+        projectShortcutRef.current = null;
         return;
       }
 
