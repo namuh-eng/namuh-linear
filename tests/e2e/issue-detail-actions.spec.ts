@@ -193,3 +193,92 @@ test.describe("Issue detail actions", () => {
     ).toBeVisible();
   });
 });
+
+test.describe("Issue detail relation management", () => {
+  test("adds and removes a relation from the properties panel", async ({
+    page,
+  }) => {
+    const createdRelation = {
+      id: "rel-duplicate",
+      type: "duplicate",
+      issue: {
+        id: "issue-duplicate",
+        identifier: "ENG-180",
+        title: "Duplicate candidate",
+      },
+    };
+    const postBodies: unknown[] = [];
+    const deleteUrls: string[] = [];
+
+    await page.route("**/api/issues/ENG-179/history", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ history: [] }),
+      });
+    });
+    await page.route("**/api/issues/search**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: "issue-duplicate",
+            identifier: "ENG-180",
+            title: "Duplicate candidate",
+          },
+        ]),
+      });
+    });
+    await page.route("**/api/issues/ENG-179/relations", async (route) => {
+      postBodies.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(createdRelation),
+      });
+    });
+    await page.route(
+      "**/api/issues/ENG-179/relations/rel-duplicate",
+      async (route) => {
+        deleteUrls.push(route.request().url());
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ success: true }),
+        });
+      },
+    );
+    await page.route("**/api/issues/ENG-179", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(issueDetail),
+      });
+    });
+
+    await page.goto("/team/ENG/issue/ENG-179");
+    await expect(page.getByText("Actions issue")).toBeVisible();
+
+    await page.getByRole("button", { name: "Add relation" }).nth(2).click();
+    await page
+      .getByLabel("Search issue to add Duplicate relation")
+      .fill("ENG-180");
+    await page.getByRole("button", { name: /ENG-180/ }).click();
+
+    await expect(
+      page.getByRole("button", { name: "ENG-180 · Duplicate candidate" }),
+    ).toBeVisible();
+    expect(postBodies).toEqual([
+      { type: "duplicate", targetIssueId: "issue-duplicate" },
+    ]);
+
+    await page
+      .getByRole("button", { name: "Remove Duplicate relation to ENG-180" })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "ENG-180 · Duplicate candidate" }),
+    ).toHaveCount(0);
+    expect(deleteUrls).toHaveLength(1);
+  });
+});

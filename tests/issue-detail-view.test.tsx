@@ -919,3 +919,111 @@ describe("IssueDetailView collaboration controls", () => {
     ).toBeInTheDocument();
   });
 });
+
+// Regression for issue #352: issue relations are managed from properties, not static text.
+describe("IssueDetailView relation management", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    appShellContextMock.workspaceSlug = undefined;
+    vi.unstubAllGlobals();
+  });
+
+  it("adds, navigates, and removes issue relations from properties", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation((url, init) => {
+        const href = url.toString();
+        if (href.includes("/api/issues/search")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => [
+              { id: "iss-3", identifier: "ENG-3", title: "Duplicate issue" },
+            ],
+          } as Response);
+        }
+
+        if (href === "/api/issues/iss-1/relations" && init?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              id: "rel-3",
+              type: "duplicate",
+              issue: {
+                id: "iss-3",
+                identifier: "ENG-3",
+                title: "Duplicate issue",
+              },
+            }),
+          } as Response);
+        }
+
+        if (
+          href === "/api/issues/iss-1/relations/rel-3" &&
+          init?.method === "DELETE"
+        ) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ success: true }),
+          } as Response);
+        }
+
+        if (href.includes("/history")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ history: [] }),
+          } as Response);
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockIssueDetail,
+        } as Response);
+      });
+
+    render(<IssueDetailView issueId="iss-1" />);
+    await screen.findByText("A bug to fix");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Add relation" })[2]);
+    fireEvent.change(
+      screen.getByLabelText("Search issue to add Duplicate relation"),
+      { target: { value: "ENG-3" } },
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /ENG-3/ }));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/issues/iss-1/relations",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ type: "duplicate", targetIssueId: "iss-3" }),
+        }),
+      );
+    });
+
+    const relationButton = await screen.findByRole("button", {
+      name: "ENG-3 · Duplicate issue",
+    });
+    fireEvent.click(relationButton);
+    expect(pushMock).toHaveBeenCalledWith("/issue/ENG-3");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Remove Duplicate relation to ENG-3",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/issues/iss-1/relations/rel-3",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "ENG-3 · Duplicate issue" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+});
