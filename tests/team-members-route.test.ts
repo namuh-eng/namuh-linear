@@ -1,6 +1,14 @@
-import { DELETE, GET, POST } from "@/app/api/teams/[key]/members/route";
+import { DELETE, GET, PATCH, POST } from "@/app/api/teams/[key]/members/route";
 import { db } from "@/lib/db";
-import { member, team, teamMember, user, workspace } from "@/lib/db/schema";
+import {
+  member,
+  team,
+  teamMember,
+  user,
+  workspace,
+  workspaceInvitation,
+} from "@/lib/db/schema";
+import { verifyInviteToken } from "@/lib/invite-tokens";
 import { and, eq } from "drizzle-orm";
 import {
   afterAll,
@@ -34,9 +42,17 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 
+vi.mock("@/lib/email", () => ({
+  sendInvitationEmail: vi.fn(async () => undefined),
+}));
+
 import { auth } from "@/lib/auth";
+import { sendInvitationEmail } from "@/lib/email";
 
 const getSessionMock = auth.api.getSession as unknown as ReturnType<
+  typeof vi.fn
+>;
+const sendInvitationEmailMock = sendInvitationEmail as unknown as ReturnType<
   typeof vi.fn
 >;
 
@@ -62,6 +78,9 @@ function mockSession(userId = ADMIN_USER_ID) {
 }
 
 async function cleanup() {
+  await db
+    .delete(workspaceInvitation)
+    .where(eq(workspaceInvitation.workspaceId, TEST_WS_ID));
   await db.delete(teamMember).where(eq(teamMember.teamId, TEST_TEAM_ID));
   await db.delete(team).where(eq(team.id, TEST_TEAM_ID));
   await db.delete(member).where(eq(member.workspaceId, TEST_WS_ID));
@@ -154,6 +173,105 @@ describe("Team members API route", () => {
     expect(
       getData.members.map((entry: { userId: string }) => entry.userId),
     ).toContain(MEMBER_USER_ID);
+    expect(getData.members).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          userId: ADMIN_USER_ID,
+          role: "admin",
+          status: "active",
+          kind: "member",
+        }),
+      ]),
+    );
+  });
+
+  it("invites a new email to the team and exposes pending invite actions", async () => {
+    sendInvitationEmailMock.mockClear();
+
+    const res = await POST(
+      new Request("http://localhost/api/teams/T239/members", {
+        method: "POST",
+        body: JSON.stringify({ inviteEmails: ["new-person@example.com"] }),
+      }),
+      { params: Promise.resolve({ key: "T239" }) },
+    );
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.invitedEmails).toEqual(["new-person@example.com"]);
+    expect(data.members).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "invitation",
+          email: "new-person@example.com",
+          role: "member",
+          status: "pending",
+          actions: ["resend", "cancel"],
+        }),
+      ]),
+    );
+    expect(sendInvitationEmailMock).toHaveBeenCalledWith(
+      "new-person@example.com",
+      "Team Members Workspace",
+      "Team Members Test User",
+      expect.stringContaining("/accept-invite?token="),
+    );
+
+    const [storedInvite] = await db
+      .select({ token: workspaceInvitation.token })
+      .from(workspaceInvitation)
+      .where(eq(workspaceInvitation.email, "new-person@example.com"))
+      .limit(1);
+    expect(verifyInviteToken(storedInvite.token)?.teamKey).toBe("T239");
+  });
+
+  it("resends and cancels pending team invitations", async () => {
+    const createRes = await POST(
+      new Request("http://localhost/api/teams/T239/members", {
+        method: "POST",
+        body: JSON.stringify({ inviteEmails: ["cancel-me@example.com"] }),
+      }),
+      { params: Promise.resolve({ key: "T239" }) },
+    );
+    expect(createRes.status).toBe(200);
+    const created = await createRes.json();
+    const invitation = created.members.find(
+      (entry: { email: string }) => entry.email === "cancel-me@example.com",
+    );
+    expect(invitation).toBeTruthy();
+
+    sendInvitationEmailMock.mockClear();
+    const resendRes = await PATCH(
+      new Request("http://localhost/api/teams/T239/members", {
+        method: "PATCH",
+        body: JSON.stringify({ invitationId: invitation.id, action: "resend" }),
+      }),
+      { params: Promise.resolve({ key: "T239" }) },
+    );
+    expect(resendRes.status).toBe(200);
+    expect(sendInvitationEmailMock).toHaveBeenCalledTimes(1);
+
+    const cancelRes = await DELETE(
+      new Request("http://localhost/api/teams/T239/members", {
+        method: "DELETE",
+        body: JSON.stringify({ invitationId: invitation.id }),
+      }),
+      { params: Promise.resolve({ key: "T239" }) },
+    );
+    expect(cancelRes.status).toBe(200);
+    const canceled = await cancelRes.json();
+    expect(canceled.members).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ email: "cancel-me@example.com" }),
+      ]),
+    );
+
+    const [storedInvite] = await db
+      .select({ status: workspaceInvitation.status })
+      .from(workspaceInvitation)
+      .where(eq(workspaceInvitation.id, invitation.id))
+      .limit(1);
+    expect(storedInvite.status).toBe("revoked");
   });
 
   it("removes a team member and keeps them removed from GET", async () => {

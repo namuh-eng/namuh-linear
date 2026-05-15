@@ -6,10 +6,13 @@ import { useEffect, useState } from "react";
 
 interface TeamMember {
   id: string;
-  userId: string;
+  kind: "member" | "invitation";
+  userId: string | null;
   name: string;
   email: string;
   role: string;
+  status: "active" | "pending";
+  actions?: readonly ("remove" | "resend" | "cancel")[];
 }
 
 interface WorkspaceMember {
@@ -32,7 +35,12 @@ export default function TeamMembersSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [selectedInvitationIds, setSelectedInvitationIds] = useState<string[]>(
+    [],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -62,6 +70,8 @@ export default function TeamMembersSettingsPage() {
     setError("");
     setMessage("");
     setSelectedUserIds([]);
+    setSelectedInvitationIds([]);
+    setInviteEmail("");
     setSearch("");
     setAddDialogOpen(true);
     try {
@@ -79,7 +89,11 @@ export default function TeamMembersSettingsPage() {
       const response = await fetch(`/api/teams/${teamKey}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userIds: selectedUserIds }),
+        body: JSON.stringify({
+          userIds: selectedUserIds,
+          invitationIds: selectedInvitationIds,
+          inviteEmails: inviteEmail.trim() ? [inviteEmail.trim()] : [],
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -89,6 +103,8 @@ export default function TeamMembersSettingsPage() {
       setMembers(data.members ?? []);
       setAddDialogOpen(false);
       setSelectedUserIds([]);
+      setSelectedInvitationIds([]);
+      setInviteEmail("");
       setMessage("Team members updated.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to add members");
@@ -98,8 +114,12 @@ export default function TeamMembersSettingsPage() {
   }
 
   async function removeMember(member: TeamMember) {
+    const isInvitation = member.kind === "invitation";
+    const actionLabel = isInvitation ? "Cancel invite for" : "Remove";
     if (
-      !window.confirm(`Remove ${member.name} from ${team?.name ?? "team"}?`)
+      !window.confirm(
+        `${actionLabel} ${member.email} ${isInvitation ? "" : `from ${team?.name ?? "team"}`}?`,
+      )
     ) {
       return;
     }
@@ -111,17 +131,53 @@ export default function TeamMembersSettingsPage() {
       const response = await fetch(`/api/teams/${teamKey}/members`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: member.userId }),
+        body: JSON.stringify(
+          isInvitation
+            ? { invitationId: member.id }
+            : { userId: member.userId },
+        ),
       });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error ?? "Unable to remove member");
+        throw new Error(data.error ?? "Unable to update team members");
       }
 
       setMembers(data.members ?? []);
-      setMessage(`${member.name} was removed from the team.`);
+      setMessage(
+        isInvitation
+          ? `Invitation for ${member.email} was canceled.`
+          : `${member.name} was removed from the team.`,
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to remove member");
+      setError(
+        err instanceof Error ? err.message : "Unable to update team members",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function resendInvitation(member: TeamMember) {
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/teams/${teamKey}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invitationId: member.id, action: "resend" }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to resend invitation");
+      }
+
+      setMembers(data.members ?? []);
+      setMessage(`Invitation resent to ${member.email}.`);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to resend invitation",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -143,14 +199,36 @@ export default function TeamMembersSettingsPage() {
     );
   }
 
-  const currentMemberIds = new Set(members.map((member) => member.userId));
+  const currentMemberIds = new Set(
+    members
+      .filter((member) => member.kind === "member")
+      .map((member) => member.userId),
+  );
+  const currentInvitationEmails = new Set(
+    members
+      .filter((member) => member.kind === "invitation")
+      .map((member) => member.email),
+  );
+  const filteredMembers = members.filter((member) => {
+    const query = memberSearch.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      member.name.toLowerCase().includes(query) ||
+      member.email.toLowerCase().includes(query) ||
+      member.role.toLowerCase().includes(query) ||
+      member.status.toLowerCase().includes(query)
+    );
+  });
   const addableMembers = workspaceMembers
-    .filter(
-      (workspaceMember) =>
-        workspaceMember.kind === "member" &&
-        workspaceMember.userId &&
-        !currentMemberIds.has(workspaceMember.userId),
-    )
+    .filter((workspaceMember) => {
+      if (workspaceMember.kind === "member") {
+        return (
+          workspaceMember.userId &&
+          !currentMemberIds.has(workspaceMember.userId)
+        );
+      }
+      return !currentInvitationEmails.has(workspaceMember.email);
+    })
     .filter((workspaceMember) => {
       const query = search.trim().toLowerCase();
       if (!query) return true;
@@ -159,6 +237,10 @@ export default function TeamMembersSettingsPage() {
         workspaceMember.email.toLowerCase().includes(query)
       );
     });
+  const canSubmitAdd =
+    selectedUserIds.length > 0 ||
+    selectedInvitationIds.length > 0 ||
+    inviteEmail.trim().length > 0;
 
   return (
     <div className="max-w-[720px]">
@@ -186,6 +268,15 @@ export default function TeamMembersSettingsPage() {
       <p className="mt-2 text-[13px] text-[var(--color-text-tertiary)]">
         Manage who has access to the {team.name} team.
       </p>
+      <label className="mt-5 block text-[12px] font-medium text-[var(--color-text-secondary)]">
+        Search team members and invites
+        <input
+          value={memberSearch}
+          onChange={(event) => setMemberSearch(event.target.value)}
+          placeholder="Search by name, email, role, or status"
+          className="mt-2 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
+        />
+      </label>
       {message ? (
         <output className="mt-3 block text-[13px] text-green-400">
           {message}
@@ -202,12 +293,13 @@ export default function TeamMembersSettingsPage() {
           <thead>
             <tr className="border-bottom border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-tertiary)]">
               <th className="px-4 py-2 font-medium">User</th>
+              <th className="px-4 py-2 font-medium">State</th>
               <th className="px-4 py-2 font-medium">Role</th>
               <th className="px-4 py-2 font-medium" />
             </tr>
           </thead>
           <tbody>
-            {members.map((member) => (
+            {filteredMembers.map((member) => (
               <tr
                 key={member.id}
                 className="border-t border-[var(--color-border)] text-[var(--color-text-primary)]"
@@ -219,17 +311,35 @@ export default function TeamMembersSettingsPage() {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-[var(--color-text-secondary)] capitalize">
+                  {member.status}
+                </td>
+                <td className="px-4 py-3 text-[var(--color-text-secondary)] capitalize">
                   {member.role}
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="space-x-3 px-4 py-3 text-right">
+                  {member.kind === "invitation" ? (
+                    <button
+                      type="button"
+                      onClick={() => resendInvitation(member)}
+                      disabled={submitting}
+                      aria-label={`Resend invitation to ${member.email}`}
+                      className="text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+                    >
+                      Resend
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => removeMember(member)}
                     disabled={submitting}
-                    aria-label={`Remove ${member.name}`}
+                    aria-label={
+                      member.kind === "invitation"
+                        ? `Cancel invitation to ${member.email}`
+                        : `Remove ${member.name}`
+                    }
                     className="text-[var(--color-text-tertiary)] hover:text-red-400"
                   >
-                    Remove
+                    {member.kind === "invitation" ? "Cancel" : "Remove"}
                   </button>
                 </td>
               </tr>
@@ -254,12 +364,23 @@ export default function TeamMembersSettingsPage() {
                 Add members
               </h2>
               <p className="mt-1 text-[13px] text-[var(--color-text-tertiary)]">
-                Add existing workspace members to {team.name}.
+                Add existing workspace members or invite new people to{" "}
+                {team.name}.
               </p>
             </div>
             <div className="space-y-4 p-5">
               <label className="block text-[12px] font-medium text-[var(--color-text-secondary)]">
-                Search workspace members
+                Invite by email
+                <input
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  placeholder="name@company.com"
+                  type="email"
+                  className="mt-2 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)]"
+                />
+              </label>
+              <label className="block text-[12px] font-medium text-[var(--color-text-secondary)]">
+                Search workspace members and pending invites
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
@@ -275,6 +396,10 @@ export default function TeamMembersSettingsPage() {
                 ) : (
                   addableMembers.map((workspaceMember) => {
                     const userId = workspaceMember.userId ?? "";
+                    const selectedIds =
+                      workspaceMember.kind === "member"
+                        ? selectedUserIds
+                        : selectedInvitationIds;
                     return (
                       <label
                         key={workspaceMember.id}
@@ -282,13 +407,25 @@ export default function TeamMembersSettingsPage() {
                       >
                         <input
                           type="checkbox"
-                          checked={selectedUserIds.includes(userId)}
+                          checked={selectedIds.includes(
+                            workspaceMember.kind === "member"
+                              ? userId
+                              : workspaceMember.id,
+                          )}
                           onChange={(event) => {
-                            setSelectedUserIds((current) =>
+                            const value =
+                              workspaceMember.kind === "member"
+                                ? userId
+                                : workspaceMember.id;
+                            const update = (current: string[]) =>
                               event.target.checked
-                                ? [...current, userId]
-                                : current.filter((id) => id !== userId),
-                            );
+                                ? [...current, value]
+                                : current.filter((id) => id !== value);
+                            if (workspaceMember.kind === "member") {
+                              setSelectedUserIds(update);
+                            } else {
+                              setSelectedInvitationIds(update);
+                            }
                           }}
                         />
                         <span>
@@ -297,6 +434,9 @@ export default function TeamMembersSettingsPage() {
                           </span>
                           <span className="block text-[12px] text-[var(--color-text-tertiary)]">
                             {workspaceMember.email}
+                            {workspaceMember.kind === "invitation"
+                              ? " · pending invite"
+                              : ""}
                           </span>
                         </span>
                       </label>
@@ -316,10 +456,10 @@ export default function TeamMembersSettingsPage() {
               <button
                 type="button"
                 onClick={addSelectedMembers}
-                disabled={selectedUserIds.length === 0 || submitting}
+                disabled={!canSubmitAdd || submitting}
                 className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Add selected
+                Add or invite
               </button>
             </div>
           </dialog>

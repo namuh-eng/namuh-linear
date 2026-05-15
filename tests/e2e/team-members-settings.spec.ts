@@ -50,7 +50,7 @@ test.describe("Team member settings", () => {
     ).toBeVisible();
     await page.getByPlaceholder("Search by name or email").fill(targetEmail);
     await page.getByText(targetEmail).click();
-    await page.getByRole("button", { name: "Add selected" }).click();
+    await page.getByRole("button", { name: "Add or invite" }).click();
     await expect(page.getByRole("dialog", { name: "Add members" })).toHaveCount(
       0,
     );
