@@ -58,7 +58,11 @@ const mockIssueDetail = {
   reactions: [],
   discussionSummary: {
     enabled: true,
-    text: "1 comment from 1 participant. Latest: First comment",
+    text: `• Overview: Ashley and Morgan discussed the rollout.
+• Decision/status: Ashley: We decided to ship the API path.
+• Next steps: Morgan: Next Morgan will verify the migration.`,
+    generatedAt: "2026-05-15T10:00:00.000Z",
+    sourceCommentCount: 2,
   },
   comments: [
     {
@@ -105,9 +109,10 @@ describe("IssueDetailView UI", () => {
     expect(screen.getAllByText(/In Progress/i).length).toBeGreaterThan(0);
 
     expect(screen.getByLabelText("Discussion summary")).toBeInTheDocument();
+    expect(screen.getByText(/Decision\/status: Ashley/)).toBeInTheDocument();
     expect(
-      screen.getByText("1 comment from 1 participant. Latest: First comment"),
-    ).toBeInTheDocument();
+      screen.queryByText(/\d+ comment from \d+ participant/),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("First comment")).toBeInTheDocument();
   });
 
@@ -828,5 +833,77 @@ describe("IssueDetailView collaboration controls", () => {
         expect.objectContaining({ body: JSON.stringify({ emoji: "🔥" }) }),
       );
     });
+  });
+
+  it("hides the summary card when summaries are disabled", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...mockIssueDetail,
+        discussionSummary: { enabled: false, text: null },
+      }),
+    } as Response);
+
+    render(<IssueDetailView issueId="iss-1" />);
+
+    await screen.findByText("A bug to fix");
+    expect(
+      screen.queryByLabelText("Discussion summary"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders an honest empty state instead of an AI placeholder", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...mockIssueDetail,
+        discussionSummary: {
+          enabled: true,
+          text: null,
+          generatedAt: null,
+          sourceCommentCount: 0,
+        },
+        comments: [],
+      }),
+    } as Response);
+
+    render(<IssueDetailView issueId="iss-1" />);
+
+    expect(
+      await screen.findByLabelText("Discussion summary"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Add more discussion to generate an AI summary/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No comments have been added yet."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a retry action when summary generation fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...mockIssueDetail,
+        discussionSummary: {
+          enabled: true,
+          text: null,
+          generatedAt: null,
+          sourceCommentCount: 2,
+          error: "Discussion summary could not be generated. Try refreshing.",
+        },
+      }),
+    } as Response);
+
+    render(<IssueDetailView issueId="iss-1" />);
+
+    expect(
+      await screen.findByText(
+        "Discussion summary could not be generated. Try refreshing.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Retry summary" }),
+    ).toBeInTheDocument();
   });
 });

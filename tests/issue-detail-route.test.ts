@@ -42,6 +42,8 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/issue-description", () => ({
   normalizeIssueDescriptionHtml: normalizeIssueDescriptionHtmlMock,
+  richTextHtmlToPlainText: (value: string | null | undefined) =>
+    value?.replace(/<[^>]+>/g, "").trim() ?? "",
 }));
 
 vi.mock("@/lib/active-workspace", () => ({
@@ -296,6 +298,7 @@ describe("issue detail route", () => {
         updatedAt: new Date("2026-04-23T10:00:00.000Z"),
         teamId: "team-1",
         workspaceId: "workspace-1",
+        teamSettings: { discussionSummariesEnabled: false },
         archivedAt: null,
         canceledAt: null,
         completedAt: null,
@@ -429,7 +432,12 @@ describe("issue detail route", () => {
       identifier: "ENG-1",
       title: "Broken route",
       description: "<p>Hello</p>",
-      discussionSummary: { enabled: false, text: null },
+      discussionSummary: {
+        enabled: false,
+        text: null,
+        generatedAt: null,
+        sourceCommentCount: 0,
+      },
       priority: "high",
       estimate: 3,
       dueDate: "2026-04-30T00:00:00.000Z",
@@ -509,6 +517,122 @@ describe("issue detail route", () => {
           },
         },
       ],
+    });
+  });
+
+  it("returns a generated discussion summary when enabled", async () => {
+    issueLimitMock.mockResolvedValueOnce([
+      {
+        id: "issue-1",
+        number: 1,
+        identifier: "ENG-1",
+        title: "Broken route",
+        description: "<p>Hello</p>",
+        priority: "high",
+        stateId: "state-1",
+        assigneeId: "user-2",
+        creatorId: "user-3",
+        projectId: "project-1",
+        parentIssueId: "issue-parent",
+        cycleId: "cycle-1",
+        dueDate: new Date("2026-04-30T00:00:00.000Z"),
+        estimate: 3,
+        sortOrder: 2,
+        createdAt: new Date("2026-04-23T09:00:00.000Z"),
+        updatedAt: new Date("2026-04-23T10:00:00.000Z"),
+        teamId: "team-1",
+        workspaceId: "workspace-1",
+        teamSettings: { discussionSummariesEnabled: true },
+        archivedAt: null,
+        canceledAt: null,
+        completedAt: null,
+      },
+    ]);
+    commentsOrderByMock.mockResolvedValueOnce([
+      {
+        id: "comment-1",
+        body: "We decided to ship the API path first. Billing is blocking rollout.",
+        userId: "user-4",
+        userName: "Commenter",
+        userImage: null,
+        createdAt: new Date("2026-04-23T11:00:00.000Z"),
+      },
+      {
+        id: "comment-2",
+        body: "Next Morgan will verify the migration and follow up with support.",
+        userId: "user-5",
+        userName: "Morgan",
+        userImage: null,
+        createdAt: new Date("2026-04-23T11:05:00.000Z"),
+      },
+    ]);
+    reactionsWhereMock.mockResolvedValueOnce([]);
+    attachmentsOrderByMock.mockResolvedValueOnce([]);
+
+    const { GET } = await import("@/app/api/issues/[id]/route");
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ id: "ENG-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.discussionSummary).toMatchObject({
+      enabled: true,
+      sourceCommentCount: 2,
+      generatedAt: expect.any(String),
+    });
+    expect(json.discussionSummary.text).toContain("Decision/status");
+    expect(json.discussionSummary.text).toContain("Blockers/risks");
+    expect(json.discussionSummary.text).toContain("Next steps");
+    expect(json.discussionSummary.text).not.toMatch(
+      /\d+ comments? from \d+ participants?/,
+    );
+  });
+
+  it("returns an enabled empty summary state for no comments", async () => {
+    issueLimitMock.mockResolvedValueOnce([
+      {
+        id: "issue-1",
+        number: 1,
+        identifier: "ENG-1",
+        title: "Broken route",
+        description: "<p>Hello</p>",
+        priority: "high",
+        stateId: "state-1",
+        assigneeId: "user-2",
+        creatorId: "user-3",
+        projectId: "project-1",
+        parentIssueId: "issue-parent",
+        cycleId: "cycle-1",
+        dueDate: new Date("2026-04-30T00:00:00.000Z"),
+        estimate: 3,
+        sortOrder: 2,
+        createdAt: new Date("2026-04-23T09:00:00.000Z"),
+        updatedAt: new Date("2026-04-23T10:00:00.000Z"),
+        teamId: "team-1",
+        workspaceId: "workspace-1",
+        teamSettings: { discussionSummariesEnabled: true },
+        archivedAt: null,
+        canceledAt: null,
+        completedAt: null,
+      },
+    ]);
+    commentsOrderByMock.mockResolvedValueOnce([]);
+    reactionsWhereMock.mockResolvedValueOnce([]);
+    attachmentsOrderByMock.mockResolvedValueOnce([]);
+
+    const { GET } = await import("@/app/api/issues/[id]/route");
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ id: "ENG-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.discussionSummary).toEqual({
+      enabled: true,
+      text: null,
+      generatedAt: null,
+      sourceCommentCount: 0,
     });
   });
 
