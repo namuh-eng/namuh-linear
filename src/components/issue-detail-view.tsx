@@ -1088,7 +1088,7 @@ export function IssueDetailView({
     workspaceSlug,
   );
   const detailHref = withWorkspaceSlug(
-    `/team/${issue.team.key}/issue/${issue.id}`,
+    `/team/${issue.team.key}/issue/${issue.identifier}`,
     workspaceSlug,
   );
   const descriptionIsEmpty =
@@ -1352,7 +1352,10 @@ export function IssueDetailView({
                   {issue.subIssues.map((subIssue) => (
                     <Link
                       key={subIssue.id}
-                      href={`/team/${issue.team.key}/issue/${subIssue.id}`}
+                      href={withWorkspaceSlug(
+                        `/team/${issue.team.key}/issue/${subIssue.identifier}`,
+                        workspaceSlug,
+                      )}
                       className="flex items-center justify-between rounded-[18px] border border-[var(--color-border)] bg-[var(--color-content-bg)] px-4 py-3 text-[13px] transition-colors hover:bg-[var(--color-surface-hover)]"
                     >
                       <div className="min-w-0">

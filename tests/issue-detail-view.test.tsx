@@ -9,6 +9,9 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const pushMock = vi.fn();
+const appShellContextMock = vi.hoisted(() => ({
+  workspaceSlug: undefined as string | undefined,
+}));
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
@@ -17,7 +20,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/app/(app)/app-shell", () => ({
-  useAppShellContext: () => ({ workspaceSlug: undefined }),
+  useAppShellContext: () => ({
+    workspaceSlug: appShellContextMock.workspaceSlug,
+  }),
 }));
 
 import { IssueDetailView } from "@/components/issue-detail-view";
@@ -74,6 +79,7 @@ describe("IssueDetailView UI", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    appShellContextMock.workspaceSlug = undefined;
     vi.unstubAllGlobals();
   });
 
@@ -311,6 +317,67 @@ describe("IssueDetailView UI", () => {
       "formatBlock",
       false,
       "blockquote",
+    );
+  });
+
+  it("links sub-issues through unprefixed identifier routes without a workspace", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...mockIssueDetail,
+        subIssues: [
+          {
+            id: "7d4f6319-e56f-48dd-9731-b3d735a43b38",
+            identifier: "ENG-124",
+            title: "Unprefixed child task",
+            priority: "low",
+            state: null,
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<IssueDetailView issueId="ENG-1" />);
+
+    await screen.findByText("ENG-124");
+    const subIssueLink = screen.getByText("Unprefixed child task").closest("a");
+    expect(subIssueLink).toHaveAttribute("href", "/team/ENG/issue/ENG-124");
+  });
+
+  it("links sub-issues through workspace-aware identifier routes", async () => {
+    appShellContextMock.workspaceSlug = "foreverbrowsing";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ...mockIssueDetail,
+        subIssues: [
+          {
+            id: "5efda6f1-6ac0-45f8-b383-a4f3bb872a8d",
+            identifier: "ENG-123",
+            title: "Child task",
+            priority: "medium",
+            state: {
+              name: "Todo",
+              category: "unstarted",
+              color: "#999999",
+            },
+          },
+        ],
+      }),
+    } as Response);
+
+    render(<IssueDetailView issueId="ENG-1" />);
+
+    await screen.findByText("ENG-123");
+    const subIssueLink = screen.getByText("Child task").closest("a");
+    expect(subIssueLink).not.toBeNull();
+    expect(subIssueLink).toHaveAttribute(
+      "href",
+      "/foreverbrowsing/team/ENG/issue/ENG-123",
+    );
+    expect(subIssueLink).not.toHaveAttribute(
+      "href",
+      expect.stringContaining("5efda6f1-6ac0-45f8-b383-a4f3bb872a8d"),
     );
   });
 
