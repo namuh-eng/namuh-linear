@@ -148,4 +148,82 @@ test.describe("Settings API OAuth applications", () => {
     await page.reload();
     await expect(page.getByText(oauthName, { exact: true })).toHaveCount(0);
   });
+
+  test("issues scoped OAuth tokens and rejects invalid OAuth exchanges", async ({
+    page,
+  }) => {
+    const suffix = Date.now().toString(36);
+    const workspaceSlug = `oauth-flow-${suffix}`;
+    const workspaceResponse = await page.request.post("/api/workspaces", {
+      data: {
+        name: `OAuth Flow ${suffix}`,
+        urlSlug: workspaceSlug,
+      },
+    });
+    expect(workspaceResponse.status()).toBe(201);
+
+    const redirectUri = `https://app-${suffix}.example.com/oauth/callback`;
+    const createOAuthResponse = await page.request.post(
+      "/api/workspaces/current/api",
+      {
+        data: {
+          action: "createOAuthApplication",
+          name: `Flow OAuth ${suffix}`,
+          redirectUrls: [redirectUri],
+          scopes: ["read", "issues:read"],
+        },
+      },
+    );
+    expect(createOAuthResponse.status()).toBe(200);
+    const created = await createOAuthResponse.json();
+    const app = created.api.oauthApplications[0];
+    const clientSecret = created.createdCredential.secret;
+
+    const invalidRedirect = await page.request.get(
+      `/api/oauth/authorize?response_type=code&client_id=${app.clientId}&redirect_uri=${encodeURIComponent(`https://evil-${suffix}.example.com/callback`)}&scope=read&state=bad`,
+      { maxRedirects: 0 },
+    );
+    expect(invalidRedirect.status()).toBe(307);
+    expect(invalidRedirect.headers().location).toContain(
+      "error=invalid_redirect_uri",
+    );
+
+    const authorizeResponse = await page.request.get(
+      `/api/oauth/authorize?response_type=code&client_id=${app.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read%20issues:read&state=ok`,
+      { maxRedirects: 0 },
+    );
+    expect(authorizeResponse.status()).toBe(307);
+    const callback = new URL(authorizeResponse.headers().location ?? "");
+    expect(`${callback.origin}${callback.pathname}`).toBe(redirectUri);
+    expect(callback.searchParams.get("state")).toBe("ok");
+    const code = callback.searchParams.get("code");
+    expect(code).toMatch(/^lincode_/);
+
+    const badSecretResponse = await page.request.post("/api/oauth/token", {
+      data: {
+        grant_type: "authorization_code",
+        code,
+        client_id: app.clientId,
+        client_secret: "wrong",
+        redirect_uri: redirectUri,
+      },
+    });
+    expect(badSecretResponse.status()).toBe(401);
+
+    const tokenResponse = await page.request.post("/api/oauth/token", {
+      data: {
+        grant_type: "authorization_code",
+        code,
+        client_id: app.clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+      },
+    });
+    expect(tokenResponse.status()).toBe(200);
+    await expect(tokenResponse.json()).resolves.toMatchObject({
+      token_type: "Bearer",
+      expires_in: 3600,
+      scope: "read issues:read",
+    });
+  });
 });
