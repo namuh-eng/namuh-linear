@@ -23,6 +23,7 @@ const ADMIN_USER_ID = "25200000-0000-0000-0000-000000000001";
 const MEMBER_USER_ID = "25200000-0000-0000-0000-000000000002";
 const TEST_WS_ID = "25200000-0000-0000-0000-000000000010";
 const EXISTING_TEAM_ID = "25200000-0000-0000-0000-000000000020";
+const PRIVATE_TEAM_ID = "25200000-0000-0000-0000-000000000021";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Headers()),
@@ -168,6 +169,75 @@ describe("workspace teams API route", () => {
         currentUserIsMember: true,
       }),
     ]);
+  });
+
+  it("hides private teams from workspace members who are not team members", async () => {
+    await db.insert(team).values({
+      id: PRIVATE_TEAM_ID,
+      workspaceId: TEST_WS_ID,
+      name: "Secret Platform",
+      key: "SEC",
+      isPrivate: true,
+    });
+
+    mockSession(MEMBER_USER_ID);
+
+    const res = await GET();
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.canManageTeams).toBe(false);
+    expect(data.teams.map((entry: { key: string }) => entry.key)).toEqual([
+      "ENG",
+    ]);
+    expect(JSON.stringify(data)).not.toContain("Secret Platform");
+    expect(JSON.stringify(data)).not.toContain("SEC");
+  });
+
+  it("shows private teams to team members and workspace admins", async () => {
+    await db.insert(team).values({
+      id: PRIVATE_TEAM_ID,
+      workspaceId: TEST_WS_ID,
+      name: "Secret Platform",
+      key: "SEC",
+      isPrivate: true,
+    });
+    await db.insert(teamMember).values({
+      userId: MEMBER_USER_ID,
+      teamId: PRIVATE_TEAM_ID,
+    });
+
+    mockSession(MEMBER_USER_ID);
+    const memberRes = await GET();
+    expect(memberRes.status).toBe(200);
+    const memberData = await memberRes.json();
+    expect(memberData.teams).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "SEC",
+          name: "Secret Platform",
+          isPrivate: true,
+          currentUserIsMember: true,
+        }),
+      ]),
+    );
+
+    await db.delete(teamMember).where(eq(teamMember.teamId, PRIVATE_TEAM_ID));
+
+    mockSession(ADMIN_USER_ID);
+    const adminRes = await GET();
+    expect(adminRes.status).toBe(200);
+    const adminData = await adminRes.json();
+    expect(adminData.teams).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "SEC",
+          name: "Secret Platform",
+          isPrivate: true,
+          currentUserIsMember: false,
+        }),
+      ]),
+    );
   });
 
   it("creates a team with workflow defaults and creator membership", async () => {

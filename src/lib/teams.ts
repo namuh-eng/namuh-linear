@@ -1,7 +1,8 @@
 import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { db } from "@/lib/db";
-import { member, team, workspace } from "@/lib/db/schema";
+import { member, team, teamMember, workspace } from "@/lib/db/schema";
 import { getWorkspaceSlugFromPath } from "@/lib/workspace-paths";
+import { isWorkspaceAdminRole } from "@/lib/workspace-permissions";
 import { and, eq } from "drizzle-orm";
 
 /**
@@ -31,13 +32,31 @@ export async function getTeamIdByKey(key: string): Promise<string | null> {
 export async function getWorkspaceMember(
   workspaceId: string,
   userId: string,
-): Promise<{ id: string } | null> {
+): Promise<{ id: string; role: string } | null> {
   const [row] = await db
-    .select({ id: member.id })
+    .select({ id: member.id, role: member.role })
     .from(member)
     .where(and(eq(member.workspaceId, workspaceId), eq(member.userId, userId)))
     .limit(1);
   return row ?? null;
+}
+
+export async function canAccessTeam(
+  userId: string,
+  teamId: string,
+  workspaceRole: string | undefined,
+) {
+  if (isWorkspaceAdminRole(workspaceRole)) {
+    return true;
+  }
+
+  const [membership] = await db
+    .select({ id: teamMember.id })
+    .from(teamMember)
+    .where(and(eq(teamMember.teamId, teamId), eq(teamMember.userId, userId)))
+    .limit(1);
+
+  return Boolean(membership);
 }
 
 function getRequestedWorkspaceSlug(request?: Request) {
@@ -100,6 +119,7 @@ export async function findAccessibleTeam(
       workspaceId: team.workspaceId,
       name: team.name,
       key: team.key,
+      isPrivate: team.isPrivate,
       icon: team.icon,
       timezone: team.timezone,
       estimateType: team.estimateType,
@@ -114,5 +134,14 @@ export async function findAccessibleTeam(
     .where(and(eq(team.key, key), eq(team.workspaceId, workspaceId)))
     .limit(1);
 
-  return teamRecord ?? null;
+  if (!teamRecord) return null;
+
+  if (
+    teamRecord.isPrivate &&
+    !(await canAccessTeam(userId, teamRecord.id, wsMember.role))
+  ) {
+    return null;
+  }
+
+  return teamRecord;
 }
