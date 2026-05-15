@@ -4,6 +4,8 @@ export type TeamSettingsFlags = {
   agentGuidance: string;
   autoAssignment: boolean;
   discussionSummariesEnabled: boolean;
+  triageAcceptDestinationStateId: string | null;
+  triageDeclineDestinationStateId: string | null;
 };
 
 export function readTeamSettings(settings: unknown): TeamSettingsFlags {
@@ -19,6 +21,14 @@ export function readTeamSettings(settings: unknown): TeamSettingsFlags {
       typeof parsed.agentGuidance === "string" ? parsed.agentGuidance : "",
     autoAssignment: parsed.autoAssignment === true,
     discussionSummariesEnabled: parsed.discussionSummariesEnabled === true,
+    triageAcceptDestinationStateId:
+      typeof parsed.triageAcceptDestinationStateId === "string"
+        ? parsed.triageAcceptDestinationStateId
+        : null,
+    triageDeclineDestinationStateId:
+      typeof parsed.triageDeclineDestinationStateId === "string"
+        ? parsed.triageDeclineDestinationStateId
+        : null,
   };
 }
 

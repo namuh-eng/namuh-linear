@@ -1,6 +1,13 @@
 import { GET, PATCH, POST } from "@/app/api/teams/[key]/settings/route";
 import { db } from "@/lib/db";
-import { member, team, teamMember, user, workspace } from "@/lib/db/schema";
+import {
+  member,
+  team,
+  teamMember,
+  user,
+  workflowState,
+  workspace,
+} from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +17,9 @@ const TEST_WS_ID = "15000000-0000-0000-0000-000000000002";
 const TEST_TEAM_ID = "15000000-0000-0000-0000-000000000003";
 const TEST_PARENT_TEAM_ID = "15000000-0000-0000-0000-000000000004";
 const TEST_CHILD_TEAM_ID = "15000000-0000-0000-0000-000000000005";
+const TEST_BACKLOG_STATE_ID = "15000000-0000-0000-0000-000000000007";
+const TEST_READY_STATE_ID = "15000000-0000-0000-0000-000000000008";
+const TEST_CANCELED_STATE_ID = "15000000-0000-0000-0000-000000000009";
 
 // Mock next/headers
 vi.mock("next/headers", () => ({
@@ -38,6 +48,9 @@ describe("Team Settings API Route", () => {
   beforeAll(async () => {
     // Cleanup
     await db.delete(teamMember).where(eq(teamMember.teamId, TEST_TEAM_ID));
+    await db
+      .delete(workflowState)
+      .where(eq(workflowState.teamId, TEST_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_CHILD_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_PARENT_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_CHILD_TEAM_ID));
@@ -108,10 +121,40 @@ describe("Team Settings API Route", () => {
       userId: TEST_USER_ID,
       teamId: TEST_TEAM_ID,
     });
+
+    await db.insert(workflowState).values([
+      {
+        id: TEST_BACKLOG_STATE_ID,
+        teamId: TEST_TEAM_ID,
+        name: "Backlog",
+        category: "backlog",
+        color: "#6b7280",
+        position: 1,
+      },
+      {
+        id: TEST_READY_STATE_ID,
+        teamId: TEST_TEAM_ID,
+        name: "Ready",
+        category: "unstarted",
+        color: "#2563eb",
+        position: 2,
+      },
+      {
+        id: TEST_CANCELED_STATE_ID,
+        teamId: TEST_TEAM_ID,
+        name: "Canceled",
+        category: "canceled",
+        color: "#ef4444",
+        position: 3,
+      },
+    ]);
   });
 
   afterAll(async () => {
     await db.delete(teamMember).where(eq(teamMember.teamId, TEST_TEAM_ID));
+    await db
+      .delete(workflowState)
+      .where(eq(workflowState.teamId, TEST_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_CHILD_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_PARENT_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_TEAM_ID));
@@ -249,6 +292,102 @@ describe("Team Settings API Route", () => {
 
     expect(enableRes.status).toBe(200);
     expect((await enableRes.json()).team.triageEnabled).toBe(true);
+  });
+
+  it("PATCH persists triage accept and decline destination statuses", async () => {
+    getSessionMock.mockResolvedValue({
+      session: {
+        id: "session-id",
+        userId: TEST_USER_ID,
+        token: "token",
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      user: {
+        id: TEST_USER_ID,
+        name: "Test User",
+        email: "test@example.com",
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    const res = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({
+          triageAcceptDestinationStateId: TEST_READY_STATE_ID,
+          triageDeclineDestinationStateId: TEST_CANCELED_STATE_ID,
+        }),
+      }),
+      { params: Promise.resolve({ key: "UPDT" }) },
+    );
+
+    expect(res.status).toBe(200);
+    const payload = await res.json();
+    expect(payload.team.triageAcceptDestinationStateId).toBe(
+      TEST_READY_STATE_ID,
+    );
+    expect(payload.team.triageDeclineDestinationStateId).toBe(
+      TEST_CANCELED_STATE_ID,
+    );
+    expect(
+      payload.team.acceptDestinationStates.map(
+        (state: { id: string }) => state.id,
+      ),
+    ).toContain(TEST_READY_STATE_ID);
+    expect(
+      payload.team.declineDestinationStates.map(
+        (state: { id: string }) => state.id,
+      ),
+    ).toContain(TEST_CANCELED_STATE_ID);
+
+    const getRes = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "UPDT" }),
+    });
+    const getPayload = await getRes.json();
+    expect(getPayload.team.triageAcceptDestinationStateId).toBe(
+      TEST_READY_STATE_ID,
+    );
+    expect(getPayload.team.triageDeclineDestinationStateId).toBe(
+      TEST_CANCELED_STATE_ID,
+    );
+  });
+
+  it("PATCH rejects invalid triage destination categories", async () => {
+    getSessionMock.mockResolvedValue({
+      session: {
+        id: "session-id",
+        userId: TEST_USER_ID,
+        token: "token",
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      user: {
+        id: TEST_USER_ID,
+        name: "Test User",
+        email: "test@example.com",
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    const res = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({
+          triageAcceptDestinationStateId: TEST_CANCELED_STATE_ID,
+        }),
+      }),
+      { params: Promise.resolve({ key: "UPDT" }) },
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Accept destination/i);
   });
 
   it("PATCH persists discussion summaries and parent team settings", async () => {

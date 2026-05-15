@@ -2,6 +2,7 @@ import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issue, workflowState } from "@/lib/db/schema";
 import { insertIssueHistoryEvent } from "@/lib/issue-history";
+import { readTeamSettings } from "@/lib/team-settings";
 import { findAccessibleTeam } from "@/lib/teams";
 import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -81,7 +82,14 @@ export async function PATCH(
     );
   }
 
-  if (!body.destinationStateId) {
+  const triageSettings = readTeamSettings(teamRecord.settings);
+  const destinationStateId =
+    body.destinationStateId ??
+    (body.action === "accept"
+      ? triageSettings.triageAcceptDestinationStateId
+      : triageSettings.triageDeclineDestinationStateId);
+
+  if (!destinationStateId) {
     return NextResponse.json(
       { error: "Destination status is required" },
       { status: 400 },
@@ -105,7 +113,7 @@ export async function PATCH(
     .from(workflowState)
     .where(
       and(
-        eq(workflowState.id, body.destinationStateId),
+        eq(workflowState.id, destinationStateId),
         eq(workflowState.teamId, teamRecord.id),
       ),
     )

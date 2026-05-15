@@ -94,6 +94,34 @@ describe("team triage bulk route", () => {
     historyValuesMock.mockResolvedValue(undefined);
   });
 
+  it("uses the configured bulk accept destination when the request omits one", async () => {
+    findAccessibleTeamMock.mockResolvedValue({
+      id: "team-1",
+      name: "Engineering",
+      key: "ENG",
+      workspaceId: "workspace-1",
+      settings: { triageAcceptDestinationStateId: "state-backlog" },
+    });
+    const { PATCH } = await import("@/app/api/teams/[key]/triage/bulk/route");
+
+    const response = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "accept",
+          issueIds: ["issue-1"],
+          confirmed: true,
+        }),
+      }),
+      { params: Promise.resolve({ key: "ENG" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).decision.destinationState.id).toBe(
+      "state-backlog",
+    );
+  });
+
   it("updates triage issues and reports per-issue conflicts", async () => {
     const { PATCH } = await import("@/app/api/teams/[key]/triage/bulk/route");
 

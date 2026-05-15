@@ -2,6 +2,7 @@ import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issue, project, user, workflowState } from "@/lib/db/schema";
 import { getLabelsForIssues } from "@/lib/issue-labels";
+import { readTeamSettings } from "@/lib/team-settings";
 import { findAccessibleTeam } from "@/lib/teams";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -101,6 +102,8 @@ export async function GET(
     )
     .orderBy(desc(issue.createdAt));
 
+  const triageSettings = readTeamSettings(teamRecord.settings);
+
   const decisionStates = await db
     .select({
       id: workflowState.id,
@@ -114,12 +117,24 @@ export async function GET(
     .where(eq(workflowState.teamId, teamRecord.id))
     .orderBy(asc(workflowState.position), asc(workflowState.name));
 
-  const acceptDestinationStates = decisionStates.filter((state) =>
-    ["backlog", "unstarted", "started", "completed"].includes(state.category),
-  );
-  const declineDestinationStates = decisionStates.filter(
-    (state) => state.category === "canceled",
-  );
+  const acceptDestinationStates = decisionStates
+    .filter((state) =>
+      ["backlog", "unstarted", "started", "completed"].includes(state.category),
+    )
+    .map((state) => ({
+      ...state,
+      isDefault:
+        state.id === triageSettings.triageAcceptDestinationStateId ||
+        (!triageSettings.triageAcceptDestinationStateId && state.isDefault),
+    }));
+  const declineDestinationStates = decisionStates
+    .filter((state) => state.category === "canceled")
+    .map((state) => ({
+      ...state,
+      isDefault:
+        state.id === triageSettings.triageDeclineDestinationStateId ||
+        (!triageSettings.triageDeclineDestinationStateId && state.isDefault),
+    }));
 
   // Get labels for issues
   const issueIds = issues.map((i) => i.id);
