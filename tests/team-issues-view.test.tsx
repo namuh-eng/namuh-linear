@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
 const pushMock = vi.fn();
@@ -58,15 +58,21 @@ const mockIssuesData = {
     },
   ],
   filterOptions: {
-    statuses: [],
-    assignees: [],
-    labels: [],
+    statuses: [
+      { id: "s1", name: "Backlog", category: "backlog", color: "#999" },
+      { id: "s3", name: "In Progress", category: "started", color: "#3b82f6" },
+    ],
+    assignees: [{ id: "user-1", name: "Ashley" }],
+    labels: [{ id: "label-1", name: "Bug", color: "#e5484d" }],
     projects: [],
     creators: [],
     cycles: [],
     estimates: [],
     dueDates: [],
-    priorities: [],
+    priorities: [
+      { value: "high", label: "High" },
+      { value: "low", label: "Low" },
+    ],
   },
 };
 
@@ -166,6 +172,10 @@ const tabCountIssuesData = {
 };
 
 describe("TeamIssuesPage UI", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
@@ -287,6 +297,87 @@ describe("TeamIssuesPage UI", () => {
     fireEvent.click(boardLayoutButton);
 
     expect(pushMock).toHaveBeenCalledWith("/team/ENG/board");
+  });
+
+  it("selects rows, supports shift range and escape clear without navigation", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => mockIssuesData,
+    } as Response);
+
+    render(<TeamIssuesPage />);
+    await screen.findByText("Engineering");
+
+    const checkboxes = screen.getAllByTestId("issue-row-checkbox");
+    fireEvent.click(checkboxes[0]);
+
+    expect(screen.getByTestId("bulk-action-bar")).toHaveTextContent(
+      "1 selected",
+    );
+    expect(pushMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByTestId("issue-row-checkbox")[1], {
+      shiftKey: true,
+    });
+    expect(screen.getByTestId("bulk-action-bar")).toHaveTextContent(
+      "2 selected",
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByTestId("bulk-action-bar")).not.toBeInTheDocument();
+  });
+
+  it("persists a selected bulk priority update and refreshes the list", async () => {
+    const fetchMock = vi.fn((input, init) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url === "/api/teams/ENG/issues") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => mockIssuesData,
+        } as Response);
+      }
+
+      if (url === "/api/teams/ENG/display-options") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ displayOptions: null }),
+        } as Response);
+      }
+
+      if (url === "/api/issues/bulk" && init?.method === "PATCH") {
+        expect(JSON.parse(String(init.body))).toEqual({
+          issueIds: ["iss-1"],
+          updates: { priority: "low" },
+        });
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ updatedCount: 1 }),
+        } as Response);
+      }
+
+      return Promise.reject(new Error(`Unhandled fetch: ${url}`));
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      fetchMock as unknown as typeof fetch,
+    );
+
+    render(<TeamIssuesPage />);
+    await screen.findByText("Engineering");
+
+    fireEvent.click(screen.getAllByTestId("issue-row-checkbox")[0]);
+    fireEvent.change(screen.getByLabelText("Bulk priority"), {
+      target: { value: "low" },
+    });
+
+    await screen.findByTestId("bulk-action-bar");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/issues/bulk",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url === "/api/teams/ENG/issues"),
+    ).toHaveLength(2);
   });
 
   it("shows team not found instead of the empty issue state for invalid team keys", async () => {

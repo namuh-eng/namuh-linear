@@ -132,7 +132,7 @@ export async function GET(
         creatorId: i.creatorId,
         creatorName: creatorMap.get(i.creatorId) ?? null,
         labels: labelsMap[i.id] ?? [],
-        labelIds: (labelsMap[i.id] ?? []).map((l) => l.name),
+        labelIds: (labelsMap[i.id] ?? []).map((l) => l.id),
         projectId: i.projectId,
         projectName: i.projectName,
         cycleId: i.cycleId,
@@ -163,9 +163,9 @@ export async function GET(
   const seenLabels = new Set<string>();
   for (const labelList of Object.values(labelsMap)) {
     for (const l of labelList) {
-      if (!seenLabels.has(l.name)) {
-        seenLabels.add(l.name);
-        uniqueLabels.push({ id: l.name, name: l.name, color: l.color });
+      if (!seenLabels.has(l.id)) {
+        seenLabels.add(l.id);
+        uniqueLabels.push({ id: l.id, name: l.name, color: l.color });
       }
     }
   }
