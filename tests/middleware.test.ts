@@ -255,8 +255,10 @@ describe("Auth proxy", () => {
     "/foreverbrowsing/projects",
     "/foreverbrowsing/projects/all",
     "/foreverbrowsing/team/ENG/projects",
+    "/foreverbrowsing/initiatives",
+    "/foreverbrowsing/initiatives/init-1",
   ])(
-    "lets explicit workspace-prefixed projects route %s render canonically",
+    "lets explicit workspace-prefixed projects and initiatives route %s render canonically",
     async (path) => {
       mockRewrite.mockClear();
       mockRedirect.mockClear();

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
+const resolveRequestWorkspaceIdMock = vi.fn();
 const membershipsLimitMock = vi.fn();
 const initiativesWhereMock = vi.fn();
 const linkedProjectsInnerJoinMock = vi.fn();
@@ -12,6 +13,10 @@ const txUpdateWhereMock = vi.fn();
 const deleteWhereMock = vi.fn();
 const deleteReturningMock = vi.fn();
 let selectCallCount = 0;
+
+vi.mock("@/lib/active-workspace", () => ({
+  resolveRequestWorkspaceId: resolveRequestWorkspaceIdMock,
+}));
 
 vi.mock("@/lib/auth", () => ({
   auth: {
@@ -177,6 +182,7 @@ describe("initiative detail route", () => {
     vi.clearAllMocks();
     selectCallCount = 0;
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    resolveRequestWorkspaceIdMock.mockResolvedValue("workspace-1");
     membershipsLimitMock.mockResolvedValue([{ workspaceId: "workspace-1" }]);
     initiativesWhereMock.mockResolvedValue([
       {

@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getSessionMock = vi.fn();
+const resolveRequestWorkspaceIdMock = vi.fn();
 const membershipsLimitMock = vi.fn();
 const initiativesWhereMock = vi.fn();
 const projectsInnerJoinMock = vi.fn();
 const insertReturningMock = vi.fn();
+
+vi.mock("@/lib/active-workspace", () => ({
+  resolveRequestWorkspaceId: resolveRequestWorkspaceIdMock,
+}));
 
 vi.mock("@/lib/auth", () => ({
   auth: {
@@ -65,6 +70,7 @@ describe("initiatives collection route", () => {
     vi.resetModules();
     vi.clearAllMocks();
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    resolveRequestWorkspaceIdMock.mockResolvedValue("workspace-1");
     membershipsLimitMock.mockResolvedValue([{ workspaceId: "workspace-1" }]);
     initiativesWhereMock.mockResolvedValue([
       {
@@ -92,7 +98,7 @@ describe("initiatives collection route", () => {
   });
 
   it("returns 404 when the user has no workspace", async () => {
-    membershipsLimitMock.mockResolvedValue([]);
+    resolveRequestWorkspaceIdMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/initiatives/route");
 
     const response = await GET(new Request("http://localhost/api/initiatives"));

@@ -1,45 +1,17 @@
+import { resolveRequestWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
-import {
-  initiative,
-  initiativeProject,
-  member,
-  project,
-} from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
-import { cookies } from "next/headers";
+import { initiative, initiativeProject, project } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-async function resolveWorkspaceId(userId: string) {
-  const cookieStore = await cookies();
-  const preferredWorkspaceId = cookieStore.get("activeWorkspaceId")?.value;
-
-  const members = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, userId))
-    .orderBy(desc(member.createdAt))
-    .limit(50);
-
-  if (
-    preferredWorkspaceId &&
-    members.some(
-      (membership) => membership.workspaceId === preferredWorkspaceId,
-    )
-  ) {
-    return preferredWorkspaceId;
-  }
-
-  return members[0]?.workspaceId ?? null;
-}
-
-export async function GET(_request: Request) {
+export async function GET(request: Request) {
   const { response: authResponse, session } = await requireApiSession();
   if (authResponse) {
     return authResponse;
   }
 
-  const workspaceId = await resolveWorkspaceId(session.user.id);
+  const workspaceId = await resolveRequestWorkspaceId(session.user.id, request);
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
@@ -89,7 +61,7 @@ export async function POST(request: Request) {
     return authResponse;
   }
 
-  const workspaceId = await resolveWorkspaceId(session.user.id);
+  const workspaceId = await resolveRequestWorkspaceId(session.user.id, request);
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }

@@ -1,4 +1,9 @@
+"use client";
+
+import { useAppShellContext } from "@/app/(app)/app-shell";
 import { InitiativeStatusBadge } from "@/components/initiative-status-badge";
+import { withWorkspaceSlug } from "@/lib/workspace-paths";
+import Link from "next/link";
 
 interface InitiativeData {
   id: string;
@@ -14,9 +19,15 @@ interface InitiativeRowProps {
 }
 
 export function InitiativeRow({ initiative }: InitiativeRowProps) {
+  const workspaceSlug = useAppShellContext()?.workspaceSlug;
+  const href = withWorkspaceSlug(
+    `/initiatives/${initiative.id}`,
+    workspaceSlug,
+  );
+
   return (
-    <a
-      href={`/initiatives/${initiative.id}`}
+    <Link
+      href={href}
       data-testid="initiative-row"
       className="flex items-center gap-4 border-b border-[var(--color-border)] px-4 py-3 transition-colors hover:bg-[var(--color-surface-hover)]"
     >
@@ -72,6 +83,6 @@ export function InitiativeRow({ initiative }: InitiativeRowProps) {
           />
         </div>
       </div>
-    </a>
+    </Link>
   );
 }

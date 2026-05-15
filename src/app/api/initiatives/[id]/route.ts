@@ -1,10 +1,10 @@
+import { resolveRequestWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import {
   initiative,
   initiativeProject,
   issue,
-  member,
   project,
   workflowState,
 } from "@/lib/db/schema";
@@ -13,32 +13,8 @@ import {
   makeInitiativeUpdateEntry,
   readInitiativeSettings,
 } from "@/lib/initiative-detail";
-import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
-import { cookies } from "next/headers";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
-
-async function resolveWorkspaceId(userId: string) {
-  const cookieStore = await cookies();
-  const preferredWorkspaceId = cookieStore.get("activeWorkspaceId")?.value;
-
-  const members = await db
-    .select({ workspaceId: member.workspaceId })
-    .from(member)
-    .where(eq(member.userId, userId))
-    .orderBy(desc(member.createdAt))
-    .limit(50);
-
-  if (
-    preferredWorkspaceId &&
-    members.some(
-      (membership) => membership.workspaceId === preferredWorkspaceId,
-    )
-  ) {
-    return preferredWorkspaceId;
-  }
-
-  return members[0]?.workspaceId ?? null;
-}
 
 async function buildInitiativeDetailResponse(workspaceId: string, id: string) {
   const initiatives = await db
@@ -158,7 +134,7 @@ async function buildInitiativeDetailResponse(workspaceId: string, id: string) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { response: authResponse, session } = await requireApiSession();
@@ -167,7 +143,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  const workspaceId = await resolveWorkspaceId(session.user.id);
+  const workspaceId = await resolveRequestWorkspaceId(session.user.id, request);
 
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
@@ -191,7 +167,7 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const workspaceId = await resolveWorkspaceId(session.user.id);
+  const workspaceId = await resolveRequestWorkspaceId(session.user.id, request);
   const body = await request.json();
 
   if (!workspaceId) {
@@ -372,7 +348,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { response: authResponse, session } = await requireApiSession();
@@ -381,7 +357,7 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const workspaceId = await resolveWorkspaceId(session.user.id);
+  const workspaceId = await resolveRequestWorkspaceId(session.user.id, request);
 
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });

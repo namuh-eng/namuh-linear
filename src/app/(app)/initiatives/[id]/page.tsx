@@ -1,10 +1,12 @@
 "use client";
 
+import { useAppShellContext } from "@/app/(app)/app-shell";
 import { EmptyState } from "@/components/empty-state";
 import { InitiativeHealthBadge } from "@/components/initiative-health-badge";
 import { InitiativeProjectList } from "@/components/initiative-project-list";
 import { InitiativeStatusBadge } from "@/components/initiative-status-badge";
 import type { InitiativeUpdateHealth } from "@/lib/initiative-detail";
+import { withWorkspaceSlug } from "@/lib/workspace-paths";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -74,6 +76,8 @@ export default function InitiativeDetailPage() {
     null,
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const workspaceSlug = useAppShellContext()?.workspaceSlug;
+  const initiativesHref = withWorkspaceSlug("/initiatives", workspaceSlug);
 
   const fetchDetail = useCallback(async () => {
     try {
@@ -176,7 +180,7 @@ export default function InitiativeDetailPage() {
         return;
       }
 
-      router.push("/initiatives");
+      router.push(initiativesHref);
     } catch {
       setErrorMessage("Unable to delete initiative.");
     } finally {
@@ -228,7 +232,7 @@ export default function InitiativeDetailPage() {
       <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-2">
         <button
           type="button"
-          onClick={() => router.push("/initiatives")}
+          onClick={() => router.push(initiativesHref)}
           className="flex items-center gap-1 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
         >
           <svg

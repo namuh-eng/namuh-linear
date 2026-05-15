@@ -10,9 +10,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
 const pushMock = vi.fn();
+let mockedWorkspaceSlug: string | undefined;
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
   useParams: () => ({ id: "init-1" }),
+}));
+
+vi.mock("@/app/(app)/app-shell", () => ({
+  useAppShellContext: () =>
+    mockedWorkspaceSlug ? { workspaceSlug: mockedWorkspaceSlug } : null,
 }));
 
 import InitiativeDetailPage from "@/app/(app)/initiatives/[id]/page";
@@ -64,6 +70,7 @@ describe("InitiativeDetailPage", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    mockedWorkspaceSlug = undefined;
   });
 
   it("renders loading state then initiative details", async () => {
@@ -167,5 +174,20 @@ describe("InitiativeDetailPage", () => {
       );
       expect(pushMock).toHaveBeenCalledWith("/initiatives");
     });
+  });
+
+  it("returns to the workspace-prefixed initiatives list from workspace detail routes", async () => {
+    mockedWorkspaceSlug = "foreverbrowsing";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => mockInitiativeData,
+    } as Response);
+
+    render(<InitiativeDetailPage />);
+    await screen.findByText("Growth");
+
+    fireEvent.click(screen.getByRole("button", { name: "Initiatives" }));
+
+    expect(pushMock).toHaveBeenCalledWith("/foreverbrowsing/initiatives");
   });
 });
