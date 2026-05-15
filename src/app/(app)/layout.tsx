@@ -76,6 +76,12 @@ export default async function AppLayout({
           key: string;
           parentTeamId?: string | null;
         }[];
+        workspaces: {
+          workspaceId: string;
+          workspaceName: string;
+          workspaceSlug: string;
+          role?: string | null;
+        }[];
       }
     | undefined;
 
@@ -195,7 +201,7 @@ export default async function AppLayout({
       .orderBy(desc(team.createdAt))
       .limit(50);
 
-    shellData = { ws, teams };
+    shellData = { ws, teams, workspaces: memberships };
   } catch (error) {
     if (shouldRenderDatabaseBootstrapError(error)) {
       return <DatabaseBootstrapError />;
@@ -204,7 +210,7 @@ export default async function AppLayout({
     throw error;
   }
 
-  const { ws, teams } = shellData;
+  const { ws, teams, workspaces } = shellData;
 
   const firstTeam = teams[0] ?? { id: "", name: "Team", key: "TEAM" };
 
@@ -218,6 +224,7 @@ export default async function AppLayout({
       teamId={firstTeam.id}
       teamKey={firstTeam.key}
       teams={teams}
+      workspaces={workspaces}
     >
       {children}
     </AppShell>

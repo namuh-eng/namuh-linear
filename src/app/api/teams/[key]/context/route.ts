@@ -1,6 +1,6 @@
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
-import { team, workspace } from "@/lib/db/schema";
+import { member, team, workspace } from "@/lib/db/schema";
 import { findAccessibleTeam } from "@/lib/teams";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -54,9 +54,21 @@ export async function GET(
     .from(team)
     .where(eq(team.workspaceId, context.workspaceId));
 
+  const workspaces = await db
+    .select({
+      workspaceId: member.workspaceId,
+      role: member.role,
+      workspaceName: workspace.name,
+      workspaceSlug: workspace.urlSlug,
+    })
+    .from(member)
+    .innerJoin(workspace, eq(member.workspaceId, workspace.id))
+    .where(eq(member.userId, session.user.id));
+
   return NextResponse.json({
     ...context,
     workspaceInitials: context.workspaceName.substring(0, 2).toUpperCase(),
     teams,
+    workspaces,
   });
 }

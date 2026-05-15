@@ -189,13 +189,81 @@ describe("Sidebar", () => {
     expect(screen.getByLabelText("Create issue")).toBeDefined();
   });
 
-  it("opens the workspace switcher menu", () => {
-    render(<Sidebar workspaceName="Acme Inc" workspaceInitials="AC" />);
+  it("opens the workspace switcher menu with actionable workspace and account items", () => {
+    render(
+      <Sidebar
+        workspaceName="Acme Inc"
+        workspaceInitials="AC"
+        workspaceSlug="acme"
+      />,
+    );
 
     fireEvent.click(screen.getByLabelText("Workspace switcher"));
 
-    expect(screen.getByText("Workspace settings")).toBeInTheDocument();
-    expect(screen.getAllByText("Acme Inc").length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("menu", { name: "Workspace and account menu" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Acme Inc/ })).toHaveAttribute(
+      "href",
+      "/acme/inbox",
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Workspace settings" }),
+    ).toHaveAttribute("href", "/acme/settings/workspace");
+    expect(
+      screen.getByRole("menuitem", { name: "Create workspace" }),
+    ).toHaveAttribute("href", "/create-workspace");
+    expect(
+      screen.getByRole("menuitem", { name: "Account settings" }),
+    ).toHaveAttribute("href", "/acme/settings/account/preferences");
+    expect(screen.queryByRole("button", { name: "Acme Inc" })).toBeNull();
+  });
+
+  it("lists multiple workspaces and links a switch to the same workspace route", () => {
+    mockPathname = "/acme/settings/account/preferences";
+
+    render(
+      <Sidebar
+        workspaceName="Acme Inc"
+        workspaceInitials="AC"
+        workspaceSlug="acme"
+        workspaces={[
+          {
+            workspaceId: "ws-acme",
+            workspaceName: "Acme Inc",
+            workspaceSlug: "acme",
+          },
+          {
+            workspaceId: "ws-beta",
+            workspaceName: "Beta Co",
+            workspaceSlug: "beta",
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Workspace switcher"));
+
+    expect(screen.getByRole("menuitem", { name: /Acme Inc/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Switch to Beta Co" }),
+    ).toHaveAttribute("href", "/beta/settings/account/preferences");
+  });
+
+  it("closes the workspace switcher with Escape and returns focus", () => {
+    render(<Sidebar workspaceName="Acme Inc" workspaceSlug="acme" />);
+
+    const switcher = screen.getByLabelText("Workspace switcher");
+    fireEvent.click(switcher);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(switcher).toHaveFocus();
   });
 
   it("has help button", () => {

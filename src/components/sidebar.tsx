@@ -16,13 +16,20 @@ import {
 import { stripWorkspaceSlug, withWorkspaceSlug } from "@/lib/workspace-paths";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 export interface SidebarTeam {
   id?: string;
   name: string;
   key: string;
   parentTeamId?: string | null;
+}
+
+export interface SidebarWorkspace {
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  role?: string | null;
 }
 
 const SHORTCUT_CATEGORY_ORDER = ["Command", "Create", "Navigation", "Context"];
@@ -43,6 +50,7 @@ interface SidebarProps {
   onCreateIssue?: () => void;
   accountPreferences?: AccountPreferences;
   workspaceSlug?: string;
+  workspaces?: SidebarWorkspace[];
 }
 
 const SidebarWorkspaceSlugContext = createContext<string>("");
@@ -313,6 +321,23 @@ function SidebarCustomizeModal({
   );
 }
 
+function getWorkspaceInitials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return `${words[0][0]}${words[1][0]}`.toUpperCase();
+  }
+
+  return (words[0] ?? "Workspace").substring(0, 2).toUpperCase();
+}
+
+function getWorkspaceSwitchPath(pathname: string) {
+  if (pathname.startsWith("/team/") || pathname.startsWith("/issue/")) {
+    return "/inbox";
+  }
+
+  return pathname || "/inbox";
+}
+
 function buildTeamHierarchyList(teams: SidebarTeam[]) {
   const byParent = new Map<string, SidebarTeam[]>();
   const byId = new Map<string, SidebarTeam>();
@@ -401,6 +426,7 @@ export function Sidebar({
   onCreateIssue,
   accountPreferences,
   workspaceSlug = "",
+  workspaces,
 }: SidebarProps) {
   const pathname = stripWorkspaceSlug(usePathname(), workspaceSlug);
   const resolvedTeams =
@@ -424,10 +450,22 @@ export function Sidebar({
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const workspaceSwitcherButtonRef = useRef<HTMLButtonElement | null>(null);
   const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const sidebarVisibility = localPreferences.sidebarVisibility;
   const badgeStyle = localPreferences.sidebarBadgeStyle;
+  const resolvedWorkspaces =
+    workspaces && workspaces.length > 0
+      ? workspaces
+      : [
+          {
+            workspaceId: "current",
+            workspaceName,
+            workspaceSlug: workspaceSlug || "",
+          },
+        ];
+  const workspaceSwitchPath = getWorkspaceSwitchPath(pathname);
 
   function isVisible(key: keyof NonNullable<typeof sidebarVisibility>) {
     return sidebarVisibility?.[key] ?? true;
@@ -451,6 +489,13 @@ export function Sidebar({
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      if (workspaceMenuOpen && event.key === "Escape") {
+        event.preventDefault();
+        setWorkspaceMenuOpen(false);
+        workspaceSwitcherButtonRef.current?.focus();
+        return;
+      }
+
       if (shortcutsOpen && event.key === "Escape") {
         event.preventDefault();
         setShortcutsOpen(false);
@@ -469,7 +514,7 @@ export function Sidebar({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [shortcutsOpen]);
+  }, [shortcutsOpen, workspaceMenuOpen]);
 
   useEffect(() => {
     const nextTeams =
@@ -533,8 +578,10 @@ export function Sidebar({
         <div className="mb-2 flex items-center justify-between">
           <div className="relative">
             <button
+              ref={workspaceSwitcherButtonRef}
               type="button"
               aria-label="Workspace switcher"
+              aria-haspopup="menu"
               aria-expanded={workspaceMenuOpen}
               onClick={() => {
                 setWorkspaceMenuOpen(!workspaceMenuOpen);
@@ -566,25 +613,87 @@ export function Sidebar({
               </svg>
             </button>
             {workspaceMenuOpen && (
-              <div className="absolute left-0 top-full z-20 mt-2 min-w-[220px] rounded-lg border border-[var(--color-border)] bg-[var(--color-content-bg)] p-1 shadow-2xl">
+              <div
+                role="menu"
+                aria-label="Workspace and account menu"
+                className="absolute left-0 top-full z-20 mt-2 min-w-[260px] rounded-lg border border-[var(--color-border)] bg-[var(--color-content-bg)] p-1 shadow-2xl"
+              >
                 <div className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
-                  Workspace
+                  Workspaces
                 </div>
-                <button
-                  type="button"
-                  disabled
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] text-[var(--color-text-primary)]"
-                >
-                  <span className="flex h-5 w-5 items-center justify-center rounded bg-[var(--color-accent)] text-[10px] font-bold text-white">
-                    {workspaceInitials}
-                  </span>
-                  <span className="truncate">{workspaceName}</span>
-                </button>
+                {resolvedWorkspaces.map((workspaceOption) => {
+                  const selected =
+                    workspaceOption.workspaceSlug === workspaceSlug;
+                  const optionInitials = getWorkspaceInitials(
+                    workspaceOption.workspaceName,
+                  );
+
+                  return (
+                    <a
+                      key={workspaceOption.workspaceId}
+                      role="menuitem"
+                      aria-label={
+                        selected
+                          ? `${workspaceOption.workspaceName} (current workspace)`
+                          : `Switch to ${workspaceOption.workspaceName}`
+                      }
+                      aria-current={selected ? "page" : undefined}
+                      href={withWorkspaceSlug(
+                        workspaceSwitchPath,
+                        workspaceOption.workspaceSlug,
+                      )}
+                      className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] ${
+                        selected
+                          ? "bg-[var(--color-surface-active)] text-[var(--color-text-primary)]"
+                          : "text-[var(--color-text-secondary)]"
+                      }`}
+                    >
+                      <span className="flex h-5 w-5 items-center justify-center rounded bg-[var(--color-accent)] text-[10px] font-bold text-white">
+                        {optionInitials}
+                      </span>
+                      <span className="flex-1 truncate">
+                        {workspaceOption.workspaceName}
+                      </span>
+                      {selected && (
+                        <span className="text-[11px] text-[var(--color-text-tertiary)]">
+                          Current
+                        </span>
+                      )}
+                    </a>
+                  );
+                })}
+
+                <div className="my-1 border-t border-[var(--color-border)]" />
                 <Link
+                  role="menuitem"
+                  href="/create-workspace"
+                  className="block rounded-md px-3 py-2 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+                >
+                  Create workspace
+                </Link>
+                <Link
+                  role="menuitem"
+                  href={withWorkspaceSlug("/settings/members", workspaceSlug)}
+                  className="block rounded-md px-3 py-2 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+                >
+                  Invite and manage members
+                </Link>
+                <Link
+                  role="menuitem"
                   href={withWorkspaceSlug("/settings/workspace", workspaceSlug)}
                   className="block rounded-md px-3 py-2 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
                 >
                   Workspace settings
+                </Link>
+                <Link
+                  role="menuitem"
+                  href={withWorkspaceSlug(
+                    "/settings/account/preferences",
+                    workspaceSlug,
+                  )}
+                  className="block rounded-md px-3 py-2 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+                >
+                  Account settings
                 </Link>
               </div>
             )}

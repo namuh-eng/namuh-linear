@@ -4,6 +4,7 @@ const getSessionMock = vi.fn();
 const findAccessibleTeamMock = vi.fn();
 const contextLimitMock = vi.fn();
 const teamsWhereMock = vi.fn();
+const workspacesWhereMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
   auth: {
@@ -20,6 +21,17 @@ vi.mock("@/lib/teams", () => ({
 vi.mock("@/lib/db", () => ({
   db: {
     select: vi.fn((selection: Record<string, unknown>) => {
+      // Workspace memberships lookup
+      if (selection && "role" in selection) {
+        return {
+          from: vi.fn().mockReturnValue({
+            innerJoin: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue(workspacesWhereMock()),
+            }),
+          }),
+        };
+      }
+
       // Workspace lookup
       if (selection && "workspaceName" in selection) {
         return {
@@ -66,6 +78,14 @@ describe("team context route", () => {
     teamsWhereMock.mockReturnValue([
       { id: "team-1", name: "Engineering", key: "ENG" },
     ]);
+    workspacesWhereMock.mockReturnValue([
+      {
+        workspaceId: "workspace-1",
+        workspaceName: "Namuh Labs",
+        workspaceSlug: "namuh-labs",
+        role: "owner",
+      },
+    ]);
   });
 
   it("returns 401 without a session", async () => {
@@ -102,5 +122,13 @@ describe("team context route", () => {
     expect(payload.teamKey).toBe("ENG");
     expect(payload.workspaceInitials).toBe("NA");
     expect(payload.teams.length).toBe(1);
+    expect(payload.workspaces).toEqual([
+      {
+        workspaceId: "workspace-1",
+        workspaceName: "Namuh Labs",
+        workspaceSlug: "namuh-labs",
+        role: "owner",
+      },
+    ]);
   });
 });

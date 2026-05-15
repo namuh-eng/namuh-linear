@@ -2,7 +2,11 @@
 
 import { CommandPalette } from "@/components/command-palette";
 import { CreateIssueModal } from "@/components/create-issue-modal";
-import { Sidebar, type SidebarTeam } from "@/components/sidebar";
+import {
+  Sidebar,
+  type SidebarTeam,
+  type SidebarWorkspace,
+} from "@/components/sidebar";
 import {
   ACCOUNT_PREFERENCES_CHANGE_EVENT,
   type AccountPreferences,
@@ -31,6 +35,7 @@ interface AppShellProps {
   teamId: string;
   teamKey: string;
   teams?: SidebarTeam[];
+  workspaces?: SidebarWorkspace[];
 }
 
 interface ShellContext {
@@ -42,6 +47,7 @@ interface ShellContext {
   teamId: string;
   teamKey: string;
   teams: SidebarTeam[];
+  workspaces: SidebarWorkspace[];
 }
 
 const AppShellContext = createContext<ShellContext | null>(null);
@@ -75,6 +81,7 @@ export function AppShell({
   teamId,
   teamKey,
   teams,
+  workspaces,
 }: AppShellProps) {
   const pathname = stripWorkspaceSlug(usePathname(), workspaceSlug);
   const router = useRouter();
@@ -100,6 +107,10 @@ export function AppShell({
       teams && teams.length > 0
         ? teams
         : [{ id: teamId, name: teamName, key: teamKey }],
+    workspaces:
+      workspaces && workspaces.length > 0
+        ? workspaces
+        : [{ workspaceId, workspaceName, workspaceSlug }],
   });
 
   useEffect(() => {
@@ -115,6 +126,10 @@ export function AppShell({
         teams && teams.length > 0
           ? teams
           : [{ id: teamId, name: teamName, key: teamKey }],
+      workspaces:
+        workspaces && workspaces.length > 0
+          ? workspaces
+          : [{ workspaceId, workspaceName, workspaceSlug }],
     };
     const activeTeamKey = getActiveTeamKey(pathname);
 
@@ -135,7 +150,10 @@ export function AppShell({
       })
       .then((context) => {
         if (!cancelled) {
-          setShellContext(context);
+          setShellContext({
+            ...context,
+            workspaces: context.workspaces ?? fallbackContext.workspaces,
+          });
         }
       })
       .catch(() => {
@@ -157,6 +175,7 @@ export function AppShell({
     workspaceSlug,
     workspaceInitials,
     workspaceName,
+    workspaces,
   ]);
 
   useEffect(() => {
@@ -372,6 +391,7 @@ export function AppShell({
             onCreateIssue={() => setCreateIssueMode("modal")}
             accountPreferences={accountPreferences}
             workspaceSlug={shellContext.workspaceSlug}
+            workspaces={shellContext.workspaces}
           />
         </div>
         <main
