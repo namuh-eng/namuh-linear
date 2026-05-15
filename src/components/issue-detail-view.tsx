@@ -115,7 +115,13 @@ interface IssueDetail {
   labels: { name: string; color: string }[];
   subscription: IssueSubscriptionState;
   reactions: IssueReaction[];
-  discussionSummary: { enabled: boolean; text: string | null };
+  discussionSummary: {
+    enabled: boolean;
+    text: string | null;
+    generatedAt?: string | null;
+    sourceCommentCount?: number;
+    error?: string | null;
+  };
   comments: IssueComment[];
   subIssues: IssueSubIssue[];
   createdAt: string;
@@ -604,6 +610,8 @@ export function IssueDetailView({
           discussionSummary: json.discussionSummary ?? {
             enabled: false,
             text: null,
+            generatedAt: null,
+            sourceCommentCount: 0,
           },
         });
         setDescriptionDraft(
@@ -822,6 +830,13 @@ export function IssueDetailView({
           ? {
               ...current,
               comments: [...current.comments, createdComment],
+              discussionSummary: current.discussionSummary.enabled
+                ? {
+                    ...current.discussionSummary,
+                    text: null,
+                    error: null,
+                  }
+                : current.discussionSummary,
             }
           : current,
       );
@@ -1074,6 +1089,13 @@ export function IssueDetailView({
                 ? { ...comment, body: updated.body ?? nextBody }
                 : comment,
             ),
+            discussionSummary: current.discussionSummary.enabled
+              ? {
+                  ...current.discussionSummary,
+                  text: null,
+                  error: null,
+                }
+              : current.discussionSummary,
           }
         : current,
     );
@@ -1099,6 +1121,13 @@ export function IssueDetailView({
             comments: current.comments.filter(
               (comment) => comment.id !== commentId,
             ),
+            discussionSummary: current.discussionSummary.enabled
+              ? {
+                  ...current.discussionSummary,
+                  text: null,
+                  error: null,
+                }
+              : current.discussionSummary,
           }
         : current,
     );
@@ -1572,10 +1601,41 @@ export function IssueDetailView({
                   <div className="text-[12px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-tertiary)]">
                     Discussion summary
                   </div>
-                  <p className="mt-2 text-[13px] leading-relaxed text-[var(--color-text-primary)]">
-                    {issue.discussionSummary.text ??
-                      "No comments have been added yet."}
-                  </p>
+                  {issue.discussionSummary.error ? (
+                    <div className="mt-2 space-y-2 text-[13px] leading-relaxed text-[var(--color-text-primary)]">
+                      <p>{issue.discussionSummary.error}</p>
+                      <button
+                        type="button"
+                        className="rounded-md border border-[var(--color-border)] px-2 py-1 text-[12px] text-[var(--color-text-primary)] hover:bg-[var(--color-card-hover)]"
+                        onClick={() => void fetchIssue()}
+                      >
+                        Retry summary
+                      </button>
+                    </div>
+                  ) : issue.discussionSummary.text ? (
+                    <p className="mt-2 whitespace-pre-line text-[13px] leading-relaxed text-[var(--color-text-primary)]">
+                      {issue.discussionSummary.text}
+                    </p>
+                  ) : issue.comments.length >= 2 ? (
+                    <div className="mt-2 space-y-2 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+                      <p>
+                        Discussion changed. Refresh to generate a new summary of
+                        decisions, blockers, and next steps.
+                      </p>
+                      <button
+                        type="button"
+                        className="rounded-md border border-[var(--color-border)] px-2 py-1 text-[12px] text-[var(--color-text-primary)] hover:bg-[var(--color-card-hover)]"
+                        onClick={() => void fetchIssue()}
+                      >
+                        Refresh summary
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-[13px] leading-relaxed text-[var(--color-text-secondary)]">
+                      Add more discussion to generate an AI summary of
+                      decisions, blockers, and next steps.
+                    </p>
+                  )}
                 </div>
               ) : null}
 
