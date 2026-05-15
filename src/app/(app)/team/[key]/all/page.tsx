@@ -27,6 +27,18 @@ import {
 } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+type BulkUpdatePayload = {
+  stateId?: string | null;
+  assigneeId?: string | null;
+  priority?: string | null;
+  labelIds?: string[];
+  projectId?: string | null;
+  cycleId?: string | null;
+  dueDate?: string | null;
+  archive?: boolean;
+  delete?: boolean;
+};
+
 interface IssueData {
   id: string;
   number: number;
@@ -122,6 +134,14 @@ export default function TeamIssuesPage() {
     stateId?: string;
     stateName: string;
   }>({ stateName: "Backlog" });
+  const [selectedIssueIds, setSelectedIssueIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [lastSelectedIssueId, setLastSelectedIssueId] = useState<string | null>(
+    null,
+  );
+  const [bulkActionError, setBulkActionError] = useState<string | null>(null);
+  const [bulkActionBusy, setBulkActionBusy] = useState(false);
 
   const { options, updateOptions, saveAsDefault, reset } = useDisplayOptions(
     params.key,
@@ -153,6 +173,14 @@ export default function TeamIssuesPage() {
   useEffect(() => {
     fetchIssues();
   }, [fetchIssues]);
+
+  useEffect(() => {
+    const selectionScope = `${params.key}:${routeTab}`;
+    if (!selectionScope) return;
+    setSelectedIssueIds(new Set());
+    setLastSelectedIssueId(null);
+    setBulkActionError(null);
+  }, [params.key, routeTab]);
 
   useEffect(() => {
     function handleIssueCreated(event: Event) {
@@ -223,6 +251,15 @@ export default function TeamIssuesPage() {
       filteredGroups.flatMap((group) => group.issues.map((issue) => issue.id)),
     [filteredGroups],
   );
+  const visibleIssues = useMemo(
+    () => filteredGroups.flatMap((group) => group.issues),
+    [filteredGroups],
+  );
+  const selectedIssues = useMemo(
+    () => visibleIssues.filter((issue) => selectedIssueIds.has(issue.id)),
+    [selectedIssueIds, visibleIssues],
+  );
+  const selectedCount = selectedIssueIds.size;
 
   const tabs = [
     { id: "all", label: "All issues" },
@@ -237,6 +274,124 @@ export default function TeamIssuesPage() {
     },
     [],
   );
+
+  const toggleIssueSelection = useCallback(
+    (issueId: string, shiftKey: boolean) => {
+      setSelectedIssueIds((current) => {
+        const next = new Set(current);
+        const currentIndex = visibleIssueIds.indexOf(issueId);
+        const lastIndex = lastSelectedIssueId
+          ? visibleIssueIds.indexOf(lastSelectedIssueId)
+          : -1;
+
+        if (shiftKey && currentIndex >= 0 && lastIndex >= 0) {
+          const [start, end] =
+            currentIndex < lastIndex
+              ? [currentIndex, lastIndex]
+              : [lastIndex, currentIndex];
+          for (const id of visibleIssueIds.slice(start, end + 1)) {
+            next.add(id);
+          }
+        } else if (next.has(issueId)) {
+          next.delete(issueId);
+        } else {
+          next.add(issueId);
+        }
+
+        return next;
+      });
+      setLastSelectedIssueId(issueId);
+      setBulkActionError(null);
+    },
+    [lastSelectedIssueId, visibleIssueIds],
+  );
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && selectedIssueIds.size > 0) {
+        setSelectedIssueIds(new Set());
+        setLastSelectedIssueId(null);
+        setBulkActionError(null);
+      }
+
+      if (
+        event.key.toLowerCase() === "a" &&
+        (event.metaKey || event.ctrlKey) &&
+        visibleIssueIds.length > 0
+      ) {
+        const target = event.target as HTMLElement | null;
+        if (
+          target?.tagName === "INPUT" ||
+          target?.tagName === "TEXTAREA" ||
+          target?.isContentEditable
+        ) {
+          return;
+        }
+        event.preventDefault();
+        setSelectedIssueIds(new Set(visibleIssueIds));
+        setLastSelectedIssueId(visibleIssueIds.at(-1) ?? null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIssueIds.size, visibleIssueIds]);
+
+  const applyBulkUpdate = useCallback(
+    async (updates: BulkUpdatePayload) => {
+      if (selectedIssueIds.size === 0) return;
+
+      setBulkActionBusy(true);
+      setBulkActionError(null);
+      try {
+        const res = await fetch("/api/issues/bulk", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            issueIds: Array.from(selectedIssueIds),
+            updates,
+          }),
+        });
+
+        if (!res.ok) {
+          const payload = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(payload?.error ?? "Bulk update failed");
+        }
+
+        await fetchIssues();
+        if (updates.delete || updates.archive) {
+          setSelectedIssueIds(new Set());
+          setLastSelectedIssueId(null);
+        }
+      } catch (error) {
+        setBulkActionError(
+          error instanceof Error ? error.message : "Bulk update failed",
+        );
+      } finally {
+        setBulkActionBusy(false);
+      }
+    },
+    [fetchIssues, selectedIssueIds],
+  );
+
+  const copySelectedIssueLinks = useCallback(async () => {
+    const lines = selectedIssues.map((issueRecord) => {
+      const path = withWorkspaceSlug(
+        `/team/${data?.team.key ?? params.key}/issue/${issueRecord.id}`,
+        workspaceSlug,
+      );
+      return `${issueRecord.identifier} ${path}`;
+    });
+
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      setBulkActionError(null);
+    } catch {
+      setBulkActionError("Unable to copy issue links");
+    }
+  }, [data?.team.key, params.key, selectedIssues, workspaceSlug]);
 
   if (loading) {
     return (
@@ -457,12 +612,216 @@ export default function TeamIssuesPage() {
                   `/team/${data.team.key}/issue/${iss.id}`,
                   workspaceSlug,
                 )}
+                selected={selectedIssueIds.has(iss.id)}
+                selectionMode={selectedCount > 0}
+                onToggleSelected={({ shiftKey }) =>
+                  toggleIssueSelection(iss.id, shiftKey)
+                }
                 displayProperties={options.displayProperties}
               />
             ))}
           </div>
         ))}
       </div>
+
+      {selectedCount > 0 && (
+        <div
+          data-testid="bulk-action-bar"
+          className="fixed bottom-5 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-[12px] text-[var(--color-text-primary)] shadow-lg"
+        >
+          <strong>{selectedCount} selected</strong>
+          <button
+            type="button"
+            className="rounded-md px-2 py-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]"
+            onClick={() => {
+              setSelectedIssueIds(new Set());
+              setLastSelectedIssueId(null);
+            }}
+          >
+            Clear
+          </button>
+          <select
+            aria-label="Bulk status"
+            disabled={bulkActionBusy}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1"
+            defaultValue=""
+            onChange={(event) => {
+              if (event.target.value) {
+                void applyBulkUpdate({ stateId: event.target.value });
+                event.target.value = "";
+              }
+            }}
+          >
+            <option value="">Status</option>
+            {data.filterOptions.statuses.map((status) => (
+              <option key={status.id} value={status.id}>
+                {status.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Bulk assignee"
+            disabled={bulkActionBusy}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1"
+            defaultValue=""
+            onChange={(event) => {
+              if (event.target.value !== "") {
+                void applyBulkUpdate({
+                  assigneeId:
+                    event.target.value === "__unassigned__"
+                      ? null
+                      : event.target.value,
+                });
+                event.target.value = "";
+              }
+            }}
+          >
+            <option value="">Assignee</option>
+            <option value="__unassigned__">Unassigned</option>
+            {data.filterOptions.assignees.map((assignee) => (
+              <option key={assignee.id} value={assignee.id}>
+                {assignee.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Bulk priority"
+            disabled={bulkActionBusy}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1"
+            defaultValue=""
+            onChange={(event) => {
+              if (event.target.value) {
+                void applyBulkUpdate({ priority: event.target.value });
+                event.target.value = "";
+              }
+            }}
+          >
+            <option value="">Priority</option>
+            {data.filterOptions.priorities.map((priority) => (
+              <option key={priority.value} value={priority.value}>
+                {priority.label}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Bulk label"
+            disabled={bulkActionBusy}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1"
+            defaultValue=""
+            onChange={(event) => {
+              if (event.target.value) {
+                const labelIds = [
+                  ...new Set([
+                    ...selectedIssues.flatMap(
+                      (issueRecord) => issueRecord.labelIds ?? [],
+                    ),
+                    event.target.value,
+                  ]),
+                ];
+                void applyBulkUpdate({ labelIds });
+                event.target.value = "";
+              }
+            }}
+          >
+            <option value="">Label</option>
+            {data.filterOptions.labels.map((label) => (
+              <option key={label.id} value={label.id}>
+                {label.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Bulk project"
+            disabled={bulkActionBusy}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1"
+            defaultValue=""
+            onChange={(event) => {
+              if (event.target.value !== "") {
+                void applyBulkUpdate({
+                  projectId:
+                    event.target.value === "__none__"
+                      ? null
+                      : event.target.value,
+                });
+                event.target.value = "";
+              }
+            }}
+          >
+            <option value="">Project</option>
+            <option value="__none__">No project</option>
+            {data.filterOptions.projects.map((projectOption) => (
+              <option key={projectOption.id} value={projectOption.id}>
+                {projectOption.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Bulk cycle"
+            disabled={bulkActionBusy}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1"
+            defaultValue=""
+            onChange={(event) => {
+              if (event.target.value !== "") {
+                void applyBulkUpdate({
+                  cycleId:
+                    event.target.value === "__none__"
+                      ? null
+                      : event.target.value,
+                });
+                event.target.value = "";
+              }
+            }}
+          >
+            <option value="">Cycle</option>
+            <option value="__none__">No cycle</option>
+            {data.filterOptions.cycles.map((cycleOption) => (
+              <option key={cycleOption.id} value={cycleOption.id}>
+                {cycleOption.name}
+              </option>
+            ))}
+          </select>
+          <input
+            aria-label="Bulk due date"
+            type="date"
+            disabled={bulkActionBusy}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1"
+            onChange={(event) => {
+              if (event.target.value) {
+                void applyBulkUpdate({ dueDate: event.target.value });
+                event.target.value = "";
+              }
+            }}
+          />
+          <button
+            type="button"
+            disabled={bulkActionBusy}
+            className="rounded-md px-2 py-1 hover:bg-[var(--color-surface-hover)]"
+            onClick={() => void applyBulkUpdate({ archive: true })}
+          >
+            Archive
+          </button>
+          <button
+            type="button"
+            disabled={bulkActionBusy}
+            className="rounded-md px-2 py-1 text-red-400 hover:bg-[var(--color-surface-hover)]"
+            onClick={() => void applyBulkUpdate({ delete: true })}
+          >
+            Delete
+          </button>
+          <button
+            type="button"
+            className="rounded-md px-2 py-1 hover:bg-[var(--color-surface-hover)]"
+            onClick={() => void copySelectedIssueLinks()}
+          >
+            Copy
+          </button>
+          {bulkActionError && (
+            <span className="max-w-[220px] truncate text-red-400">
+              {bulkActionError}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Footer */}
       <div className="flex items-center border-t border-[var(--color-border)] px-4 py-1.5 text-[12px] text-[var(--color-text-secondary)]">
