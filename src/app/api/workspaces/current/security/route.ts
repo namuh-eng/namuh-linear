@@ -8,6 +8,8 @@ import {
   DEFAULT_WORKSPACE_PERMISSION_SETTINGS,
   type PermissionLevel,
   asRecord,
+  canPerformWorkspacePermission,
+  isWorkspaceAdminRole,
   readPermissionLevel,
 } from "@/lib/workspace-permissions";
 import { and, eq } from "drizzle-orm";
@@ -50,6 +52,7 @@ type CurrentWorkspaceRecord = {
   inviteLinkEnabled: boolean | null;
   inviteLinkToken: string | null;
   approvedEmailDomains: unknown;
+  role: string;
 };
 
 const DEFAULT_SECURITY_STATE: WorkspaceSecurityState = {
@@ -263,6 +266,7 @@ async function findCurrentWorkspace(userId: string) {
       inviteLinkEnabled: workspace.inviteLinkEnabled,
       inviteLinkToken: workspace.inviteLinkToken,
       approvedEmailDomains: workspace.approvedEmailDomains,
+      role: member.role,
     })
     .from(workspace)
     .innerJoin(
@@ -311,6 +315,9 @@ function buildResponse(
   currentWorkspace: CurrentWorkspaceRecord,
   inviteLinkToken: string,
 ) {
+  const securityState = readWorkspaceSecurityState(currentWorkspace.settings);
+  const { permissions } = securityState;
+
   return {
     security: {
       inviteLinkEnabled: currentWorkspace.inviteLinkEnabled ?? true,
@@ -318,7 +325,25 @@ function buildResponse(
       approvedEmailDomains: normalizeDomains(
         currentWorkspace.approvedEmailDomains,
       ),
-      ...readWorkspaceSecurityState(currentWorkspace.settings),
+      ...securityState,
+      capabilities: {
+        canInviteMembers: canPerformWorkspacePermission(
+          currentWorkspace.role,
+          permissions.invitationsRole,
+        ),
+        canCreateTeams: canPerformWorkspacePermission(
+          currentWorkspace.role,
+          permissions.teamCreationRole,
+        ),
+        canManageWorkspaceLabels: false,
+        canManageWorkspaceTemplates: false,
+        canCreateApiKeys: canPerformWorkspacePermission(
+          currentWorkspace.role,
+          permissions.apiKeyCreationRole,
+          { includeGuestsForAnyone: false },
+        ),
+        canModifyAgentGuidance: false,
+      },
     },
   };
 }
@@ -365,6 +390,13 @@ export async function PATCH(request: Request) {
     return NextResponse.json(
       { error: "No active workspace found" },
       { status: 404 },
+    );
+  }
+
+  if (!isWorkspaceAdminRole(currentWorkspace.role)) {
+    return NextResponse.json(
+      { error: "You do not have permission to manage workspace security" },
+      { status: 403 },
     );
   }
 

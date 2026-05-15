@@ -86,6 +86,7 @@ describe("current workspace security route", () => {
         inviteLinkEnabled: true,
         inviteLinkToken: "invite-token-1",
         approvedEmailDomains: ["TEAM@EXAMPLE.COM", "bad domain"],
+        role: "admin",
       },
     ]);
   });
@@ -140,6 +141,14 @@ describe("current workspace security route", () => {
           apiKeyCreationRole: "admins",
           agentGuidanceRole: "admins",
         },
+        capabilities: {
+          canInviteMembers: true,
+          canCreateTeams: true,
+          canManageWorkspaceLabels: false,
+          canManageWorkspaceTemplates: false,
+          canCreateApiKeys: true,
+          canModifyAgentGuidance: false,
+        },
         restrictFileUploads: false,
         improveAi: true,
         webSearch: true,
@@ -164,6 +173,7 @@ describe("current workspace security route", () => {
         inviteLinkEnabled: true,
         inviteLinkToken: null,
         approvedEmailDomains: [],
+        role: "admin",
       },
     ]);
     const { GET } = await import("@/app/api/workspaces/current/security/route");
@@ -318,6 +328,14 @@ describe("current workspace security route", () => {
           teamCreationRole: "admins",
           apiKeyCreationRole: "admins",
         },
+        capabilities: {
+          canInviteMembers: true,
+          canCreateTeams: true,
+          canManageWorkspaceLabels: false,
+          canManageWorkspaceTemplates: false,
+          canCreateApiKeys: true,
+          canModifyAgentGuidance: false,
+        },
         restrictFileUploads: true,
         improveAi: false,
         webSearch: false,
@@ -331,6 +349,36 @@ describe("current workspace security route", () => {
           },
         ],
       },
+    });
+  });
+
+  it("blocks non-admin members from mutating workspace security policy", async () => {
+    currentWorkspaceLimitMock.mockResolvedValue([
+      {
+        id: "workspace-1",
+        settings: {},
+        inviteLinkEnabled: true,
+        inviteLinkToken: "invite-token-1",
+        approvedEmailDomains: [],
+        role: "member",
+      },
+    ]);
+    const { PATCH } = await import(
+      "@/app/api/workspaces/current/security/route"
+    );
+
+    const response = await PATCH(
+      new Request("https://app.test/settings/security", {
+        method: "PATCH",
+        body: JSON.stringify({ permissions: { invitationsRole: "anyone" } }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(updateSetMock).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toEqual({
+      error: "You do not have permission to manage workspace security",
     });
   });
 });
