@@ -51,6 +51,10 @@ const mockIssueDetail = {
   ],
   labels: [{ name: "bug", color: "#f00" }],
   reactions: [],
+  discussionSummary: {
+    enabled: true,
+    text: "1 comment from 1 participant. Latest: First comment",
+  },
   comments: [
     {
       id: "c1",
@@ -94,6 +98,10 @@ describe("IssueDetailView UI", () => {
     // Status check
     expect(screen.getAllByText(/In Progress/i).length).toBeGreaterThan(0);
 
+    expect(screen.getByLabelText("Discussion summary")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 comment from 1 participant. Latest: First comment"),
+    ).toBeInTheDocument();
     expect(screen.getByText("First comment")).toBeInTheDocument();
   });
 

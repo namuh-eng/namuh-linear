@@ -8,33 +8,12 @@ import {
   workspace,
 } from "@/lib/db/schema";
 import { buildTeamInboundEmailAddress } from "@/lib/team-email";
+import { getMutableTeamSettings, readTeamSettings } from "@/lib/team-settings";
 import { findAccessibleTeam } from "@/lib/teams";
 import { and, count, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-type TeamSettingsFlags = {
-  emailEnabled: boolean;
-  detailedHistory: boolean;
-  agentGuidance: string;
-  autoAssignment: boolean;
-};
-
 type EstimateTypeValue = "not_in_use" | "linear" | "exponential" | "tshirt";
-
-function readTeamSettings(settings: unknown): TeamSettingsFlags {
-  const parsed =
-    settings && typeof settings === "object"
-      ? (settings as Record<string, unknown>)
-      : {};
-
-  return {
-    emailEnabled: parsed.emailEnabled === true,
-    detailedHistory: parsed.detailedHistory !== false,
-    agentGuidance:
-      typeof parsed.agentGuidance === "string" ? parsed.agentGuidance : "",
-    autoAssignment: parsed.autoAssignment === true,
-  };
-}
 
 async function getTeamMembership(teamId: string, userId: string) {
   const [membership] = await db
@@ -49,26 +28,48 @@ async function getTeamMembership(teamId: string, userId: string) {
 async function buildTeamResponse(
   teamRecord: NonNullable<Awaited<ReturnType<typeof findAccessibleTeam>>>,
 ) {
-  const [memberCountResult, labelCountResult, statusCountResult, workspaceRow] =
-    await Promise.all([
-      db
-        .select({ value: count() })
-        .from(teamMember)
-        .where(eq(teamMember.teamId, teamRecord.id)),
-      db
-        .select({ value: count() })
-        .from(label)
-        .where(eq(label.teamId, teamRecord.id)),
-      db
-        .select({ value: count() })
-        .from(workflowState)
-        .where(eq(workflowState.teamId, teamRecord.id)),
-      db
-        .select({ urlSlug: workspace.urlSlug })
-        .from(workspace)
-        .where(eq(workspace.id, teamRecord.workspaceId))
-        .limit(1),
-    ]);
+  const [
+    memberCountResult,
+    labelCountResult,
+    statusCountResult,
+    workspaceRow,
+    parentTeamRow,
+    eligibleParentRows,
+  ] = await Promise.all([
+    db
+      .select({ value: count() })
+      .from(teamMember)
+      .where(eq(teamMember.teamId, teamRecord.id)),
+    db
+      .select({ value: count() })
+      .from(label)
+      .where(eq(label.teamId, teamRecord.id)),
+    db
+      .select({ value: count() })
+      .from(workflowState)
+      .where(eq(workflowState.teamId, teamRecord.id)),
+    db
+      .select({ urlSlug: workspace.urlSlug })
+      .from(workspace)
+      .where(eq(workspace.id, teamRecord.workspaceId))
+      .limit(1),
+    teamRecord.parentTeamId
+      ? db
+          .select({ id: team.id, name: team.name, key: team.key })
+          .from(team)
+          .where(eq(team.id, teamRecord.parentTeamId))
+          .limit(1)
+      : Promise.resolve([]),
+    db
+      .select({ id: team.id, name: team.name, key: team.key })
+      .from(team)
+      .where(
+        and(
+          eq(team.workspaceId, teamRecord.workspaceId),
+          ne(team.id, teamRecord.id),
+        ),
+      ),
+  ]);
 
   const flags = readTeamSettings(teamRecord.settings);
   const workspaceSlug = workspaceRow[0]?.urlSlug ?? "workspace";
@@ -98,6 +99,10 @@ async function buildTeamResponse(
     detailedHistory: flags.detailedHistory,
     agentGuidance: flags.agentGuidance,
     autoAssignment: flags.autoAssignment,
+    discussionSummariesEnabled: flags.discussionSummariesEnabled,
+    parentTeamId: teamRecord.parentTeamId ?? null,
+    parentTeam: parentTeamRow[0] ?? null,
+    eligibleParentTeams: eligibleParentRows,
   };
 }
 
@@ -150,6 +155,8 @@ export async function PATCH(
     detailedHistory?: boolean;
     agentGuidance?: string;
     autoAssignment?: boolean;
+    discussionSummariesEnabled?: boolean;
+    parentTeamId?: string | null;
   } | null;
 
   if (!body) {
@@ -249,11 +256,64 @@ export async function PATCH(
     }
   }
 
+  let nextParentTeamId = teamRecord.parentTeamId ?? null;
+  if (body.parentTeamId !== undefined) {
+    nextParentTeamId = body.parentTeamId?.trim() || null;
+
+    if (nextParentTeamId === teamRecord.id) {
+      return NextResponse.json(
+        { error: "A team cannot be its own parent" },
+        { status: 400 },
+      );
+    }
+
+    if (nextParentTeamId) {
+      const [parentCandidate] = await db
+        .select({ id: team.id, parentTeamId: team.parentTeamId })
+        .from(team)
+        .where(
+          and(
+            eq(team.id, nextParentTeamId),
+            eq(team.workspaceId, teamRecord.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!parentCandidate) {
+        return NextResponse.json(
+          { error: "Parent team must be in the same workspace" },
+          { status: 400 },
+        );
+      }
+
+      const visited = new Set<string>([teamRecord.id]);
+      let cursor: string | null = parentCandidate.parentTeamId ?? null;
+      while (cursor) {
+        if (visited.has(cursor)) {
+          return NextResponse.json(
+            { error: "Parent team would create a cycle" },
+            { status: 400 },
+          );
+        }
+        visited.add(cursor);
+
+        const [ancestor] = await db
+          .select({ id: team.id, parentTeamId: team.parentTeamId })
+          .from(team)
+          .where(
+            and(
+              eq(team.id, cursor),
+              eq(team.workspaceId, teamRecord.workspaceId),
+            ),
+          )
+          .limit(1);
+        cursor = ancestor?.parentTeamId ?? null;
+      }
+    }
+  }
+
   const currentFlags = readTeamSettings(teamRecord.settings);
-  const currentSettings =
-    teamRecord.settings && typeof teamRecord.settings === "object"
-      ? (teamRecord.settings as Record<string, unknown>)
-      : {};
+  const currentSettings = getMutableTeamSettings(teamRecord.settings);
   const [updatedTeam] = await db
     .update(team)
     .set({
@@ -275,7 +335,11 @@ export async function PATCH(
         detailedHistory: body.detailedHistory ?? currentFlags.detailedHistory,
         agentGuidance: body.agentGuidance ?? currentFlags.agentGuidance,
         autoAssignment: body.autoAssignment ?? currentFlags.autoAssignment,
+        discussionSummariesEnabled:
+          body.discussionSummariesEnabled ??
+          currentFlags.discussionSummariesEnabled,
       },
+      parentTeamId: nextParentTeamId,
       updatedAt: new Date(),
     })
     .where(eq(team.id, teamRecord.id))
@@ -291,6 +355,7 @@ export async function PATCH(
       cyclesEnabled: team.cyclesEnabled,
       cycleStartDay: team.cycleStartDay,
       cycleDurationWeeks: team.cycleDurationWeeks,
+      parentTeamId: team.parentTeamId,
       settings: team.settings,
     });
 
@@ -344,10 +409,7 @@ export async function POST(
   }
 
   if (body.action === "retire") {
-    const currentSettings =
-      teamRecord.settings && typeof teamRecord.settings === "object"
-        ? (teamRecord.settings as Record<string, unknown>)
-        : {};
+    const currentSettings = getMutableTeamSettings(teamRecord.settings);
 
     const [updatedTeam] = await db
       .update(team)
@@ -372,6 +434,7 @@ export async function POST(
         cyclesEnabled: team.cyclesEnabled,
         cycleStartDay: team.cycleStartDay,
         cycleDurationWeeks: team.cycleDurationWeeks,
+        parentTeamId: team.parentTeamId,
         settings: team.settings,
       });
 
