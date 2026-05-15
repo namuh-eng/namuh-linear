@@ -208,7 +208,10 @@ describe("Sidebar", () => {
 
     fireEvent.click(screen.getByLabelText("Help"));
 
-    expect(screen.getByText("Docs")).toBeInTheDocument();
+    expect(screen.getByText("Help center / Docs")).toBeInTheDocument();
+    expect(screen.getByText("Contact support")).toBeInTheDocument();
+    expect(screen.getByText("System status")).toBeInTheDocument();
+    expect(screen.getByText("Changelog / What's new")).toBeInTheDocument();
     expect(screen.getByText("Keyboard shortcuts")).toBeInTheDocument();
   });
 

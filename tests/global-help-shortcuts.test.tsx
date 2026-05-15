@@ -8,6 +8,7 @@ import {
 import "@testing-library/jest-dom/vitest";
 import { AppShell } from "@/app/(app)/app-shell";
 import { Sidebar } from "@/components/sidebar";
+import { HELP_MENU_ITEMS, OPEN_HELP_EVENT } from "@/lib/help-menu";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Mock next/navigation
@@ -60,6 +61,39 @@ describe("Global Help and Shortcuts logic", () => {
     expect(screen.getByText("Open command menu / search")).toBeInTheDocument();
     expect(screen.getByText("Create issue fullscreen")).toBeInTheDocument();
     expect(screen.getByText("Create initiative")).toBeInTheDocument();
+  });
+
+  it("shows clone-owned help, support, status, changelog, apps, and community links", async () => {
+    render(<Sidebar {...baseProps} workspaceSlug="foreverbrowsing" />);
+
+    fireEvent.click(screen.getByLabelText("Help"));
+
+    for (const item of HELP_MENU_ITEMS) {
+      const link = await screen.findByRole("link", {
+        name: new RegExp(item.label, "i"),
+      });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute("href", `/foreverbrowsing${item.href}`);
+      expect(link.getAttribute("href")).not.toContain("linear.app");
+    }
+
+    expect(
+      screen.getByRole("button", { name: /keyboard shortcuts/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute(
+      "href",
+      "/foreverbrowsing/settings",
+    );
+  });
+
+  it("opens keyboard shortcuts from the global help event", async () => {
+    render(<Sidebar {...baseProps} />);
+
+    window.dispatchEvent(new Event(OPEN_HELP_EVENT));
+
+    expect(
+      await screen.findByRole("heading", { name: "Keyboard shortcuts" }),
+    ).toBeInTheDocument();
   });
 
   it("opens keyboard shortcuts with / outside editable fields and ignores / while typing", async () => {

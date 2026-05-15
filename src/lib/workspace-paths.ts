@@ -12,6 +12,7 @@ const appRoutePrefixes = [
   "initiatives",
   "settings",
   "search",
+  "help",
 ];
 
 const publicRoutePrefixes = [

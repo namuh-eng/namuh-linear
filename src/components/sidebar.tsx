@@ -8,6 +8,7 @@ import {
   mergeAccountPreferences,
 } from "@/lib/account-preferences";
 import { OPEN_COMMAND_PALETTE_EVENT } from "@/lib/command-palette";
+import { HELP_MENU_ITEMS, OPEN_HELP_EVENT } from "@/lib/help-menu";
 import {
   KEYBOARD_SHORTCUTS,
   formatShortcutKeys,
@@ -467,8 +468,18 @@ export function Sidebar({
       setWorkspaceMenuOpen(false);
     }
 
+    function handleOpenHelp() {
+      setShortcutsOpen(true);
+      setHelpMenuOpen(false);
+      setWorkspaceMenuOpen(false);
+    }
+
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener(OPEN_HELP_EVENT, handleOpenHelp);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener(OPEN_HELP_EVENT, handleOpenHelp);
+    };
   }, [shortcutsOpen]);
 
   useEffect(() => {
@@ -1125,15 +1136,22 @@ export function Sidebar({
 
         <div className="relative mt-auto pt-2">
           {helpMenuOpen && (
-            <div className="absolute bottom-9 left-0 z-20 min-w-[220px] rounded-lg border border-[var(--color-border)] bg-[var(--color-content-bg)] p-1 shadow-2xl">
-              <a
-                href="https://linear.app/docs"
-                target="_blank"
-                rel="noreferrer"
-                className="block rounded-md px-3 py-2 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
-              >
-                Docs
-              </a>
+            <div className="absolute bottom-9 left-0 z-20 min-w-[260px] rounded-lg border border-[var(--color-border)] bg-[var(--color-content-bg)] p-1 shadow-2xl">
+              {HELP_MENU_ITEMS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={withWorkspaceSlug(item.href, workspaceSlug)}
+                  onClick={() => setHelpMenuOpen(false)}
+                  className="block rounded-md px-3 py-2 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+                >
+                  <span className="block text-[var(--color-text-primary)]">
+                    {item.label}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] leading-4 text-[var(--color-text-tertiary)]">
+                    {item.description}
+                  </span>
+                </Link>
+              ))}
               <button
                 type="button"
                 onClick={() => {
