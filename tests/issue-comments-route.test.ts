@@ -212,6 +212,11 @@ describe("issue comments route", () => {
         attachmentCount: 0,
       },
     });
+    expect(resolveMentionedUserIdsMock).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      body: "Hello @user-3",
+      userIds: [],
+    });
     expect(getIssueNotificationRecipientsMock).toHaveBeenCalledWith({
       actorId: "user-1",
       issueId: "issue-1",
@@ -233,5 +238,34 @@ describe("issue comments route", () => {
       reactions: [],
       attachments: [],
     });
+  });
+
+  it("passes canonical selected mention ids to notification resolution", async () => {
+    resolveMentionedUserIdsMock.mockResolvedValue(["sam-2"]);
+    getIssueNotificationRecipientsMock.mockResolvedValue(["sam-2", "user-2"]);
+    const { POST } = await import("@/app/api/issues/[id]/comments/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/issues/ISS-1/comments", {
+        method: "POST",
+        body: JSON.stringify({
+          body: "Hi @[Sam Lee](user:sam-2)",
+          mentionedUserIds: ["sam-2"],
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+      { params: Promise.resolve({ id: "ISS-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(resolveMentionedUserIdsMock).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      body: "Hi @[Sam Lee](user:sam-2)",
+      userIds: ["sam-2"],
+    });
+    expect(insertNotificationsMock).toHaveBeenCalledWith([
+      { type: "mentioned", userId: "sam-2" },
+      { type: "comment", userId: "user-2" },
+    ]);
   });
 });

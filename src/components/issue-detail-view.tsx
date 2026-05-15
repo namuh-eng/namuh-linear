@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   type ChangeEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useRef,
@@ -31,6 +32,20 @@ interface IssueCommentAttachment {
   contentType: string;
   size: number;
   downloadUrl: string | null;
+}
+
+interface WorkspaceMemberOption {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+  status: "active" | "pending";
+}
+
+interface SelectedMention {
+  userId: string;
+  name: string;
+  token: string;
 }
 
 interface IssueComment {
@@ -136,6 +151,7 @@ const COMMENT_FORMAT_ACTIONS = [
   { label: "Italic", prefix: "_", suffix: "_" },
   { label: "Code", prefix: "`", suffix: "`" },
 ] as const;
+const CANONICAL_MENTION_PATTERN = /@\[([^\]]+)]\(user:([^)]+)\)/g;
 const DESCRIPTION_ACTIONS: ReadonlyArray<{
   label: string;
   command: string;
@@ -200,6 +216,68 @@ function formatFileSize(size: number): string {
   }
 
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function escapeMentionLabel(value: string): string {
+  return value.replaceAll("]", "");
+}
+
+function getMemberDisplayName(
+  member: Pick<WorkspaceMemberOption, "name" | "email">,
+) {
+  return member.name?.trim() || member.email?.split("@")[0] || "Member";
+}
+
+function buildMentionToken(
+  member: Pick<WorkspaceMemberOption, "userId" | "name" | "email">,
+) {
+  return `@[${escapeMentionLabel(getMemberDisplayName(member))}](user:${member.userId})`;
+}
+
+function extractSelectedMentionsFromBody(body: string): SelectedMention[] {
+  const mentions = new Map<string, SelectedMention>();
+
+  for (const match of body.matchAll(CANONICAL_MENTION_PATTERN)) {
+    const name = match[1];
+    const userId = match[2];
+    const token = match[0];
+    if (name && userId && !mentions.has(userId)) {
+      mentions.set(userId, { userId, name, token });
+    }
+  }
+
+  return [...mentions.values()];
+}
+
+function renderCommentBodyWithMentions(body: string) {
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+
+  for (const match of body.matchAll(CANONICAL_MENTION_PATTERN)) {
+    const index = match.index ?? 0;
+    if (index > lastIndex) {
+      parts.push(body.slice(lastIndex, index));
+    }
+
+    const name = match[1] ?? "member";
+    const userId = match[2] ?? name;
+    parts.push(
+      <span
+        key={`${userId}-${index}`}
+        data-user-id={userId}
+        className="mx-0.5 inline-flex items-center rounded-full border border-[var(--color-border)] bg-[var(--color-accent-muted)] px-2 py-0.5 text-[12px] font-medium text-[var(--color-text-primary)]"
+      >
+        @{name}
+      </span>,
+    );
+    lastIndex = index + match[0].length;
+  }
+
+  if (lastIndex < body.length) {
+    parts.push(body.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : body;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -434,6 +512,12 @@ export function IssueDetailView({
     "title" | "description" | null
   >(null);
   const [commentBody, setCommentBody] = useState("");
+  const [workspaceMembers, setWorkspaceMembers] = useState<
+    WorkspaceMemberOption[]
+  >([]);
+  const [mentionPickerOpen, setMentionPickerOpen] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState("");
+  const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [subIssueTitle, setSubIssueTitle] = useState("");
   const [showSubIssueForm, setShowSubIssueForm] = useState(false);
@@ -539,6 +623,40 @@ export function IssueDetailView({
   useEffect(() => {
     void fetchHistory();
   }, [fetchHistory]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchWorkspaceMembers() {
+      try {
+        const res = await fetch("/api/workspaces/members");
+        if (!res.ok) {
+          return;
+        }
+
+        const json = (await res.json()) as {
+          members?: WorkspaceMemberOption[];
+        };
+        if (!cancelled) {
+          setWorkspaceMembers(
+            (json.members ?? []).filter(
+              (member) => member.status === "active" && Boolean(member.userId),
+            ),
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setWorkspaceMembers([]);
+        }
+      }
+    }
+
+    void fetchWorkspaceMembers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!issue) {
@@ -677,8 +795,13 @@ export function IssueDetailView({
 
     setSubmittingComment(true);
     try {
+      const canonicalMentions = extractSelectedMentionsFromBody(commentBody);
       const formData = new FormData();
       formData.set("body", commentBody.trim());
+      formData.set(
+        "mentionedUserIds",
+        JSON.stringify(canonicalMentions.map((mention) => mention.userId)),
+      );
       for (const attachment of pendingAttachments) {
         formData.append("attachments", attachment);
       }
@@ -702,6 +825,8 @@ export function IssueDetailView({
           : current,
       );
       setCommentBody("");
+      setMentionPickerOpen(false);
+      setMentionSearch("");
       setPendingAttachments([]);
       window.dispatchEvent(new CustomEvent("notifications:changed"));
       void fetchHistory();
@@ -823,6 +948,55 @@ export function IssueDetailView({
       textarea.setSelectionRange(start + value.length, start + value.length);
     });
   }
+
+  function openMentionPicker(search = "") {
+    setMentionSearch(search);
+    setMentionActiveIndex(0);
+    setMentionPickerOpen(true);
+  }
+
+  function insertMention(member: WorkspaceMemberOption) {
+    const textarea = commentTextareaRef.current;
+    const token = buildMentionToken(member);
+    const suffix = " ";
+
+    if (!textarea) {
+      setCommentBody((current) => `${current}${token}${suffix}`);
+      setMentionPickerOpen(false);
+      setMentionSearch("");
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const beforeCaret = commentBody.slice(0, start);
+    const triggerMatch = beforeCaret.match(/(^|\s)@([\w.-]*)$/);
+    const replaceStart = triggerMatch
+      ? start - triggerMatch[0].trimStart().length
+      : start;
+    const nextBody = `${commentBody.slice(0, replaceStart)}${token}${suffix}${commentBody.slice(end)}`;
+    const nextCaret = replaceStart + token.length + suffix.length;
+
+    setCommentBody(nextBody);
+    setMentionPickerOpen(false);
+    setMentionSearch("");
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(nextCaret, nextCaret);
+    });
+  }
+
+  const filteredMentionMembers = workspaceMembers.filter((member) => {
+    const query = mentionSearch.trim().toLowerCase();
+    if (!query) {
+      return true;
+    }
+
+    return `${member.name ?? ""} ${member.email ?? ""}`
+      .toLowerCase()
+      .includes(query);
+  });
+  const selectedMentions = extractSelectedMentionsFromBody(commentBody);
 
   async function handleSubscriptionToggle() {
     if (!issue || subscriptionSaving) {
@@ -1561,7 +1735,7 @@ export function IssueDetailView({
                         </div>
                       ) : comment.body.trim().length > 0 ? (
                         <p className="mt-3 whitespace-pre-wrap text-[13px] leading-relaxed text-[var(--color-text-primary)]">
-                          {comment.body}
+                          {renderCommentBodyWithMentions(comment.body)}
                         </p>
                       ) : null}
                       {comment.attachments.length > 0 && (
@@ -1604,8 +1778,10 @@ export function IssueDetailView({
                   ))}
                   <button
                     type="button"
-                    onClick={() => insertCommentSnippet("@")}
+                    onClick={() => openMentionPicker()}
                     className="rounded-full border border-[var(--color-border)] px-3 py-1.5 text-[12px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+                    aria-haspopup="listbox"
+                    aria-expanded={mentionPickerOpen}
                   >
                     Mention
                   </button>
@@ -1628,8 +1804,57 @@ export function IssueDetailView({
                   ref={commentTextareaRef}
                   placeholder="Leave a comment..."
                   value={commentBody}
-                  onChange={(event) => setCommentBody(event.target.value)}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setCommentBody(nextValue);
+                    const caret = event.target.selectionStart;
+                    const triggerMatch = nextValue
+                      .slice(0, caret)
+                      .match(/(^|\s)@([\w.-]*)$/);
+                    if (triggerMatch) {
+                      openMentionPicker(triggerMatch[2] ?? "");
+                    }
+                  }}
                   onKeyDown={(event) => {
+                    if (mentionPickerOpen) {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setMentionPickerOpen(false);
+                        return;
+                      }
+
+                      if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        setMentionActiveIndex((current) =>
+                          filteredMentionMembers.length === 0
+                            ? 0
+                            : (current + 1) % filteredMentionMembers.length,
+                        );
+                        return;
+                      }
+
+                      if (event.key === "ArrowUp") {
+                        event.preventDefault();
+                        setMentionActiveIndex((current) =>
+                          filteredMentionMembers.length === 0
+                            ? 0
+                            : (current - 1 + filteredMentionMembers.length) %
+                              filteredMentionMembers.length,
+                        );
+                        return;
+                      }
+
+                      if (event.key === "Enter") {
+                        const activeMember =
+                          filteredMentionMembers[mentionActiveIndex];
+                        if (activeMember) {
+                          event.preventDefault();
+                          insertMention(activeMember);
+                          return;
+                        }
+                      }
+                    }
+
                     if (
                       (event.metaKey || event.ctrlKey) &&
                       event.key === "Enter"
@@ -1641,6 +1866,67 @@ export function IssueDetailView({
                   className="w-full resize-none bg-transparent text-[13px] text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none"
                   rows={4}
                 />
+                {mentionPickerOpen ? (
+                  <div
+                    role="menu"
+                    aria-label="Mention members"
+                    className="mt-2 max-h-56 overflow-y-auto rounded-[16px] border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-lg"
+                  >
+                    {filteredMentionMembers.length > 0 ? (
+                      filteredMentionMembers.map((member, index) => (
+                        <button
+                          key={member.userId}
+                          type="button"
+                          role="menuitem"
+                          aria-current={
+                            index === mentionActiveIndex ? "true" : undefined
+                          }
+                          onMouseEnter={() => setMentionActiveIndex(index)}
+                          onClick={() => insertMention(member)}
+                          className={`flex w-full items-center gap-3 rounded-[12px] px-3 py-2 text-left text-[13px] ${
+                            index === mentionActiveIndex
+                              ? "bg-[var(--color-surface-hover)] text-[var(--color-text-primary)]"
+                              : "text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]"
+                          }`}
+                        >
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--color-accent)] text-[10px] font-medium text-white">
+                            {getMemberDisplayName(member)[0]?.toUpperCase() ??
+                              "?"}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">
+                              {getMemberDisplayName(member)}
+                            </span>
+                            {member.email ? (
+                              <span className="block truncate text-[12px] text-[var(--color-text-secondary)]">
+                                {member.email}
+                              </span>
+                            ) : null}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-[13px] text-[var(--color-text-secondary)]">
+                        No matching workspace members
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+                {selectedMentions.length > 0 ? (
+                  <div
+                    className="mt-3 flex flex-wrap gap-2"
+                    aria-label="Selected mentions"
+                  >
+                    {selectedMentions.map((mention) => (
+                      <span
+                        key={mention.userId}
+                        className="inline-flex items-center rounded-full border border-[var(--color-border)] bg-[var(--color-accent-muted)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-text-primary)]"
+                      >
+                        @{mention.name}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 {pendingAttachments.length > 0 && (
                   <div className="mt-4 flex flex-wrap gap-2">
                     {pendingAttachments.map((attachment, index) => (
