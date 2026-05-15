@@ -9,6 +9,11 @@ import {
   workspace,
 } from "@/lib/db/schema";
 import { buildTeamInboundEmailAddress } from "@/lib/team-email";
+import {
+  activeTeamFilter,
+  getTeamRestorableUntil,
+  isTeamRestorable,
+} from "@/lib/team-lifecycle";
 import { getMutableTeamSettings, readTeamSettings } from "@/lib/team-settings";
 import { findAccessibleTeam } from "@/lib/teams";
 import {
@@ -29,6 +34,16 @@ async function getTeamMembership(teamId: string, userId: string) {
     .limit(1);
 
   return membership ?? null;
+}
+
+async function getWorkspaceRole(workspaceId: string, userId: string) {
+  const [row] = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.workspaceId, workspaceId), eq(member.userId, userId)))
+    .limit(1);
+
+  return row?.role;
 }
 
 type TeamSettingsRecord = Omit<
@@ -103,6 +118,7 @@ async function buildTeamResponse(
         and(
           eq(team.workspaceId, teamRecord.workspaceId),
           ne(team.id, teamRecord.id),
+          activeTeamFilter,
         ),
       ),
   ]);
@@ -181,6 +197,10 @@ async function buildTeamResponse(
     parentTeamId: teamRecord.parentTeamId ?? null,
     parentTeam: visibleParentTeam,
     eligibleParentTeams: visibleEligibleParentTeams,
+    retiredAt: teamRecord.retiredAt?.toISOString() ?? null,
+    deletedAt: teamRecord.deletedAt?.toISOString() ?? null,
+    deleteScheduledAt: teamRecord.deleteScheduledAt?.toISOString() ?? null,
+    restorableUntil: teamRecord.restorableUntil?.toISOString() ?? null,
   };
 }
 
@@ -475,6 +495,11 @@ export async function PATCH(
       cycleDurationWeeks: team.cycleDurationWeeks,
       parentTeamId: team.parentTeamId,
       settings: team.settings,
+      retiredAt: team.retiredAt,
+      deletedAt: team.deletedAt,
+      deleteScheduledAt: team.deleteScheduledAt,
+      restorableUntil: team.restorableUntil,
+      restoredAt: team.restoredAt,
     });
 
   if (!updatedTeam) {
@@ -496,18 +521,23 @@ export async function POST(
   }
 
   const { key } = await params;
-  const teamRecord = await findAccessibleTeam(key, session.user.id);
-
-  if (!teamRecord) {
-    return NextResponse.json({ error: "Team not found" }, { status: 404 });
-  }
-
   const body = (await request.json().catch(() => null)) as {
-    action?: "leave" | "retire" | "delete";
+    action?: "leave" | "retire" | "delete" | "restore";
   } | null;
 
   if (!body?.action) {
     return NextResponse.json({ error: "Action is required" }, { status: 400 });
+  }
+  if (!["leave", "retire", "delete", "restore"].includes(body.action)) {
+    return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
+  }
+
+  const teamRecord = await findAccessibleTeam(key, session.user.id, {
+    includeDeleted: body.action === "restore",
+  });
+
+  if (!teamRecord) {
+    return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
   if (body.action === "leave") {
@@ -528,8 +558,20 @@ export async function POST(
     });
   }
 
+  const viewerRole = await getWorkspaceRole(
+    teamRecord.workspaceId,
+    session.user.id,
+  );
+  if (!isWorkspaceAdminRole(viewerRole)) {
+    return NextResponse.json(
+      { error: "Only workspace admins can change team lifecycle state" },
+      { status: 403 },
+    );
+  }
+
   if (body.action === "retire") {
     const currentSettings = getMutableTeamSettings(teamRecord.settings);
+    const retiredAt = new Date();
 
     const [updatedTeam] = await db
       .update(team)
@@ -537,9 +579,10 @@ export async function POST(
         settings: {
           ...currentSettings,
           retired: true,
-          retiredAt: new Date().toISOString(),
+          retiredAt: retiredAt.toISOString(),
         },
-        updatedAt: new Date(),
+        retiredAt,
+        updatedAt: retiredAt,
       })
       .where(eq(team.id, teamRecord.id))
       .returning({
@@ -557,6 +600,11 @@ export async function POST(
         cycleDurationWeeks: team.cycleDurationWeeks,
         parentTeamId: team.parentTeamId,
         settings: team.settings,
+        retiredAt: team.retiredAt,
+        deletedAt: team.deletedAt,
+        deleteScheduledAt: team.deleteScheduledAt,
+        restorableUntil: team.restorableUntil,
+        restoredAt: team.restoredAt,
       });
 
     if (!updatedTeam) {
@@ -570,11 +618,91 @@ export async function POST(
     });
   }
 
-  await db.delete(team).where(eq(team.id, teamRecord.id));
+  if (body.action === "restore") {
+    if (!isTeamRestorable(teamRecord)) {
+      return NextResponse.json(
+        { error: "Team restoration window has expired" },
+        { status: 410 },
+      );
+    }
+
+    const restoredAt = new Date();
+    const currentSettings = getMutableTeamSettings(teamRecord.settings);
+    const [updatedTeam] = await db
+      .update(team)
+      .set({
+        settings: {
+          ...currentSettings,
+          deleted: false,
+          deletedAt: null,
+          deleteScheduledAt: null,
+          restorableUntil: null,
+          restoredAt: restoredAt.toISOString(),
+        },
+        deletedAt: null,
+        deleteScheduledAt: null,
+        restorableUntil: null,
+        restoredAt,
+        updatedAt: restoredAt,
+      })
+      .where(eq(team.id, teamRecord.id))
+      .returning({
+        id: team.id,
+        workspaceId: team.workspaceId,
+        name: team.name,
+        key: team.key,
+        isPrivate: team.isPrivate,
+        icon: team.icon,
+        timezone: team.timezone,
+        estimateType: team.estimateType,
+        triageEnabled: team.triageEnabled,
+        cyclesEnabled: team.cyclesEnabled,
+        cycleStartDay: team.cycleStartDay,
+        cycleDurationWeeks: team.cycleDurationWeeks,
+        parentTeamId: team.parentTeamId,
+        settings: team.settings,
+        retiredAt: team.retiredAt,
+        deletedAt: team.deletedAt,
+        deleteScheduledAt: team.deleteScheduledAt,
+        restorableUntil: team.restorableUntil,
+        restoredAt: team.restoredAt,
+      });
+
+    if (!updatedTeam) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `${updatedTeam.name} was restored.`,
+      team: await buildTeamResponse(updatedTeam, session.user.id),
+    });
+  }
+
+  const deletedAt = new Date();
+  const restorableUntil = getTeamRestorableUntil(deletedAt);
+  const currentSettings = getMutableTeamSettings(teamRecord.settings);
+  await db
+    .update(team)
+    .set({
+      settings: {
+        ...currentSettings,
+        deleted: true,
+        deletedAt: deletedAt.toISOString(),
+        deleteScheduledAt: deletedAt.toISOString(),
+        restorableUntil: restorableUntil.toISOString(),
+      },
+      deletedAt,
+      deleteScheduledAt: deletedAt,
+      restorableUntil,
+      restoredAt: null,
+      updatedAt: deletedAt,
+    })
+    .where(eq(team.id, teamRecord.id));
 
   return NextResponse.json({
     success: true,
     redirectTo: "/settings",
-    message: `${teamRecord.name} was deleted.`,
+    message: `${teamRecord.name} was scheduled for deletion and can be restored for 30 days.`,
   });
 }

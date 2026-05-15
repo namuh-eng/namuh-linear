@@ -8,6 +8,7 @@ import {
   workflowState,
   workspace,
 } from "@/lib/db/schema";
+import { activeTeamFilter } from "@/lib/team-lifecycle";
 import {
   generateTeamKey,
   getDefaultWorkflowStates,
@@ -126,9 +127,10 @@ async function listTeams(access: WorkspaceAccess, userId: string) {
       isPrivate: team.isPrivate,
       issueCount: team.issueCount,
       createdAt: team.createdAt,
+      retiredAt: team.retiredAt,
     })
     .from(team)
-    .where(eq(team.workspaceId, workspaceId))
+    .where(and(eq(team.workspaceId, workspaceId), activeTeamFilter))
     .orderBy(asc(team.name), asc(team.key));
 
   const teamIds = teams.map((entry) => entry.id);
@@ -168,6 +170,7 @@ async function listTeams(access: WorkspaceAccess, userId: string) {
       memberCount: memberCountsByTeamId.get(entry.id) ?? 0,
       currentUserIsMember: currentUserTeamIds.has(entry.id),
       createdAt: entry.createdAt?.toISOString() ?? new Date(0).toISOString(),
+      retiredAt: entry.retiredAt?.toISOString() ?? null,
     })),
   };
 }

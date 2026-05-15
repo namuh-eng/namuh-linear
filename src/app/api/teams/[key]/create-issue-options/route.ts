@@ -7,6 +7,7 @@ import {
   user,
   workflowState,
 } from "@/lib/db/schema";
+import { isTeamRetired } from "@/lib/team-lifecycle";
 import { findAccessibleTeam } from "@/lib/teams";
 import { and, asc, eq, isNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -27,6 +28,12 @@ export async function GET(
   });
   if (!teamContext) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+  if (isTeamRetired(teamContext)) {
+    return NextResponse.json(
+      { error: "Retired teams cannot accept new issues" },
+      { status: 409 },
+    );
   }
 
   const [statuses, assigneeRows, labels, projects] = await Promise.all([

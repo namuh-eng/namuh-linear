@@ -274,11 +274,19 @@ export function AppShell({
   }, []);
 
   useEffect(() => {
+    function canCreateIssueForActiveTeam() {
+      return !shellContext.teams.find(
+        (team) => team.key === shellContext.teamKey,
+      )?.retiredAt;
+    }
+
     function handleOpenCreateIssue() {
+      if (!canCreateIssueForActiveTeam()) return;
       setCreateIssueMode("modal");
     }
 
     function handleOpenCreateIssueFullscreen() {
+      if (!canCreateIssueForActiveTeam()) return;
       setCreateIssueMode("fullscreen");
     }
 
@@ -320,6 +328,7 @@ export function AppShell({
       if (isPlainKeyShortcut(event, "c")) {
         event.preventDefault();
         navigationShortcutRef.current = null;
+        if (!canCreateIssueForActiveTeam()) return;
         setCreateIssueMode("modal");
         return;
       }
@@ -327,6 +336,7 @@ export function AppShell({
       if (isPlainKeyShortcut(event, "v")) {
         event.preventDefault();
         navigationShortcutRef.current = null;
+        if (!canCreateIssueForActiveTeam()) return;
         setCreateIssueMode("fullscreen");
         return;
       }
@@ -353,7 +363,7 @@ export function AppShell({
       );
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [router, workspaceSlug]);
+  }, [router, shellContext.teamKey, shellContext.teams, workspaceSlug]);
 
   return (
     <AppShellContext.Provider value={shellContext}>
@@ -369,7 +379,13 @@ export function AppShell({
             teamKey={shellContext.teamKey}
             teams={shellContext.teams}
             inboxUnreadCount={inboxUnreadCount}
-            onCreateIssue={() => setCreateIssueMode("modal")}
+            onCreateIssue={
+              shellContext.teams.find(
+                (team) => team.key === shellContext.teamKey,
+              )?.retiredAt
+                ? undefined
+                : () => setCreateIssueMode("modal")
+            }
             accountPreferences={accountPreferences}
             workspaceSlug={shellContext.workspaceSlug}
           />

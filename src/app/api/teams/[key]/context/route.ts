@@ -1,8 +1,9 @@
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { team, workspace } from "@/lib/db/schema";
+import { activeTeamFilter } from "@/lib/team-lifecycle";
 import { findAccessibleTeam } from "@/lib/teams";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET(
@@ -50,9 +51,10 @@ export async function GET(
       name: team.name,
       key: team.key,
       parentTeamId: team.parentTeamId,
+      retiredAt: team.retiredAt,
     })
     .from(team)
-    .where(eq(team.workspaceId, context.workspaceId));
+    .where(and(eq(team.workspaceId, context.workspaceId), activeTeamFilter));
 
   return NextResponse.json({
     ...context,

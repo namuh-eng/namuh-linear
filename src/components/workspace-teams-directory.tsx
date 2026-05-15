@@ -19,6 +19,7 @@ function accessLabel(team: WorkspaceDirectoryTeam) {
 }
 
 function membershipLabel(team: WorkspaceDirectoryTeam) {
+  if (team.retiredAt) return "Retired";
   return team.currentUserIsMember ? "Member" : "Not joined";
 }
 

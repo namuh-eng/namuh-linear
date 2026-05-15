@@ -15,6 +15,7 @@ import {
   buildNotificationValues,
   insertNotifications,
 } from "@/lib/notifications";
+import { activeTeamFilter, isTeamRetired } from "@/lib/team-lifecycle";
 import { readTeamSettings } from "@/lib/team-settings";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -59,9 +60,11 @@ export async function POST(request: Request) {
       key: team.key,
       workspaceId: team.workspaceId,
       settings: team.settings,
+      retiredAt: team.retiredAt,
+      deletedAt: team.deletedAt,
     })
     .from(team)
-    .where(eq(team.id, teamId))
+    .where(and(eq(team.id, teamId), activeTeamFilter))
     .limit(1);
 
   if (teams.length === 0) {
@@ -71,6 +74,13 @@ export async function POST(request: Request) {
   const teamRecord = teams[0];
   if (teamRecord.workspaceId !== workspaceId) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+
+  if (isTeamRetired(teamRecord)) {
+    return NextResponse.json(
+      { error: "Retired teams cannot accept new issues" },
+      { status: 409 },
+    );
   }
 
   // Get next issue number for this team
