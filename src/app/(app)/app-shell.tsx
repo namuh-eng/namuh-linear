@@ -13,9 +13,13 @@ import {
   OPEN_CREATE_ISSUE_EVENT,
   OPEN_CREATE_ISSUE_FULLSCREEN_EVENT,
 } from "@/lib/command-palette";
-import { stripWorkspaceSlug } from "@/lib/workspace-paths";
-import { usePathname } from "next/navigation";
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  isEditableShortcutTarget,
+  isPlainKeyShortcut,
+} from "@/lib/keyboard-shortcuts";
+import { stripWorkspaceSlug, withWorkspaceSlug } from "@/lib/workspace-paths";
+import { usePathname, useRouter } from "next/navigation";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -61,20 +65,6 @@ function getActiveTeamKey(pathname: string): string | null {
   return null;
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-
-  const tagName = target.tagName.toLowerCase();
-  return (
-    target.isContentEditable ||
-    tagName === "input" ||
-    tagName === "textarea" ||
-    tagName === "select"
-  );
-}
-
 export function AppShell({
   children,
   workspaceId = "",
@@ -87,6 +77,11 @@ export function AppShell({
   teams,
 }: AppShellProps) {
   const pathname = stripWorkspaceSlug(usePathname(), workspaceSlug);
+  const router = useRouter();
+  const navigationShortcutRef = useRef<{
+    key: string;
+    timestamp: number;
+  } | null>(null);
   const isSettingsRoute = pathname.startsWith("/settings");
   const [createIssueMode, setCreateIssueMode] =
     useState<CreateIssueMode | null>(null);
@@ -289,18 +284,55 @@ export function AppShell({
 
     function handleKeyDown(event: KeyboardEvent) {
       if (
-        event.key.toLowerCase() !== "c" ||
         event.metaKey ||
         event.ctrlKey ||
         event.altKey ||
         event.shiftKey ||
-        isTypingTarget(event.target)
+        isEditableShortcutTarget(event.target)
       ) {
+        navigationShortcutRef.current = null;
         return;
       }
 
-      event.preventDefault();
-      setCreateIssueMode("modal");
+      const key = event.key.toLowerCase();
+      const now = Date.now();
+      const isGoSequence =
+        navigationShortcutRef.current?.key === "g" &&
+        now - navigationShortcutRef.current.timestamp < 1250;
+
+      if (isGoSequence) {
+        const navigationTargets: Record<string, string> = {
+          i: "/inbox",
+          m: "/my-issues",
+          v: "/views",
+          p: "/projects",
+        };
+        const targetPath = navigationTargets[key];
+        navigationShortcutRef.current = null;
+
+        if (targetPath) {
+          event.preventDefault();
+          router.push(withWorkspaceSlug(targetPath, workspaceSlug));
+        }
+        return;
+      }
+
+      if (isPlainKeyShortcut(event, "c")) {
+        event.preventDefault();
+        navigationShortcutRef.current = null;
+        setCreateIssueMode("modal");
+        return;
+      }
+
+      if (isPlainKeyShortcut(event, "v")) {
+        event.preventDefault();
+        navigationShortcutRef.current = null;
+        setCreateIssueMode("fullscreen");
+        return;
+      }
+
+      navigationShortcutRef.current =
+        key === "g" ? { key, timestamp: now } : null;
     }
 
     window.addEventListener(OPEN_CREATE_ISSUE_EVENT, handleOpenCreateIssue);
@@ -321,7 +353,7 @@ export function AppShell({
       );
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [router, workspaceSlug]);
 
   return (
     <AppShellContext.Provider value={shellContext}>

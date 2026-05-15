@@ -8,6 +8,11 @@ import {
   mergeAccountPreferences,
 } from "@/lib/account-preferences";
 import { OPEN_COMMAND_PALETTE_EVENT } from "@/lib/command-palette";
+import {
+  KEYBOARD_SHORTCUTS,
+  formatShortcutKeys,
+  isPlainKeyShortcut,
+} from "@/lib/keyboard-shortcuts";
 import { stripWorkspaceSlug, withWorkspaceSlug } from "@/lib/workspace-paths";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,6 +24,14 @@ export interface SidebarTeam {
   key: string;
   parentTeamId?: string | null;
 }
+
+const SHORTCUT_CATEGORY_ORDER = ["Command", "Create", "Navigation", "Context"];
+const SHORTCUTS_BY_CATEGORY = SHORTCUT_CATEGORY_ORDER.map((category) => ({
+  category,
+  shortcuts: KEYBOARD_SHORTCUTS.filter(
+    (shortcut) => shortcut.category === category,
+  ),
+})).filter((group) => group.shortcuts.length > 0);
 
 interface SidebarProps {
   workspaceName?: string;
@@ -435,6 +448,28 @@ export function Sidebar({
       ),
     );
   }, [accountPreferences]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (shortcutsOpen && event.key === "Escape") {
+        event.preventDefault();
+        setShortcutsOpen(false);
+        return;
+      }
+
+      if (!isPlainKeyShortcut(event, "/")) {
+        return;
+      }
+
+      event.preventDefault();
+      setShortcutsOpen(true);
+      setHelpMenuOpen(false);
+      setWorkspaceMenuOpen(false);
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [shortcutsOpen]);
 
   useEffect(() => {
     const nextTeams =
@@ -1147,9 +1182,16 @@ export function Sidebar({
 
         {shortcutsOpen && (
           <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-[420px] rounded-xl border border-[var(--color-border)] bg-[var(--color-content-bg)] p-5 shadow-2xl">
+            <dialog
+              open
+              aria-labelledby="keyboard-shortcuts-title"
+              className="max-h-[80vh] w-full max-w-[560px] overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-content-bg)] p-5 shadow-2xl"
+            >
               <div className="flex items-center justify-between">
-                <h2 className="text-[16px] font-semibold text-[var(--color-text-primary)]">
+                <h2
+                  id="keyboard-shortcuts-title"
+                  className="text-[16px] font-semibold text-[var(--color-text-primary)]"
+                >
                   Keyboard shortcuts
                 </h2>
                 <button
@@ -1174,33 +1216,48 @@ export function Sidebar({
                   </svg>
                 </button>
               </div>
-              <div className="mt-4 space-y-3 text-[13px] text-[var(--color-text-secondary)]">
-                <div className="flex items-center justify-between">
-                  <span>Search</span>
-                  <kbd className="rounded border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-primary)]">
-                    Cmd+K
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Create issue</span>
-                  <kbd className="rounded border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-primary)]">
-                    C
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>New project update</span>
-                  <kbd className="rounded border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-primary)]">
-                    N U
-                  </kbd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Open help</span>
-                  <kbd className="rounded border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-primary)]">
-                    /
-                  </kbd>
-                </div>
+
+              <div className="mt-4 space-y-5 text-[13px] text-[var(--color-text-secondary)]">
+                {SHORTCUTS_BY_CATEGORY.map((group) => (
+                  <section
+                    key={group.category}
+                    aria-labelledby={`shortcut-${group.category}`}
+                  >
+                    <h3
+                      id={`shortcut-${group.category}`}
+                      className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[var(--color-text-tertiary)]"
+                    >
+                      {group.category}
+                    </h3>
+                    <div className="space-y-2">
+                      {group.shortcuts.map((shortcut) => (
+                        <div
+                          key={shortcut.id}
+                          className="flex items-start justify-between gap-4"
+                        >
+                          <div>
+                            <div className="text-[var(--color-text-primary)]">
+                              {shortcut.label}
+                            </div>
+                            {shortcut.description && (
+                              <div className="mt-0.5 text-[12px] text-[var(--color-text-tertiary)]">
+                                {shortcut.description}
+                              </div>
+                            )}
+                          </div>
+                          <kbd
+                            aria-label={formatShortcutKeys(shortcut.keys)}
+                            className="shrink-0 rounded border border-[var(--color-border)] px-2 py-1 text-[var(--color-text-primary)]"
+                          >
+                            {shortcut.keys.join(" ")}
+                          </kbd>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
               </div>
-            </div>
+            </dialog>
           </div>
         )}
         {customizeSidebarOpen && (
