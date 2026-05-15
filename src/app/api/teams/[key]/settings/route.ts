@@ -2,6 +2,7 @@ import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import {
   label,
+  member,
   team,
   teamMember,
   workflowState,
@@ -10,7 +11,8 @@ import {
 import { buildTeamInboundEmailAddress } from "@/lib/team-email";
 import { getMutableTeamSettings, readTeamSettings } from "@/lib/team-settings";
 import { findAccessibleTeam } from "@/lib/teams";
-import { and, count, eq, ne } from "drizzle-orm";
+import { isWorkspaceAdminRole } from "@/lib/workspace-permissions";
+import { and, count, eq, inArray, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 type EstimateTypeValue = "not_in_use" | "linear" | "exponential" | "tshirt";
@@ -27,12 +29,14 @@ async function getTeamMembership(teamId: string, userId: string) {
 
 async function buildTeamResponse(
   teamRecord: NonNullable<Awaited<ReturnType<typeof findAccessibleTeam>>>,
+  userId: string,
 ) {
   const [
     memberCountResult,
     labelCountResult,
     statusCountResult,
     workspaceRow,
+    workspaceMemberRow,
     parentTeamRow,
     eligibleParentRows,
   ] = await Promise.all([
@@ -53,15 +57,35 @@ async function buildTeamResponse(
       .from(workspace)
       .where(eq(workspace.id, teamRecord.workspaceId))
       .limit(1),
+    db
+      .select({ role: member.role })
+      .from(member)
+      .where(
+        and(
+          eq(member.workspaceId, teamRecord.workspaceId),
+          eq(member.userId, userId),
+        ),
+      )
+      .limit(1),
     teamRecord.parentTeamId
       ? db
-          .select({ id: team.id, name: team.name, key: team.key })
+          .select({
+            id: team.id,
+            name: team.name,
+            key: team.key,
+            isPrivate: team.isPrivate,
+          })
           .from(team)
           .where(eq(team.id, teamRecord.parentTeamId))
           .limit(1)
       : Promise.resolve([]),
     db
-      .select({ id: team.id, name: team.name, key: team.key })
+      .select({
+        id: team.id,
+        name: team.name,
+        key: team.key,
+        isPrivate: team.isPrivate,
+      })
       .from(team)
       .where(
         and(
@@ -73,6 +97,39 @@ async function buildTeamResponse(
 
   const flags = readTeamSettings(teamRecord.settings);
   const workspaceSlug = workspaceRow[0]?.urlSlug ?? "workspace";
+  const eligibleTeamIds = eligibleParentRows.map((row) => row.id);
+  const eligibleMembershipRows =
+    eligibleTeamIds.length === 0
+      ? []
+      : await db
+          .select({ teamId: teamMember.teamId })
+          .from(teamMember)
+          .where(
+            and(
+              inArray(teamMember.teamId, eligibleTeamIds),
+              eq(teamMember.userId, userId),
+            ),
+          );
+  const eligibleMembershipIds = new Set(
+    eligibleMembershipRows.map((row) => row.teamId),
+  );
+  const viewerIsAdmin = isWorkspaceAdminRole(workspaceMemberRow[0]?.role);
+  const canSeeTeamSummary = (entry: {
+    id: string;
+    isPrivate: boolean | null;
+  }) =>
+    !entry.isPrivate || viewerIsAdmin || eligibleMembershipIds.has(entry.id);
+  const visibleParentTeam =
+    parentTeamRow[0] && canSeeTeamSummary(parentTeamRow[0])
+      ? {
+          id: parentTeamRow[0].id,
+          name: parentTeamRow[0].name,
+          key: parentTeamRow[0].key,
+        }
+      : null;
+  const visibleEligibleParentTeams = eligibleParentRows
+    .filter(canSeeTeamSummary)
+    .map(({ id, name, key }) => ({ id, name, key }));
 
   return {
     id: teamRecord.id,
@@ -101,8 +158,8 @@ async function buildTeamResponse(
     autoAssignment: flags.autoAssignment,
     discussionSummariesEnabled: flags.discussionSummariesEnabled,
     parentTeamId: teamRecord.parentTeamId ?? null,
-    parentTeam: parentTeamRow[0] ?? null,
-    eligibleParentTeams: eligibleParentRows,
+    parentTeam: visibleParentTeam,
+    eligibleParentTeams: visibleEligibleParentTeams,
   };
 }
 
@@ -122,7 +179,9 @@ export async function GET(
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ team: await buildTeamResponse(teamRecord) });
+  return NextResponse.json({
+    team: await buildTeamResponse(teamRecord, session.user.id),
+  });
 }
 
 export async function PATCH(
@@ -348,6 +407,7 @@ export async function PATCH(
       workspaceId: team.workspaceId,
       name: team.name,
       key: team.key,
+      isPrivate: team.isPrivate,
       icon: team.icon,
       timezone: team.timezone,
       estimateType: team.estimateType,
@@ -363,7 +423,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ team: await buildTeamResponse(updatedTeam) });
+  return NextResponse.json({
+    team: await buildTeamResponse(updatedTeam, session.user.id),
+  });
 }
 
 export async function POST(
@@ -427,6 +489,7 @@ export async function POST(
         workspaceId: team.workspaceId,
         name: team.name,
         key: team.key,
+        isPrivate: team.isPrivate,
         icon: team.icon,
         timezone: team.timezone,
         estimateType: team.estimateType,
@@ -445,7 +508,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       message: `${updatedTeam.name} is now retired.`,
-      team: await buildTeamResponse(updatedTeam),
+      team: await buildTeamResponse(updatedTeam, session.user.id),
     });
   }
 

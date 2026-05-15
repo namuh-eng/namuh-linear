@@ -14,6 +14,7 @@ import {
 } from "@/lib/workspace-creation";
 import {
   canPerformWorkspacePermission,
+  isWorkspaceAdminRole,
   readWorkspacePermissionSettings,
 } from "@/lib/workspace-permissions";
 import { and, asc, eq, inArray } from "drizzle-orm";
@@ -151,11 +152,18 @@ async function listTeams(access: WorkspaceAccess, userId: string) {
     }
   }
 
+  const visibleTeams = teams.filter(
+    (entry) =>
+      !entry.isPrivate ||
+      currentUserTeamIds.has(entry.id) ||
+      isWorkspaceAdminRole(role),
+  );
+
   return {
     workspaceId,
     viewerRole: role,
     canManageTeams: canCreateTeams(role, access.settings),
-    teams: teams.map((entry) => ({
+    teams: visibleTeams.map((entry) => ({
       ...entry,
       memberCount: memberCountsByTeamId.get(entry.id) ?? 0,
       currentUserIsMember: currentUserTeamIds.has(entry.id),

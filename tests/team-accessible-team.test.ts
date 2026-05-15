@@ -80,4 +80,95 @@ describe("findAccessibleTeam", () => {
     expect(team?.workspaceId).toBe("workspace-b");
     expect(resolveActiveWorkspaceIdMock).toHaveBeenCalledWith("user-1");
   });
+
+  it("denies private teams to workspace members who are not team members", async () => {
+    resolveActiveWorkspaceIdMock.mockResolvedValue("workspace-b");
+    selectResults.push(
+      [{ id: "member-b", role: "member" }],
+      [
+        {
+          id: "team-b-sec",
+          workspaceId: "workspace-b",
+          name: "Secret",
+          key: "SEC",
+          isPrivate: true,
+          icon: null,
+          timezone: null,
+          estimateType: "not_in_use",
+          triageEnabled: true,
+          cyclesEnabled: false,
+          cycleStartDay: null,
+          cycleDurationWeeks: null,
+          settings: {},
+        },
+      ],
+      [],
+    );
+    const { findAccessibleTeam } = await import("@/lib/teams");
+
+    const team = await findAccessibleTeam("SEC", "user-1");
+
+    expect(team).toBeNull();
+  });
+
+  it("allows private teams to team members and workspace admins", async () => {
+    resolveActiveWorkspaceIdMock.mockResolvedValue("workspace-b");
+    selectResults.push(
+      [{ id: "member-b", role: "member" }],
+      [
+        {
+          id: "team-b-sec",
+          workspaceId: "workspace-b",
+          name: "Secret",
+          key: "SEC",
+          isPrivate: true,
+          icon: null,
+          timezone: null,
+          estimateType: "not_in_use",
+          triageEnabled: true,
+          cyclesEnabled: false,
+          cycleStartDay: null,
+          cycleDurationWeeks: null,
+          settings: {},
+        },
+      ],
+      [{ id: "team-membership" }],
+    );
+    const { findAccessibleTeam } = await import("@/lib/teams");
+
+    const teamAsMember = await findAccessibleTeam("SEC", "user-1");
+
+    expect(teamAsMember?.id).toBe("team-b-sec");
+
+    vi.resetModules();
+    selectResults.length = 0;
+    resolveActiveWorkspaceIdMock.mockResolvedValue("workspace-b");
+    selectResults.push(
+      [{ id: "member-b", role: "admin" }],
+      [
+        {
+          id: "team-b-sec",
+          workspaceId: "workspace-b",
+          name: "Secret",
+          key: "SEC",
+          isPrivate: true,
+          icon: null,
+          timezone: null,
+          estimateType: "not_in_use",
+          triageEnabled: true,
+          cyclesEnabled: false,
+          cycleStartDay: null,
+          cycleDurationWeeks: null,
+          settings: {},
+        },
+      ],
+    );
+    const { findAccessibleTeam: findAccessibleTeamAsAdmin } = await import(
+      "@/lib/teams"
+    );
+
+    const teamAsAdmin = await findAccessibleTeamAsAdmin("SEC", "user-1");
+
+    expect(teamAsAdmin?.id).toBe("team-b-sec");
+  });
 });

@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const TEST_USER_ID = "15000000-0000-0000-0000-000000000001";
+const TEST_OTHER_USER_ID = "15000000-0000-0000-0000-000000000006";
 const TEST_WS_ID = "15000000-0000-0000-0000-000000000002";
 const TEST_TEAM_ID = "15000000-0000-0000-0000-000000000003";
 const TEST_PARENT_TEAM_ID = "15000000-0000-0000-0000-000000000004";
@@ -42,15 +43,24 @@ describe("Team Settings API Route", () => {
     await db.delete(team).where(eq(team.id, TEST_CHILD_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_PARENT_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_TEAM_ID));
+    await db.delete(member).where(eq(member.workspaceId, TEST_WS_ID));
     await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
     await db.delete(user).where(eq(user.id, TEST_USER_ID));
+    await db.delete(user).where(eq(user.id, TEST_OTHER_USER_ID));
 
     // Seed
-    await db.insert(user).values({
-      id: TEST_USER_ID,
-      name: "Team Test User",
-      email: "team-test@example.com",
-    });
+    await db.insert(user).values([
+      {
+        id: TEST_USER_ID,
+        name: "Team Test User",
+        email: "team-test@example.com",
+      },
+      {
+        id: TEST_OTHER_USER_ID,
+        name: "Other Workspace User",
+        email: "team-other-test@example.com",
+      },
+    ]);
 
     await db.insert(workspace).values({
       id: TEST_WS_ID,
@@ -58,11 +68,18 @@ describe("Team Settings API Route", () => {
       urlSlug: "team-test",
     });
 
-    await db.insert(member).values({
-      userId: TEST_USER_ID,
-      workspaceId: TEST_WS_ID,
-      role: "admin",
-    });
+    await db.insert(member).values([
+      {
+        userId: TEST_USER_ID,
+        workspaceId: TEST_WS_ID,
+        role: "admin",
+      },
+      {
+        userId: TEST_OTHER_USER_ID,
+        workspaceId: TEST_WS_ID,
+        role: "member",
+      },
+    ]);
 
     await db.insert(team).values([
       {
@@ -98,8 +115,10 @@ describe("Team Settings API Route", () => {
     await db.delete(team).where(eq(team.id, TEST_CHILD_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_PARENT_TEAM_ID));
     await db.delete(team).where(eq(team.id, TEST_TEAM_ID));
+    await db.delete(member).where(eq(member.workspaceId, TEST_WS_ID));
     await db.delete(workspace).where(eq(workspace.id, TEST_WS_ID));
     await db.delete(user).where(eq(user.id, TEST_USER_ID));
+    await db.delete(user).where(eq(user.id, TEST_OTHER_USER_ID));
   });
 
   it("GET returns team settings", async () => {
@@ -312,6 +331,45 @@ describe("Team Settings API Route", () => {
 
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/cycle/i);
+  });
+
+  it("GET hides private team settings from workspace non-members", async () => {
+    await db
+      .update(team)
+      .set({ isPrivate: true })
+      .where(eq(team.id, TEST_TEAM_ID));
+    getSessionMock.mockResolvedValue({
+      session: {
+        id: "session-other-id",
+        userId: TEST_OTHER_USER_ID,
+        token: "token-other",
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      user: {
+        id: TEST_OTHER_USER_ID,
+        name: "Other User",
+        email: "other@example.com",
+        emailVerified: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    try {
+      const res = await GET(new Request("http://localhost"), {
+        params: Promise.resolve({ key: "UPDT" }),
+      });
+
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: "Team not found" });
+    } finally {
+      await db
+        .update(team)
+        .set({ isPrivate: false })
+        .where(eq(team.id, TEST_TEAM_ID));
+    }
   });
 
   it("POST leave team action removes membership", async () => {
