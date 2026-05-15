@@ -10,6 +10,7 @@ import {
   DATABASE_BOOTSTRAP_TITLE,
   shouldRenderDatabaseBootstrapError,
 } from "@/lib/dev-database-error";
+import { activeTeamFilter } from "@/lib/team-lifecycle";
 import { isAppRoutePrefix, normalizeAppPath } from "@/lib/workspace-paths";
 import { and, desc, eq } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
@@ -189,9 +190,10 @@ export default async function AppLayout({
         name: team.name,
         key: team.key,
         parentTeamId: team.parentTeamId,
+        retiredAt: team.retiredAt,
       })
       .from(team)
-      .where(eq(team.workspaceId, ws.workspaceId))
+      .where(and(eq(team.workspaceId, ws.workspaceId), activeTeamFilter))
       .orderBy(desc(team.createdAt))
       .limit(50);
 

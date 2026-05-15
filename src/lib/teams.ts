@@ -1,6 +1,7 @@
 import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { db } from "@/lib/db";
 import { member, team, teamMember, workspace } from "@/lib/db/schema";
+import { activeTeamFilter } from "@/lib/team-lifecycle";
 import { getWorkspaceSlugFromPath } from "@/lib/workspace-paths";
 import { isWorkspaceAdminRole } from "@/lib/workspace-permissions";
 import { and, eq, inArray } from "drizzle-orm";
@@ -15,7 +16,7 @@ export async function getTeamByKey(
   const teams = await db
     .select({ id: team.id, name: team.name, key: team.key })
     .from(team)
-    .where(eq(team.key, key))
+    .where(and(eq(team.key, key), activeTeamFilter))
     .limit(1);
   return teams[0] ?? null;
 }
@@ -112,6 +113,7 @@ async function getDescendantTeamIds(rootTeamId: string, workspaceId: string) {
         and(
           eq(team.workspaceId, workspaceId),
           inArray(team.parentTeamId, frontier),
+          activeTeamFilter,
         ),
       );
 
@@ -131,7 +133,7 @@ async function getDescendantTeamIds(rootTeamId: string, workspaceId: string) {
 export async function findAccessibleTeam(
   key: string,
   userId: string,
-  options: { request?: Request } = {},
+  options: { request?: Request; includeDeleted?: boolean } = {},
 ) {
   const workspaceId = await resolveAccessibleWorkspaceId(
     userId,
@@ -158,9 +160,20 @@ export async function findAccessibleTeam(
       cycleDurationWeeks: team.cycleDurationWeeks,
       parentTeamId: team.parentTeamId,
       settings: team.settings,
+      retiredAt: team.retiredAt,
+      deletedAt: team.deletedAt,
+      deleteScheduledAt: team.deleteScheduledAt,
+      restorableUntil: team.restorableUntil,
+      restoredAt: team.restoredAt,
     })
     .from(team)
-    .where(and(eq(team.key, key), eq(team.workspaceId, workspaceId)))
+    .where(
+      and(
+        eq(team.key, key),
+        eq(team.workspaceId, workspaceId),
+        ...(options.includeDeleted ? [] : [activeTeamFilter]),
+      ),
+    )
     .limit(1);
 
   if (!teamRecord) return null;

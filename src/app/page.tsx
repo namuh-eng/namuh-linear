@@ -3,7 +3,8 @@ import { autoJoinWorkspaceForApprovedDomain } from "@/lib/approved-domain-auto-j
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { member, team, user, workspace } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { activeTeamFilter } from "@/lib/team-lifecycle";
+import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -44,7 +45,9 @@ export default async function Home() {
   const teams = await db
     .select({ key: team.key })
     .from(team)
-    .where(eq(team.workspaceId, memberships[0].workspaceId))
+    .where(
+      and(eq(team.workspaceId, memberships[0].workspaceId), activeTeamFilter),
+    )
     .limit(1);
 
   const [currentUser] = await db

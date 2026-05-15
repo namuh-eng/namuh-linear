@@ -33,6 +33,7 @@ export interface SidebarTeam {
   name: string;
   key: string;
   parentTeamId?: string | null;
+  retiredAt?: Date | string | null;
 }
 
 const SHORTCUT_CATEGORY_ORDER = ["Command", "Create", "Navigation", "Context"];
@@ -1088,6 +1089,11 @@ export function Sidebar({
                       {team.key.charAt(0)}
                     </span>
                     <span className="truncate">{team.name}</span>
+                    {team.retiredAt ? (
+                      <span className="rounded border border-amber-500/30 px-1 text-[10px] uppercase tracking-wide text-amber-300">
+                        Retired
+                      </span>
+                    ) : null}
                     <svg
                       width="12"
                       height="12"

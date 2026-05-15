@@ -1,6 +1,7 @@
 import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { db } from "@/lib/db";
 import { member, team, teamMember, user, workspace } from "@/lib/db/schema";
+import { activeTeamFilter } from "@/lib/team-lifecycle";
 import {
   canPerformWorkspacePermission,
   readWorkspacePermissionSettings,
@@ -29,6 +30,7 @@ export interface WorkspaceDirectoryTeam {
   currentUserIsMember: boolean;
   createdAt: string;
   parentTeamId: string | null;
+  retiredAt: string | null;
 }
 
 async function getAccessibleWorkspace(userId: string) {
@@ -101,6 +103,7 @@ export async function getWorkspaceMembersDirectory(userId: string) {
           .where(
             and(
               eq(team.workspaceId, workspaceId),
+              activeTeamFilter,
               inArray(teamMember.userId, userIds),
             ),
           )
@@ -145,9 +148,10 @@ export async function getWorkspaceTeamsDirectory(userId: string) {
       issueCount: team.issueCount,
       createdAt: team.createdAt,
       parentTeamId: team.parentTeamId,
+      retiredAt: team.retiredAt,
     })
     .from(team)
-    .where(eq(team.workspaceId, workspaceId))
+    .where(and(eq(team.workspaceId, workspaceId), activeTeamFilter))
     .orderBy(asc(team.name), asc(team.key));
 
   const teamIds = teams.map((entry) => entry.id);
@@ -183,6 +187,7 @@ export async function getWorkspaceTeamsDirectory(userId: string) {
       memberCount: memberCountsByTeamId.get(entry.id) ?? 0,
       currentUserIsMember: currentUserTeamIds.has(entry.id),
       createdAt: entry.createdAt?.toISOString() ?? new Date(0).toISOString(),
+      retiredAt: entry.retiredAt?.toISOString() ?? null,
     })),
   };
 }
