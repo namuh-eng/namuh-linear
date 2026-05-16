@@ -1,3 +1,4 @@
+/* Intentionally not wrapped in @layer: globals.css imports this before @tailwind base so Tailwind layer directives here would break dev compilation. */
 :root {
   /* Editorial theme: warm paper, serious ink, rust accent. Canonical source: src/lib/editorial-theme-tokens.ts */
   --editorial-bg: #faf7f2;
