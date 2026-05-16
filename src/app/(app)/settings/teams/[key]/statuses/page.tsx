@@ -12,6 +12,13 @@ type StatusCategory =
   | "completed"
   | "canceled";
 
+interface StatusBehavior {
+  terminalBehavior?: "open" | "resolved" | "canceled";
+  autoArchiveDays?: number | null;
+  autoCloseTriage?: boolean;
+  automationUrl?: string | null;
+}
+
 interface StatusItem {
   id: string;
   name: string;
@@ -19,6 +26,7 @@ interface StatusItem {
   description: string | null;
   color?: string;
   isDefault?: boolean;
+  behavior?: StatusBehavior;
 }
 
 type StatusesByCategory = Record<StatusCategory, StatusItem[]>;
@@ -183,7 +191,9 @@ function StatusDialog({
     name: string;
     description: string;
     color: string;
+    category: StatusCategory;
     isDefault: boolean;
+    behavior: StatusBehavior;
   }) => void;
   onDelete: (status: StatusItem, replacementStatusId?: string) => void;
 }) {
@@ -196,8 +206,26 @@ function StatusDialog({
   const [color, setColor] = useState(
     dialog?.mode === "edit" ? (dialog.status.color ?? "#6b6f76") : "#6b6f76",
   );
+  const [category, setCategory] = useState<StatusCategory>(
+    dialog?.category ?? "unstarted",
+  );
   const [isDefault, setIsDefault] = useState(
     dialog?.mode === "edit" ? dialog.status.isDefault === true : false,
+  );
+  const [autoArchiveDays, setAutoArchiveDays] = useState(
+    dialog?.mode === "edit"
+      ? `${dialog.status.behavior?.autoArchiveDays ?? 30}`
+      : "30",
+  );
+  const [autoCloseTriage, setAutoCloseTriage] = useState(
+    dialog?.mode === "edit"
+      ? dialog.status.behavior?.autoCloseTriage === true
+      : false,
+  );
+  const [automationUrl, setAutomationUrl] = useState(
+    dialog?.mode === "edit"
+      ? (dialog.status.behavior?.automationUrl ?? "")
+      : "",
   );
   const [replacementStatusId, setReplacementStatusId] = useState("");
 
@@ -209,8 +237,24 @@ function StatusDialog({
     setColor(
       dialog?.mode === "edit" ? (dialog.status.color ?? "#6b6f76") : "#6b6f76",
     );
+    setCategory(dialog?.category ?? "unstarted");
     setIsDefault(
       dialog?.mode === "edit" ? dialog.status.isDefault === true : false,
+    );
+    setAutoArchiveDays(
+      dialog?.mode === "edit"
+        ? `${dialog.status.behavior?.autoArchiveDays ?? 30}`
+        : "30",
+    );
+    setAutoCloseTriage(
+      dialog?.mode === "edit"
+        ? dialog.status.behavior?.autoCloseTriage === true
+        : false,
+    );
+    setAutomationUrl(
+      dialog?.mode === "edit"
+        ? (dialog.status.behavior?.automationUrl ?? "")
+        : "",
     );
     setReplacementStatusId("");
   }, [dialog]);
@@ -237,7 +281,24 @@ function StatusDialog({
         className="w-full max-w-md rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-4 shadow-xl"
         onSubmit={(event) => {
           event.preventDefault();
-          onSubmit({ name, description, color, isDefault });
+          onSubmit({
+            name,
+            description,
+            color,
+            category,
+            isDefault,
+            behavior: {
+              terminalBehavior:
+                category === "completed"
+                  ? "resolved"
+                  : category === "canceled"
+                    ? "canceled"
+                    : "open",
+              autoArchiveDays: Number(autoArchiveDays),
+              autoCloseTriage,
+              automationUrl,
+            },
+          });
         }}
       >
         <h2 className="text-[16px] font-semibold text-[var(--color-text-primary)]">
@@ -263,6 +324,23 @@ function StatusDialog({
           />
         </label>
         <label className="mt-3 block text-[12px] font-medium text-[var(--color-text-secondary)]">
+          Workflow type
+          <select
+            aria-label="Workflow type"
+            value={category}
+            onChange={(event) =>
+              setCategory(event.target.value as StatusCategory)
+            }
+            className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none"
+          >
+            {CATEGORY_ORDER.map((cat) => (
+              <option key={cat} value={cat}>
+                {CATEGORY_LABELS[cat]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="mt-3 block text-[12px] font-medium text-[var(--color-text-secondary)]">
           Color
           <input
             type="color"
@@ -282,6 +360,47 @@ function StatusDialog({
             Default status for this category
           </label>
         )}
+        <div className="mt-4 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+          <div className="text-[12px] font-semibold text-[var(--color-text-primary)]">
+            Workflow behavior
+          </div>
+          <p className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
+            Controls how this state behaves in issue lists, triage, automations,
+            and terminal workflows.
+          </p>
+          {(category === "completed" || category === "canceled") && (
+            <label className="mt-3 block text-[12px] font-medium text-[var(--color-text-secondary)]">
+              Auto-archive issues after days
+              <input
+                type="number"
+                min="0"
+                max="365"
+                value={autoArchiveDays}
+                onChange={(event) => setAutoArchiveDays(event.target.value)}
+                className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none"
+              />
+            </label>
+          )}
+          {category === "canceled" && (
+            <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]">
+              <input
+                type="checkbox"
+                checked={autoCloseTriage}
+                onChange={(event) => setAutoCloseTriage(event.target.checked)}
+              />
+              Auto-close matching triage issues when moved here
+            </label>
+          )}
+          <label className="mt-3 block text-[12px] font-medium text-[var(--color-text-secondary)]">
+            Workflow automation link
+            <input
+              value={automationUrl}
+              onChange={(event) => setAutomationUrl(event.target.value)}
+              placeholder="https://..."
+              className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-[13px] text-[var(--color-text-primary)] outline-none"
+            />
+          </label>
+        </div>
         {needsReplacement && (
           <div className="mt-4 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
             <p className="text-[12px] text-[var(--color-text-secondary)]">
@@ -416,7 +535,9 @@ export default function TeamIssueStatusesPage() {
     name: string;
     description: string;
     color: string;
+    category: StatusCategory;
     isDefault: boolean;
+    behavior: StatusBehavior;
   }) {
     if (!dialog) return;
     const ok = await mutate(
@@ -425,8 +546,8 @@ export default function TeamIssueStatusesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           dialog.mode === "create"
-            ? { ...values, category: dialog.category }
-            : { ...values, id: dialog.status.id, category: dialog.category },
+            ? values
+            : { ...values, id: dialog.status.id },
         ),
       },
       dialog.mode === "create" ? "Status created." : "Status updated.",
@@ -508,7 +629,8 @@ export default function TeamIssueStatusesPage() {
       </h1>
       <p className="mb-6 text-[13px] text-[var(--color-text-tertiary)]">
         Issue statuses define the workflow that issues go through from start to
-        completion.
+        completion. Configure type, defaults, terminal behavior, triage
+        behavior, and workflow automation links for every team status.
       </p>
 
       {message && (
