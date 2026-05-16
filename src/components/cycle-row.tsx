@@ -1,5 +1,7 @@
+import { useAppShellContext } from "@/app/(app)/app-shell";
 import { CycleProgressBar } from "@/components/cycle-progress-bar";
 import { formatCycleDate } from "@/lib/cycle-utils";
+import { withWorkspaceSlug } from "@/lib/workspace-paths";
 
 interface CycleData {
   id: string;
@@ -18,10 +20,15 @@ interface CycleRowProps {
 
 export function CycleRow({ cycle, teamKey }: CycleRowProps) {
   const displayName = cycle.name ?? `Cycle ${cycle.number}`;
+  const workspaceSlug = useAppShellContext()?.workspaceSlug;
+  const href = withWorkspaceSlug(
+    `/team/${teamKey}/cycles/${cycle.id}`,
+    workspaceSlug,
+  );
 
   return (
     <a
-      href={`/team/${teamKey}/cycles/${cycle.id}`}
+      href={href}
       data-testid="cycle-row"
       className="flex items-center gap-4 border-b border-[var(--color-border)] px-4 py-3 transition-colors hover:bg-[var(--color-surface-hover)]"
     >

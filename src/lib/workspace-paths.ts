@@ -3,6 +3,7 @@ const appRoutePrefixes = [
   "my-issues",
   "projects",
   "project",
+  "cycles",
   "views",
   "team",
   "members",

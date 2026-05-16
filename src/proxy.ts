@@ -159,6 +159,35 @@ function getWorkspacePrefixedTeamViewsRoute(pathname: string) {
   return null;
 }
 
+function getWorkspacePrefixedCyclesRedirect(pathname: string) {
+  const segments = getPathSegments(pathname);
+
+  if (
+    segments.length === 2 &&
+    isWorkspaceSlugSegment(segments[0]) &&
+    segments[1] === "cycles"
+  ) {
+    return `/${segments[0]}/team/${CANONICAL_TEAM_KEY}/cycles`;
+  }
+
+  return null;
+}
+
+function getWorkspacePrefixedTeamCyclesRoute(pathname: string) {
+  const segments = getPathSegments(pathname);
+
+  if (
+    isWorkspaceSlugSegment(segments[0]) &&
+    segments[1] === "team" &&
+    segments[3] === "cycles" &&
+    (segments.length === 4 || segments.length === 5)
+  ) {
+    return { slug: decodeURIComponent(segments[0]) };
+  }
+
+  return null;
+}
+
 function getWorkspacePrefixedInitiativesRoute(pathname: string) {
   const segments = getPathSegments(pathname);
 
@@ -258,6 +287,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(workspaceRootUrl);
   }
 
+  const workspacePrefixedCyclesRedirect =
+    getWorkspacePrefixedCyclesRedirect(pathname);
+  if (workspacePrefixedCyclesRedirect) {
+    const cyclesUrl = request.nextUrl.clone();
+    cyclesUrl.pathname = workspacePrefixedCyclesRedirect;
+    return NextResponse.redirect(cyclesUrl);
+  }
+
   const canonicalTeamRedirect = getCanonicalTeamRedirect(pathname);
   if (canonicalTeamRedirect) {
     const canonicalTeamUrl = request.nextUrl.clone();
@@ -312,6 +349,16 @@ export async function proxy(request: NextRequest) {
     requestHeaders.set(
       "x-workspace-slug",
       workspacePrefixedTeamViewsRoute.slug,
+    );
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  const workspacePrefixedTeamCyclesRoute =
+    getWorkspacePrefixedTeamCyclesRoute(pathname);
+  if (workspacePrefixedTeamCyclesRoute) {
+    requestHeaders.set(
+      "x-workspace-slug",
+      workspacePrefixedTeamCyclesRoute.slug,
     );
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
