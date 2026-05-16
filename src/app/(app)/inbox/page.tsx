@@ -203,7 +203,9 @@ export default function InboxPage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <span className="text-[13px] text-[#6b6f76]">Loading...</span>
+        <span className="text-[13px] text-[var(--color-text-secondary)]">
+          Loading...
+        </span>
       </div>
     );
   }
@@ -236,24 +238,22 @@ export default function InboxPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-[#1c1e21] px-4 py-3">
-        <h1 className="text-[14px] font-semibold text-[var(--color-text-primary)]">
+      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-3">
+        <h1 className="font-[var(--editorial-display)] text-[18px] font-semibold tracking-[-0.02em] text-[var(--color-text-primary)]">
           Inbox
         </h1>
         {unreadCount > 0 && (
-          <span className="text-[12px] text-[#6b6f76]">
-            {unreadCount} unread
-          </span>
+          <span className="editorial-kicker">{unreadCount} unread</span>
         )}
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
             aria-label="Filter inbox notifications"
             onClick={() => setShowUnreadOnly((current) => !current)}
-            className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
+            className={`editorial-control rounded-md border px-2.5 py-1 transition-colors ${
               showUnreadOnly
-                ? "border-[#5E6AD2] bg-[rgba(94,106,210,0.16)] text-white"
-                : "border-[#2a2d31] text-[#b0b5c0] hover:border-[#3a3e45] hover:text-white"
+                ? "border-[color-mix(in_oklab,var(--color-accent)_48%,var(--color-border))] bg-[color-mix(in_oklab,var(--color-accent)_14%,transparent)] text-[var(--color-text-primary)] shadow-[inset_2px_0_0_var(--color-accent)]"
+                : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)]"
             }`}
           >
             Filter: {showUnreadOnly ? "Unread" : "All"}
@@ -266,10 +266,10 @@ export default function InboxPage() {
                 current === "latest" ? "priority" : "latest",
               )
             }
-            className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
+            className={`editorial-control rounded-md border px-2.5 py-1 transition-colors ${
               sortMode === "priority"
-                ? "border-[#5E6AD2] bg-[rgba(94,106,210,0.16)] text-white"
-                : "border-[#2a2d31] text-[#b0b5c0] hover:border-[#3a3e45] hover:text-white"
+                ? "border-[color-mix(in_oklab,var(--color-accent)_48%,var(--color-border))] bg-[color-mix(in_oklab,var(--color-accent)_14%,transparent)] text-[var(--color-text-primary)] shadow-[inset_2px_0_0_var(--color-accent)]"
+                : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-primary)]"
             }`}
           >
             Sort: {sortMode === "priority" ? "Priority" : "Latest"}
@@ -278,7 +278,7 @@ export default function InboxPage() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <div className="w-full min-w-0 overflow-y-auto border-r border-[#1c1e21] md:w-[400px] md:shrink-0">
+        <div className="w-full min-w-0 overflow-y-auto border-r border-[var(--color-border)] md:w-[min(400px,42%)] md:shrink-0">
           {visibleNotifications.length > 0 ? (
             <div className="flex flex-col gap-0.5 p-1.5">
               {visibleNotifications.map((notification) => (
@@ -299,13 +299,13 @@ export default function InboxPage() {
                 />
               ))}
               {unreadCount === 0 && (
-                <div className="px-3 py-4 text-center text-[12px] text-[#6b6f76]">
+                <div className="px-3 py-4 text-center text-[12px] text-[var(--color-text-secondary)]">
                   No unread notifications
                 </div>
               )}
             </div>
           ) : (
-            <div className="flex h-full items-center justify-center px-6 text-center text-[13px] text-[#6b6f76]">
+            <div className="flex h-full items-center justify-center px-6 text-center text-[13px] text-[var(--color-text-secondary)]">
               {showUnreadOnly
                 ? "No unread notifications match the current filter."
                 : "No notifications to display."}
@@ -313,16 +313,16 @@ export default function InboxPage() {
           )}
         </div>
 
-        <div className="hidden flex-1 overflow-y-auto p-6 md:block">
+        <div className="hidden min-w-[22rem] flex-1 overflow-y-auto overflow-x-hidden p-6 md:block">
           {selected ? (
             <div>
-              <div className="mb-2 text-[12px] text-[#6b6f76]">
+              <div className="editorial-kicker mb-2">
                 {selected.issueIdentifier}
               </div>
-              <h2 className="mb-4 text-[16px] font-semibold text-[var(--color-text-primary)]">
+              <h2 className="mb-4 max-w-[46rem] text-wrap break-words font-[var(--editorial-display)] text-[clamp(20px,2vw,30px)] font-semibold leading-[1.14] tracking-[-0.025em] text-[var(--color-text-primary)]">
                 {selected.issueTitle}
               </h2>
-              <p className="text-[13px] text-[#b0b5c0]">
+              <p className="max-w-[42rem] text-[14px] leading-6 text-[var(--color-text-secondary)]">
                 <span className="font-medium text-[var(--color-text-primary)]">
                   {selected.actorName}
                 </span>{" "}
@@ -340,7 +340,7 @@ export default function InboxPage() {
                     `/issue/${selected.issueIdentifier}`,
                     workspaceSlug,
                   )}
-                  className="mt-4 inline-flex text-[12px] font-medium text-[#5E6AD2] hover:text-[#7a84dd]"
+                  className="editorial-control mt-4 inline-flex text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
                 >
                   Open issue
                 </Link>
@@ -348,7 +348,7 @@ export default function InboxPage() {
             </div>
           ) : (
             <div className="flex h-full items-center justify-center">
-              <span className="text-[13px] text-[#6b6f76]">
+              <span className="text-[13px] text-[var(--color-text-secondary)]">
                 Select a notification to view details
               </span>
             </div>

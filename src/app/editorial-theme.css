@@ -5,7 +5,11 @@
   --editorial-surface-2: #f3eee5;
   --editorial-surface-3: #ebe5d9;
   --editorial-hover: rgba(20, 18, 14, 0.04);
-  --editorial-pressed: rgba(20, 18, 14, 0.08);
+  --editorial-pressed: color-mix(
+    in oklab,
+    var(--editorial-accent) 10%,
+    transparent
+  );
   --editorial-ink-1: #14120e;
   --editorial-ink-2: #2d2a23;
   --editorial-ink-3: #5b564a;
@@ -61,7 +65,11 @@
   --editorial-surface-2: #232019;
   --editorial-surface-3: #2c2820;
   --editorial-hover: rgba(255, 250, 240, 0.04);
-  --editorial-pressed: rgba(255, 250, 240, 0.08);
+  --editorial-pressed: color-mix(
+    in oklab,
+    var(--editorial-accent) 18%,
+    transparent
+  );
   --editorial-ink-1: #f3ede0;
   --editorial-ink-2: #ddd6c5;
   --editorial-ink-3: #9c9583;
