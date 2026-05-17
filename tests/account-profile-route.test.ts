@@ -39,7 +39,16 @@ describe("Account Profile API Route", () => {
       id: TEST_USER_ID,
       name: "Test User",
       email: "profile-test@example.com",
-      settings: { accountProfile: { username: "testuser" } },
+      settings: {
+        accountProfile: {
+          username: "testuser",
+          pronouns: "they/them",
+          title: "Engineer",
+          location: "Seoul",
+          timezone: "Asia/Seoul",
+          showLocalTime: true,
+        },
+      },
     });
 
     await db.insert(workspace).values({
@@ -79,6 +88,11 @@ describe("Account Profile API Route", () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.profile.name).toBe("Test User");
+    expect(data.profile.pronouns).toBe("they/them");
+    expect(data.profile.title).toBe("Engineer");
+    expect(data.profile.location).toBe("Seoul");
+    expect(data.profile.timezone).toBe("Asia/Seoul");
+    expect(data.profile.showLocalTime).toBe(true);
     expect(data.workspaceAccess.currentWorkspaceName).toBe(
       "Profile Test Workspace",
     );
@@ -95,6 +109,11 @@ describe("Account Profile API Route", () => {
       body: JSON.stringify({
         name: "Updated Name",
         username: "updateduser",
+        pronouns: "she/her",
+        title: "Design Lead",
+        location: "Berlin",
+        timezone: "Europe/Berlin",
+        showLocalTime: true,
       }),
     });
 
@@ -103,6 +122,11 @@ describe("Account Profile API Route", () => {
     const data = await res.json();
     expect(data.profile.name).toBe("Updated Name");
     expect(data.profile.username).toBe("updateduser");
+    expect(data.profile.pronouns).toBe("she/her");
+    expect(data.profile.title).toBe("Design Lead");
+    expect(data.profile.location).toBe("Berlin");
+    expect(data.profile.timezone).toBe("Europe/Berlin");
+    expect(data.profile.showLocalTime).toBe(true);
 
     // Verify in DB
     const [updatedUser] = await db
@@ -111,6 +135,37 @@ describe("Account Profile API Route", () => {
       .where(eq(user.id, TEST_USER_ID))
       .limit(1);
     expect(updatedUser.name).toBe("Updated Name");
+    expect(updatedUser.settings).toMatchObject({
+      accountProfile: {
+        username: "updateduser",
+        pronouns: "she/her",
+        title: "Design Lead",
+        location: "Berlin",
+        timezone: "Europe/Berlin",
+        showLocalTime: true,
+      },
+    });
+  });
+
+  it("PATCH returns 400 for invalid timezone", async () => {
+    (
+      auth.api.getSession as unknown as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    const req = new Request("http://localhost/api/account/profile", {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: "Test",
+        username: "valid",
+        timezone: "Mars/Olympus",
+      }),
+    });
+
+    const res = await PATCH(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBe("Timezone must be a valid IANA timezone");
   });
 
   it("PATCH returns 400 for invalid username (with spaces)", async () => {

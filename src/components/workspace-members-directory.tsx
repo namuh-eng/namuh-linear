@@ -36,6 +36,10 @@ function matchesMember(member: WorkspaceDirectoryMember, query: string) {
     member.name,
     member.email,
     member.role,
+    member.pronouns,
+    member.title,
+    member.location,
+    member.timezone,
     ...member.teams.flatMap((team) => [team.name, team.key]),
   ]
     .filter(Boolean)
@@ -185,8 +189,13 @@ export function WorkspaceMembersDirectory({
                     </span>
                   </div>
                   <p className="truncate text-sm text-[var(--color-text-secondary)]">
-                    {member.email}
+                    {member.title || member.email}
                   </p>
+                  {member.title ? (
+                    <p className="truncate text-xs text-[var(--color-text-tertiary)]">
+                      {member.email}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="hidden max-w-xs flex-wrap justify-end gap-1 sm:flex">
                   {member.teams.length > 0 ? (
@@ -248,6 +257,51 @@ export function WorkspaceMembersDirectory({
                   {formatRole(selectedMember.role)}
                 </dd>
               </div>
+              {selectedMember.pronouns ? (
+                <div>
+                  <dt className="text-[var(--color-text-tertiary)]">
+                    Pronouns
+                  </dt>
+                  <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
+                    {selectedMember.pronouns}
+                  </dd>
+                </div>
+              ) : null}
+              {selectedMember.title ? (
+                <div>
+                  <dt className="text-[var(--color-text-tertiary)]">
+                    Role or title
+                  </dt>
+                  <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
+                    {selectedMember.title}
+                  </dd>
+                </div>
+              ) : null}
+              {selectedMember.location ? (
+                <div>
+                  <dt className="text-[var(--color-text-tertiary)]">
+                    Location
+                  </dt>
+                  <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
+                    {selectedMember.location}
+                  </dd>
+                </div>
+              ) : null}
+              {selectedMember.showLocalTime && selectedMember.timezone ? (
+                <div>
+                  <dt className="text-[var(--color-text-tertiary)]">
+                    Local time
+                  </dt>
+                  <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
+                    {new Intl.DateTimeFormat("en", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                      timeZone: selectedMember.timezone,
+                      timeZoneName: "short",
+                    }).format(new Date())}
+                  </dd>
+                </div>
+              ) : null}
               <div>
                 <dt className="text-[var(--color-text-tertiary)]">Joined</dt>
                 <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
