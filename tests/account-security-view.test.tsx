@@ -240,9 +240,20 @@ describe("AccountSecurityPage component", () => {
                   clientId: "lin_client_123",
                   imageUrl: null,
                   scopes: ["read", "write"],
+                  permissionGroups: [
+                    {
+                      label: "Workspace data",
+                      descriptions: [
+                        "View workspace and account information",
+                        "Create and update workspace data",
+                      ],
+                    },
+                  ],
+                  publisher: null,
                   webhooksEnabled: true,
                   createdAt: "2026-04-01T10:00:00.000Z",
                   updatedAt: "2026-04-02T10:00:00.000Z",
+                  lastUsedAt: null,
                 },
               ],
             }),
@@ -261,11 +272,24 @@ describe("AccountSecurityPage component", () => {
     render(<AccountSecurityPage />);
 
     expect(await screen.findByText("Linear Importer")).toBeInTheDocument();
-    expect(screen.getByText(/App ID: app-importer/)).toBeInTheDocument();
-    expect(screen.getByText(/read, write/)).toBeInTheDocument();
-    expect(screen.getByText(/Webhooks enabled/)).toBeInTheDocument();
+    expect(screen.queryByText(/App ID: app-importer/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/read, write/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/View workspace and account information/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Webhook access/)).toBeInTheDocument();
+    expect(screen.getByText(/Last used\s+Unavailable/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    expect(
+      screen.getByRole("alertdialog", {
+        name: "Confirm revoking Linear Importer",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm revoke" }));
 
     await screen.findByText("Authorized application revoked.");
     expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({
