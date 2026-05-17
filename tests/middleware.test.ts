@@ -56,6 +56,14 @@ describe("Auth proxy", () => {
     expect(mockNext).toHaveBeenCalled();
   });
 
+  it("allows /homepage path without auth", async () => {
+    mockNext.mockClear();
+    const { proxy } = await import("@/proxy");
+    const req = createMockRequest("/homepage");
+    await proxy(req as never);
+    expect(mockNext).toHaveBeenCalled();
+  });
+
   it("allows /api/auth paths without auth", async () => {
     mockNext.mockClear();
     const { proxy } = await import("@/proxy");
