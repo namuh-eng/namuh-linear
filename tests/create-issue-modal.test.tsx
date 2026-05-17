@@ -65,6 +65,25 @@ describe("CreateIssueModal", () => {
         return mockJsonResponse(optionsResponse);
       }
 
+      if (url === "/api/issue-templates") {
+        return mockJsonResponse({
+          templates: [
+            {
+              id: "template-1",
+              name: "Bug template",
+              description: "Fallback body",
+              settings: {
+                title: "Templated bug",
+                body: "Steps to reproduce",
+                defaultPriority: "high",
+                defaultStatusName: "In Progress",
+                defaultProjectId: "project-1",
+              },
+            },
+          ],
+        });
+      }
+
       if (url === "/api/issues" && init?.method === "POST") {
         return mockJsonResponse({ id: "issue-1" }, true, 201);
       }
@@ -166,6 +185,33 @@ describe("CreateIssueModal", () => {
     expect(
       screen.getByText("Create Issue").closest("button"),
     ).not.toBeDisabled();
+  });
+
+  it("applies an issue template without overwriting user title edits", async () => {
+    render(<CreateIssueModal {...defaultProps} />);
+
+    const titleBox = await screen.findByRole("textbox", {
+      name: "Issue title",
+    });
+    setEditableValue(titleBox, "Custom title");
+
+    fireEvent.change(await screen.findByLabelText("Issue template"), {
+      target: { value: "template-1" },
+    });
+
+    expect(titleBox.textContent).toBe("Custom title");
+    expect(
+      screen.getByRole("textbox", { name: "Issue description" }).textContent,
+    ).toBe("Steps to reproduce");
+    expect(screen.getByRole("button", { name: "Priority" })).toHaveTextContent(
+      "High",
+    );
+    expect(screen.getByRole("button", { name: "Status" })).toHaveTextContent(
+      "In Progress",
+    );
+    expect(screen.getByRole("button", { name: "Project" })).toHaveTextContent(
+      "Roadmap",
+    );
   });
 
   it("creates an issue with selected assignee, project, labels, and create more", async () => {
