@@ -74,6 +74,11 @@ describe("workspace directory routes", () => {
           image: null,
           role: "owner",
           joinedAt: "2026-01-01T00:00:00.000Z",
+          pronouns: "she/her",
+          title: "Analytical Engine Lead",
+          location: "London",
+          timezone: "Europe/London",
+          showLocalTime: true,
           teams: [{ id: "team-1", name: "Engineering", key: "ENG" }],
         },
       ],
@@ -101,6 +106,11 @@ describe("workspace directory routes", () => {
           image: null,
           role: "owner",
           joinedAt: "2026-01-01T00:00:00.000Z",
+          pronouns: "she/her",
+          title: "Analytical Engine Lead",
+          location: "London",
+          timezone: "Europe/London",
+          showLocalTime: true,
           teams: [{ id: "team-1", name: "Engineering", key: "ENG" }],
         },
         {
@@ -111,6 +121,11 @@ describe("workspace directory routes", () => {
           image: null,
           role: "admin",
           joinedAt: "2026-02-01T00:00:00.000Z",
+          pronouns: "she/her",
+          title: "Compiler Engineer",
+          location: "Arlington",
+          timezone: "America/New_York",
+          showLocalTime: false,
           teams: [{ id: "team-2", name: "Platform", key: "PLT" }],
         },
       ],
@@ -146,6 +161,12 @@ describe("workspace directory routes", () => {
     expect(screen.getByRole("dialog", { name: "Ada Lovelace" })).toBeVisible();
     expect(screen.getAllByText("ada@example.com").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Owner").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Analytical Engine Lead").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText("she/her")).toBeVisible();
+    expect(screen.getByText("London")).toBeVisible();
+    expect(screen.getByText(/GMT|BST/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Engineering" })).toHaveAttribute(
       "href",
       "/team/ENG/all",

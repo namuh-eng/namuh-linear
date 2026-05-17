@@ -1,3 +1,4 @@
+import { readAccountProfileFromUserSettings } from "@/lib/account-profile";
 import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -76,6 +77,7 @@ export async function GET() {
       image: user.image,
       role: member.role,
       joinedAt: member.createdAt,
+      settings: user.settings,
     })
     .from(member)
     .innerJoin(user, eq(member.userId, user.id))
@@ -147,19 +149,27 @@ export async function GET() {
   }
 
   const members = [
-    ...activeMembers.map((entry) => ({
-      id: entry.id,
-      kind: "member" as const,
-      userId: entry.userId,
-      name: entry.name,
-      email: entry.email,
-      image: entry.image,
-      role: entry.role,
-      status: "active" as const,
-      teams: teamsByUserId.get(entry.userId) ?? [],
-      joinedAt: entry.joinedAt?.toISOString() ?? new Date(0).toISOString(),
-      lastSeenAt: lastSeenByUserId.get(entry.userId) ?? null,
-    })),
+    ...activeMembers.map((entry) => {
+      const profile = readAccountProfileFromUserSettings(entry.settings);
+      return {
+        id: entry.id,
+        kind: "member" as const,
+        userId: entry.userId,
+        name: entry.name,
+        email: entry.email,
+        image: entry.image,
+        role: entry.role,
+        status: "active" as const,
+        teams: teamsByUserId.get(entry.userId) ?? [],
+        joinedAt: entry.joinedAt?.toISOString() ?? new Date(0).toISOString(),
+        lastSeenAt: lastSeenByUserId.get(entry.userId) ?? null,
+        pronouns: profile.pronouns,
+        title: profile.title,
+        location: profile.location,
+        timezone: profile.timezone,
+        showLocalTime: profile.showLocalTime,
+      };
+    }),
     ...pendingInvitations.map((entry) => ({
       id: entry.id,
       kind: "invitation" as const,
