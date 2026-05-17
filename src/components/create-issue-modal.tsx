@@ -23,6 +23,23 @@ interface CreateIssueModalProps {
   onCreated?: () => void | Promise<void>;
 }
 
+interface IssueTemplateOption {
+  id: string;
+  name: string;
+  description: string;
+  settings: {
+    title?: string;
+    body?: string;
+    defaultPriority?: string;
+    defaultStatusId?: string;
+    defaultStatusName?: string;
+    defaultTeamId?: string;
+    defaultTeamKey?: string;
+    defaultScope?: string;
+    defaultProjectId?: string | null;
+  };
+}
+
 interface CreateIssueOptions {
   team: {
     id: string;
@@ -254,6 +271,8 @@ export function CreateIssueModal({
   const [submitting, setSubmitting] = useState(false);
   const [openMenu, setOpenMenu] = useState<ToolbarMenu | null>(null);
   const [options, setOptions] = useState<CreateIssueOptions | null>(null);
+  const [templates, setTemplates] = useState<IssueTemplateOption[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedStateId, setSelectedStateId] = useState(defaultStateId ?? "");
@@ -286,6 +305,7 @@ export function CreateIssueModal({
     setSelectedProjectId(defaultProjectId);
     setSelectedLabelIds([]);
     setAttachments([]);
+    setSelectedTemplateId("");
     setError(null);
 
     if (titleRef.current) {
@@ -350,6 +370,27 @@ export function CreateIssueModal({
       cancelled = true;
     };
   }, [defaultStateId, defaultStateName, open, teamKey]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    async function loadTemplates() {
+      try {
+        const response = await fetch("/api/issue-templates");
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          templates?: IssueTemplateOption[];
+        };
+        if (!cancelled) setTemplates(data.templates ?? []);
+      } catch {
+        if (!cancelled) setTemplates([]);
+      }
+    }
+    void loadTemplates();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!openMenu) {
@@ -496,6 +537,37 @@ export function CreateIssueModal({
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function applyTemplate(templateId: string) {
+    setSelectedTemplateId(templateId);
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) return;
+    const settings = template.settings ?? {};
+    const nextTitle = settings.title || template.name;
+    const nextBody = settings.body || template.description;
+    if (!title.trim() && titleRef.current) {
+      titleRef.current.textContent = nextTitle;
+      setTitle(nextTitle);
+    }
+    const currentDescriptionText =
+      descriptionRef.current?.textContent?.trim() ?? "";
+    if (!currentDescriptionText && descriptionRef.current) {
+      descriptionRef.current.textContent = nextBody;
+      setDescriptionHtml(descriptionRef.current.innerHTML);
+    }
+    if (settings.defaultPriority) setPriority(settings.defaultPriority);
+    if (settings.defaultStatusId) setSelectedStateId(settings.defaultStatusId);
+    else if (settings.defaultStatusName) {
+      const matchingStatus = options?.statuses.find(
+        (status) =>
+          status.name.toLowerCase() ===
+          settings.defaultStatusName?.toLowerCase(),
+      );
+      if (matchingStatus) setSelectedStateId(matchingStatus.id);
+    }
+    if (settings.defaultProjectId !== undefined)
+      setSelectedProjectId(settings.defaultProjectId);
   }
 
   function handleLabelToggle(labelId: string) {
@@ -770,6 +842,25 @@ export function CreateIssueModal({
             isFullscreen && "flex-1 overflow-y-auto px-8 py-8",
           )}
         >
+          {templates.length > 0 && (
+            <label className="mt-3 block text-[12px] text-[var(--color-text-secondary)]">
+              Template
+              <select
+                aria-label="Issue template"
+                className="mt-1 w-full max-w-[320px] rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 text-[13px] text-[var(--color-text-primary)]"
+                value={selectedTemplateId}
+                onChange={(event) => applyTemplate(event.target.value)}
+              >
+                <option value="">No template</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
           <div
             ref={titleRef}
             role="textbox"
