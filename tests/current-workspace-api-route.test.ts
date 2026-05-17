@@ -8,6 +8,7 @@ const webhooksOrderByMock = vi.fn();
 const apiKeysOrderByMock = vi.fn();
 const updateSetMock = vi.fn();
 const updateWhereMock = vi.fn();
+const insertValuesMock = vi.fn();
 let selectCallCount = 0;
 let requestHeaders = new Headers();
 
@@ -45,8 +46,26 @@ vi.mock("@/lib/api-settings", () => ({
     (value: unknown) => value === "admins" || value === "members",
   ),
   normalizeWebhookEvents: vi.fn((events: unknown) =>
-    Array.isArray(events) ? events : [],
+    Array.isArray(events)
+      ? events.filter((event): event is string =>
+          ["created", "updated", "deleted"].includes(String(event)),
+        )
+      : [],
   ),
+  validateWebhookUrl: vi.fn((value: unknown) => {
+    if (typeof value !== "string" || !value.trim()) {
+      return { ok: false, error: "Webhook URL is required." };
+    }
+    try {
+      const url = new URL(value.trim());
+      if (url.protocol !== "https:") {
+        return { ok: false, error: "Webhook URL must use HTTPS." };
+      }
+      return { ok: true, url: url.toString() };
+    } catch {
+      return { ok: false, error: "Webhook URL must be a valid absolute URL." };
+    }
+  }),
   readPermissionLevel: vi.fn((value: unknown, fallback: string) =>
     value === "admins" || value === "members" ? value : fallback,
   ),
@@ -114,7 +133,7 @@ vi.mock("@/lib/db", () => ({
         };
       },
     })),
-    insert: vi.fn(() => ({ values: vi.fn() })),
+    insert: vi.fn(() => ({ values: insertValuesMock })),
   },
 }));
 
@@ -126,6 +145,7 @@ describe("current workspace api route", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    insertValuesMock.mockResolvedValue(undefined);
     selectCallCount = 0;
     requestHeaders = new Headers();
     getSessionMock.mockResolvedValue({ user: { id: "user-1" } });
@@ -146,7 +166,7 @@ describe("current workspace api route", () => {
         label: "Prod",
         url: "https://hooks.test/prod",
         enabled: true,
-        events: ["issue.created"],
+        events: ["created"],
         createdAt: new Date("2026-04-23T10:00:00.000Z"),
         updatedAt: new Date("2026-04-23T10:30:00.000Z"),
       },
@@ -276,7 +296,7 @@ describe("current workspace api route", () => {
             id: "webhook-1",
             label: "Prod",
             url: "https://hooks.test/prod",
-            events: ["issue.created"],
+            events: ["created"],
             enabled: true,
             createdAt: "2026-04-23T10:00:00.000Z",
             updatedAt: "2026-04-23T10:30:00.000Z",
@@ -299,6 +319,79 @@ describe("current workspace api route", () => {
         ],
       },
     });
+  });
+
+  it("rejects invalid webhook URLs without inserting", async () => {
+    const { POST } = await import("@/app/api/workspaces/current/api/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/workspaces/current/api", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "createWebhook",
+          label: "Bad hook",
+          url: "not-a-url",
+          events: ["created"],
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Webhook URL must be a valid absolute URL.",
+    });
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("requires at least one scoped webhook event", async () => {
+    const { POST } = await import("@/app/api/workspaces/current/api/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/workspaces/current/api", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "createWebhook",
+          label: "No scope",
+          url: "https://hooks.test/linear",
+          events: ["unknown"],
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "At least one webhook event is required.",
+    });
+    expect(insertValuesMock).not.toHaveBeenCalled();
+  });
+
+  it("creates webhooks with normalized HTTPS URL and scoped issue events", async () => {
+    const { POST } = await import("@/app/api/workspaces/current/api/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/workspaces/current/api", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "createWebhook",
+          label: "Issue sync",
+          url: " https://hooks.test/linear ",
+          events: ["created", "deleted"],
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(insertValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Issue sync",
+        url: "https://hooks.test/linear",
+        events: ["created", "deleted"],
+        enabled: true,
+      }),
+    );
   });
 
   it("forbids permission updates for non-managers", async () => {
