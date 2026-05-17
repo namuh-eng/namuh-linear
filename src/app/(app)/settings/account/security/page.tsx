@@ -15,16 +15,24 @@ type SecuritySession = {
   expiresAt: string;
 };
 
+type PermissionGroup = {
+  label: string;
+  descriptions: string[];
+};
+
 type AuthorizedApplication = {
   id: string;
-  appId: string;
+  appId?: string;
   name: string;
-  clientId: string;
+  clientId?: string;
   imageUrl: string | null;
+  publisher: string | null;
   scopes: string[];
+  permissionGroups?: PermissionGroup[];
   webhooksEnabled: boolean;
   createdAt: string;
   updatedAt: string;
+  lastUsedAt: string | null;
 };
 
 type Passkey = {
@@ -79,6 +87,82 @@ function formatDate(value: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+const SCOPE_LABELS: Record<string, { group: string; description: string }> = {
+  read: {
+    group: "Workspace data",
+    description: "View workspace and account information",
+  },
+  write: {
+    group: "Workspace data",
+    description: "Create and update workspace data",
+  },
+  "issues:read": {
+    group: "Issues",
+    description: "View issues and related metadata",
+  },
+  "issues:write": {
+    group: "Issues",
+    description: "Create and update issues",
+  },
+  "comments:read": {
+    group: "Comments",
+    description: "View comments",
+  },
+  "comments:write": {
+    group: "Comments",
+    description: "Create and update comments",
+  },
+  "webhooks:read": {
+    group: "Webhooks",
+    description: "View webhook subscriptions",
+  },
+  "webhooks:write": {
+    group: "Webhooks",
+    description: "Manage webhook subscriptions",
+  },
+};
+
+function humanizeScope(scope: string) {
+  const normalized = scope.trim();
+  if (!normalized) {
+    return "Access granted by this application";
+  }
+
+  return normalized
+    .split(/[:_.-]+/)
+    .filter(Boolean)
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function permissionGroupsFor(application: AuthorizedApplication) {
+  if (application.permissionGroups?.length) {
+    return application.permissionGroups;
+  }
+
+  const groups = new Map<string, string[]>();
+  for (const scope of application.scopes) {
+    const known = SCOPE_LABELS[scope];
+    const group = known?.group ?? "Additional access";
+    const description = known?.description ?? humanizeScope(scope);
+    groups.set(group, [...(groups.get(group) ?? []), description]);
+  }
+
+  return [...groups].map(([label, descriptions]) => ({ label, descriptions }));
+}
+
+function permissionSummary(application: AuthorizedApplication) {
+  const descriptions = permissionGroupsFor(application).flatMap(
+    (group) => group.descriptions,
+  );
+
+  if (!descriptions.length) {
+    return "No account permissions recorded";
+  }
+
+  return descriptions.join(", ");
 }
 
 function deviceLabel(session: SecuritySession) {
@@ -176,6 +260,12 @@ export default function AccountSecurityPage() {
   const [apiKeyName, setApiKeyName] = useState("Personal API key");
   const [createdCredential, setCreatedCredential] =
     useState<CreatedCredential | null>(null);
+  const [confirmingApplicationId, setConfirmingApplicationId] = useState<
+    string | null
+  >(null);
+  const [expandedApplicationId, setExpandedApplicationId] = useState<
+    string | null
+  >(null);
 
   const loadSecurityState = useCallback(async (signal?: AbortSignal) => {
     const response = await fetch("/api/account/security", { signal });
@@ -685,57 +775,110 @@ export default function AccountSecurityPage() {
         {securityState.authorizedApplications.length ? (
           <div className="divide-y divide-[var(--color-border)]">
             {securityState.authorizedApplications.map((application) => (
-              <div
-                key={application.id}
-                className="flex items-start justify-between gap-3 py-4 first:pt-0 last:pb-0"
-              >
-                <div className="flex min-w-0 gap-3">
-                  {application.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={application.imageUrl}
-                      alt=""
-                      className="h-9 w-9 rounded-lg border border-[var(--color-border)] object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] text-[13px] font-medium text-[var(--color-text-secondary)]">
-                      {application.name.slice(0, 1).toUpperCase()}
+              <div key={application.id} className="py-4 first:pt-0 last:pb-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 gap-3">
+                    {application.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={application.imageUrl}
+                        alt=""
+                        className="h-9 w-9 rounded-lg border border-[var(--color-border)] object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] text-[13px] font-medium text-[var(--color-text-secondary)]">
+                        {application.name.slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="text-[14px] font-medium text-[var(--color-text-primary)]">
+                        {application.name}
+                      </h3>
+                      <p className="mt-1 text-[12px] text-[var(--color-text-secondary)]">
+                        {application.publisher ?? "Connected application"}
+                      </p>
+                      <p className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
+                        Permissions: {permissionSummary(application)}
+                        {application.webhooksEnabled ? " · Webhook access" : ""}
+                      </p>
+                      <p className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
+                        Authorized {formatDate(application.createdAt)} · Last
+                        used{" "}
+                        {application.lastUsedAt
+                          ? formatDate(application.lastUsedAt)
+                          : "Unavailable"}
+                      </p>
+                      <button
+                        type="button"
+                        className="mt-2 text-[12px] text-[var(--color-accent)] hover:underline"
+                        onClick={() =>
+                          setExpandedApplicationId((current) =>
+                            current === application.id ? null : application.id,
+                          )
+                        }
+                      >
+                        {expandedApplicationId === application.id
+                          ? "Hide developer details"
+                          : "Show developer details"}
+                      </button>
+                      {expandedApplicationId === application.id ? (
+                        <p className="mt-1 break-all text-[12px] text-[var(--color-text-tertiary)]">
+                          App ID: {application.appId ?? "Unavailable"} · Client
+                          ID: {application.clientId ?? "Unavailable"}
+                        </p>
+                      ) : null}
                     </div>
-                  )}
-                  <div className="min-w-0">
-                    <h3 className="text-[14px] font-medium text-[var(--color-text-primary)]">
-                      {application.name}
-                    </h3>
-                    <p className="mt-1 break-all text-[12px] text-[var(--color-text-secondary)]">
-                      App ID: {application.appId} · Client ID:{" "}
-                      {application.clientId}
-                    </p>
-                    <p className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
-                      Permissions:{" "}
-                      {application.scopes.length
-                        ? application.scopes.join(", ")
-                        : "No scopes recorded"}
-                      {application.webhooksEnabled ? " · Webhooks enabled" : ""}
-                      {" · Authorized "}
-                      {formatDate(application.createdAt)}
-                    </p>
                   </div>
+                  <SmallButton
+                    tone="danger"
+                    disabled={saving}
+                    onClick={() => setConfirmingApplicationId(application.id)}
+                  >
+                    Revoke
+                  </SmallButton>
                 </div>
-                <SmallButton
-                  tone="danger"
-                  disabled={saving}
-                  onClick={() =>
-                    mutate(
-                      {
-                        action: "revokeAuthorizedApplication",
-                        applicationId: application.id,
-                      },
-                      "Authorized application revoked.",
-                    )
-                  }
-                >
-                  Revoke
-                </SmallButton>
+                {confirmingApplicationId === application.id ? (
+                  <div
+                    className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-[12px] text-[var(--color-text-primary)]"
+                    role="alertdialog"
+                    aria-label={`Confirm revoking ${application.name}`}
+                  >
+                    <p className="font-medium">
+                      Revoke access for {application.name}?
+                    </p>
+                    <p className="mt-1 text-[var(--color-text-secondary)]">
+                      This application will lose access to your account and the
+                      following permissions will be removed:{" "}
+                      {permissionSummary(application)}.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <SmallButton
+                        tone="danger"
+                        disabled={saving}
+                        onClick={async () => {
+                          const revoked = await mutate(
+                            {
+                              action: "revokeAuthorizedApplication",
+                              applicationId: application.id,
+                            },
+                            "Authorized application revoked.",
+                          );
+                          if (revoked) {
+                            setConfirmingApplicationId(null);
+                          }
+                        }}
+                      >
+                        Confirm revoke
+                      </SmallButton>
+                      <SmallButton
+                        disabled={saving}
+                        onClick={() => setConfirmingApplicationId(null)}
+                      >
+                        Cancel
+                      </SmallButton>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

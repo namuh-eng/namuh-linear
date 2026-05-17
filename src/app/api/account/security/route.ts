@@ -63,6 +63,44 @@ type RawAuthorizedApplication = {
   updatedAt: Date | string | null;
 };
 
+const SCOPE_PRESENTATION: Record<
+  string,
+  { group: string; description: string }
+> = {
+  read: {
+    group: "Workspace data",
+    description: "View workspace and account information",
+  },
+  write: {
+    group: "Workspace data",
+    description: "Create and update workspace data",
+  },
+  "issues:read": {
+    group: "Issues",
+    description: "View issues and related metadata",
+  },
+  "issues:write": {
+    group: "Issues",
+    description: "Create and update issues",
+  },
+  "comments:read": {
+    group: "Comments",
+    description: "View comments",
+  },
+  "comments:write": {
+    group: "Comments",
+    description: "Create and update comments",
+  },
+  "webhooks:read": {
+    group: "Webhooks",
+    description: "View webhook subscriptions",
+  },
+  "webhooks:write": {
+    group: "Webhooks",
+    description: "Manage webhook subscriptions",
+  },
+};
+
 type WorkspaceAccess = {
   workspaceId: string;
   workspaceName: string;
@@ -165,17 +203,43 @@ function normalizeScopes(value: unknown) {
   return [];
 }
 
+function humanizeScope(scope: string) {
+  return scope
+    .split(/[:_.-]+/)
+    .filter(Boolean)
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function buildPermissionGroups(scopes: string[]) {
+  const groups = new Map<string, string[]>();
+
+  for (const scope of scopes) {
+    const known = SCOPE_PRESENTATION[scope];
+    const group = known?.group ?? "Additional access";
+    const description = known?.description ?? humanizeScope(scope);
+    groups.set(group, [...(groups.get(group) ?? []), description]);
+  }
+
+  return [...groups].map(([label, descriptions]) => ({ label, descriptions }));
+}
+
 function serializeAuthorizedApplication(application: RawAuthorizedApplication) {
+  const scopes = normalizeScopes(application.scopes);
+
   return {
     id: application.id,
     appId: application.appId,
     clientId: application.clientId,
     name: application.name,
     imageUrl: application.imageUrl,
-    scopes: normalizeScopes(application.scopes),
+    publisher: null,
+    scopes,
+    permissionGroups: buildPermissionGroups(scopes),
     webhooksEnabled: application.webhooksEnabled,
     createdAt: serializeDate(application.createdAt),
     updatedAt: serializeDate(application.updatedAt),
+    lastUsedAt: null,
   };
 }
 
