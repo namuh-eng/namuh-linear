@@ -147,6 +147,78 @@ describe("Account Preferences API Route", () => {
     });
   });
 
+  it("PATCH validates and persists agent personalization fields", async () => {
+    (
+      auth.api.getSession as unknown as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    const req = new Request("http://localhost/api/account/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({
+        accountPreferences: {
+          agentPersonalization: {
+            instructions: "Prefer tiny diffs and cite test evidence.",
+            autoFix: true,
+          },
+        },
+      }),
+    });
+
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.accountPreferences.agentPersonalization).toEqual({
+      instructions: "Prefer tiny diffs and cite test evidence.",
+      autoFix: true,
+    });
+
+    const [updatedUser] = await db
+      .select({ settings: user.settings })
+      .from(user)
+      .where(eq(user.id, TEST_USER_ID))
+      .limit(1);
+    expect(
+      (
+        updatedUser.settings as {
+          accountPreferences: {
+            agentPersonalization: { instructions: string; autoFix: boolean };
+          };
+        }
+      ).accountPreferences.agentPersonalization,
+    ).toEqual({
+      instructions: "Prefer tiny diffs and cite test evidence.",
+      autoFix: true,
+    });
+  });
+
+  it("PATCH normalizes invalid agent personalization values to safe defaults", async () => {
+    (
+      auth.api.getSession as unknown as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
+      user: { id: TEST_USER_ID },
+    });
+    const req = new Request("http://localhost/api/account/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({
+        accountPreferences: {
+          agentPersonalization: {
+            instructions: 123,
+            autoFix: "yes",
+          },
+        },
+      }),
+    });
+
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.accountPreferences.agentPersonalization).toEqual({
+      instructions: "",
+      autoFix: false,
+    });
+  });
+
   it("PATCH returns 400 if accountPreferences is missing", async () => {
     (
       auth.api.getSession as unknown as ReturnType<typeof vi.fn>

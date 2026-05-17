@@ -71,7 +71,7 @@ describe("agent runs route", () => {
         accountPreferences: {
           agentPersonalization: {
             instructions: "Account: prefer small safe diffs.",
-            autoFix: false,
+            autoFix: true,
           },
         },
       },
@@ -142,8 +142,12 @@ describe("agent runs route", () => {
     expect(payload.run.promptConfig.guidance.effectiveInstructions).toContain(
       "ENG: include frontend test plan.",
     );
+    expect(payload.run.promptConfig.guidance.autoFixEnabled).toBe(true);
     expect(payload.run.logs).toContain(
       "Applied workspace/account/team agent guidance to the prompt configuration.",
+    );
+    expect(payload.run.logs).toContain(
+      "Account personalization requested proactive lint/type fix suggestions for this run.",
     );
   });
 

@@ -15,6 +15,7 @@ export interface AgentGuidanceEntry {
 export interface EffectiveAgentGuidance {
   entries: AgentGuidanceEntry[];
   effectiveInstructions: string;
+  autoFixEnabled: boolean;
   teamKey: string | null;
 }
 
@@ -46,6 +47,7 @@ export function buildEffectiveAgentGuidance(input: {
   workspaceGuidance?: string | null;
   accountGuidance?: string | null;
   teamGuidance?: string | null;
+  autoFixEnabled?: boolean | null;
   teamKey?: string | null;
 }): EffectiveAgentGuidance {
   const entries: AgentGuidanceEntry[] = [];
@@ -84,6 +86,7 @@ export function buildEffectiveAgentGuidance(input: {
     effectiveInstructions: entries
       .map((entry) => `${entry.label}:\n${entry.instructions}`)
       .join("\n\n"),
+    autoFixEnabled: input.autoFixEnabled === true,
     teamKey: input.teamKey?.trim().toUpperCase() || null,
   };
 }
@@ -137,6 +140,7 @@ export async function resolveEffectiveAgentGuidance(input: {
     workspaceGuidance: readWorkspaceAgentGuidance(workspaceRow[0]?.settings),
     accountGuidance: accountPreferences.agentPersonalization.instructions,
     teamGuidance: teamSettings?.agentGuidance,
+    autoFixEnabled: accountPreferences.agentPersonalization.autoFix,
     teamKey: teamRow[0]?.key ?? normalizedTeamKey,
   });
 }
