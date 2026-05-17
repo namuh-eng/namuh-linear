@@ -24,7 +24,7 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function readWorkspaceAgentGuidance(settings: unknown) {
+export function readWorkspaceAgentGuidance(settings: unknown) {
   const root = asRecord(settings);
   const ai = asRecord(root.ai);
   const agents = asRecord(root.agents);

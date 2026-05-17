@@ -1,3 +1,8 @@
+import { readAccountPreferencesFromUserSettings } from "@/lib/account-preferences";
+import {
+  buildEffectiveAgentGuidance,
+  readWorkspaceAgentGuidance,
+} from "@/lib/agent-guidance";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import {
@@ -5,6 +10,7 @@ import {
   member,
   team,
   teamMember,
+  user,
   workflowState,
   workspace,
 } from "@/lib/db/schema";
@@ -52,6 +58,7 @@ type TeamSettingsRecord = Omit<
 > & {
   childTeamIds?: string[];
   hierarchyTeamIds?: string[];
+  updatedAt?: Date | null;
 };
 
 async function buildTeamResponse(
@@ -67,6 +74,8 @@ async function buildTeamResponse(
     workspaceMemberRow,
     parentTeamRow,
     eligibleParentRows,
+    childTeamRows,
+    userRow,
   ] = await Promise.all([
     db
       .select({ value: count() })
@@ -133,9 +142,36 @@ async function buildTeamResponse(
           activeTeamFilter,
         ),
       ),
+    db
+      .select({
+        id: team.id,
+        name: team.name,
+        key: team.key,
+        isPrivate: team.isPrivate,
+      })
+      .from(team)
+      .where(and(eq(team.parentTeamId, teamRecord.id), activeTeamFilter))
+      .orderBy(asc(team.name)),
+    db
+      .select({ settings: user.settings })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1),
   ]);
 
   const flags = readTeamSettings(teamRecord.settings);
+  const workspaceAgentGuidance = readWorkspaceAgentGuidance(
+    workspaceRow[0]?.settings,
+  );
+  const accountAgentGuidance = readAccountPreferencesFromUserSettings(
+    userRow[0]?.settings,
+  ).agentPersonalization.instructions;
+  const effectiveGuidance = buildEffectiveAgentGuidance({
+    workspaceGuidance: workspaceAgentGuidance,
+    accountGuidance: accountAgentGuidance,
+    teamGuidance: flags.agentGuidance,
+    teamKey: teamRecord.key,
+  });
   const acceptDestinationStates = workflowStateRows.filter((state) =>
     ["backlog", "unstarted", "started", "completed"].includes(state.category),
   );
@@ -184,6 +220,9 @@ async function buildTeamResponse(
   const visibleEligibleParentTeams = eligibleParentRows
     .filter(canSeeTeamSummary)
     .map(({ id, name, key }) => ({ id, name, key }));
+  const visibleChildTeams = childTeamRows
+    .filter(canSeeTeamSummary)
+    .map(({ id, name, key }) => ({ id, name, key }));
 
   return {
     id: teamRecord.id,
@@ -213,12 +252,34 @@ async function buildTeamResponse(
     ),
     detailedHistory: flags.detailedHistory,
     agentGuidance: flags.agentGuidance,
+    workspaceAgentGuidance,
+    accountAgentGuidance,
+    guidanceEntries: effectiveGuidance.entries,
+    effectiveAgentPromptPreview:
+      effectiveGuidance.effectiveInstructions ||
+      "No guidance configured yet. Agents will use the default workspace prompt.",
+    agentGuidanceLastSavedAt: teamRecord.updatedAt?.toISOString() ?? null,
+    agentGuidancePermissionLabel: canModifyAgentGuidance
+      ? "You can edit team agent guidance for this workspace."
+      : "Workspace policy restricts team agent guidance edits.",
     canModifyAgentGuidance,
     autoAssignment: flags.autoAssignment,
     discussionSummariesEnabled: flags.discussionSummariesEnabled,
+    discussionSummaryMinComments: flags.discussionSummaryMinComments,
+    discussionSummaryRefreshMode: flags.discussionSummaryRefreshMode,
     parentTeamId: teamRecord.parentTeamId ?? null,
     parentTeam: visibleParentTeam,
     eligibleParentTeams: visibleEligibleParentTeams,
+    childTeams: visibleChildTeams,
+    hierarchyTeamIds: teamRecord.hierarchyTeamIds ?? [
+      teamRecord.id,
+      ...visibleChildTeams.map((child) => child.id),
+    ],
+    hierarchyImpact: {
+      rollupTeamCount: teamRecord.hierarchyTeamIds?.length ?? 1,
+      filters: ["Issues", "Cycles", "Triage", "Analytics"],
+      teamScopePath: `/${workspaceSlug}/teams/${teamRecord.key}`,
+    },
     retiredAt: teamRecord.retiredAt?.toISOString() ?? null,
     deletedAt: teamRecord.deletedAt?.toISOString() ?? null,
     deleteScheduledAt: teamRecord.deleteScheduledAt?.toISOString() ?? null,
@@ -280,6 +341,8 @@ export async function PATCH(
     agentGuidance?: string;
     autoAssignment?: boolean;
     discussionSummariesEnabled?: boolean;
+    discussionSummaryMinComments?: number;
+    discussionSummaryRefreshMode?: "manual" | "automatic";
     parentTeamId?: string | null;
   } | null;
 
@@ -522,6 +585,30 @@ export async function PATCH(
     body.agentGuidance === undefined
       ? currentFlags.agentGuidance
       : body.agentGuidance;
+  const nextDiscussionSummaryMinComments =
+    body.discussionSummaryMinComments === undefined
+      ? currentFlags.discussionSummaryMinComments
+      : Number(body.discussionSummaryMinComments);
+  if (
+    !Number.isInteger(nextDiscussionSummaryMinComments) ||
+    nextDiscussionSummaryMinComments < 3 ||
+    nextDiscussionSummaryMinComments > 50
+  ) {
+    return NextResponse.json(
+      { error: "Discussion summary trigger must be between 3 and 50 comments" },
+      { status: 400 },
+    );
+  }
+  const nextDiscussionSummaryRefreshMode =
+    body.discussionSummaryRefreshMode === undefined
+      ? currentFlags.discussionSummaryRefreshMode
+      : body.discussionSummaryRefreshMode;
+  if (!["manual", "automatic"].includes(nextDiscussionSummaryRefreshMode)) {
+    return NextResponse.json(
+      { error: "Discussion summary refresh mode is invalid" },
+      { status: 400 },
+    );
+  }
 
   if (
     body.agentGuidance !== undefined &&
@@ -579,6 +666,8 @@ export async function PATCH(
         discussionSummariesEnabled:
           body.discussionSummariesEnabled ??
           currentFlags.discussionSummariesEnabled,
+        discussionSummaryMinComments: nextDiscussionSummaryMinComments,
+        discussionSummaryRefreshMode: nextDiscussionSummaryRefreshMode,
         triageAcceptDestinationStateId: nextTriageAcceptDestinationStateId,
         triageDeclineDestinationStateId: nextTriageDeclineDestinationStateId,
       },

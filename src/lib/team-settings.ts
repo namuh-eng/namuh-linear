@@ -4,6 +4,8 @@ export type TeamSettingsFlags = {
   agentGuidance: string;
   autoAssignment: boolean;
   discussionSummariesEnabled: boolean;
+  discussionSummaryMinComments: number;
+  discussionSummaryRefreshMode: "manual" | "automatic";
   triageAcceptDestinationStateId: string | null;
   triageDeclineDestinationStateId: string | null;
 };
@@ -21,6 +23,17 @@ export function readTeamSettings(settings: unknown): TeamSettingsFlags {
       typeof parsed.agentGuidance === "string" ? parsed.agentGuidance : "",
     autoAssignment: parsed.autoAssignment === true,
     discussionSummariesEnabled: parsed.discussionSummariesEnabled === true,
+    discussionSummaryMinComments:
+      typeof parsed.discussionSummaryMinComments === "number" &&
+      Number.isInteger(parsed.discussionSummaryMinComments) &&
+      parsed.discussionSummaryMinComments >= 3 &&
+      parsed.discussionSummaryMinComments <= 50
+        ? parsed.discussionSummaryMinComments
+        : 8,
+    discussionSummaryRefreshMode:
+      parsed.discussionSummaryRefreshMode === "automatic"
+        ? "automatic"
+        : "manual",
     triageAcceptDestinationStateId:
       typeof parsed.triageAcceptDestinationStateId === "string"
         ? parsed.triageAcceptDestinationStateId
