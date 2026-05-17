@@ -403,8 +403,8 @@ export function AppShell({
           <div
             className={
               isSettingsRoute
-                ? "editorial-page-surface h-full overflow-y-auto bg-[var(--color-content-bg)] transition-colors md:rounded-[10px] md:border md:border-[var(--color-border)] md:shadow-[var(--editorial-shadow-sm)]"
-                : "editorial-page-surface h-full overflow-y-auto rounded-[10px] border border-[var(--color-border)] bg-[var(--color-content-bg)] shadow-[var(--editorial-shadow-sm)] transition-colors"
+                ? "editorial-page-surface h-full overflow-hidden bg-[var(--color-content-bg)] transition-colors md:rounded-[10px] md:border md:border-[var(--color-border)] md:shadow-[var(--editorial-shadow-sm)]"
+                : "editorial-page-surface h-full overflow-hidden rounded-[10px] border border-[var(--color-border)] bg-[var(--color-content-bg)] shadow-[var(--editorial-shadow-sm)] transition-colors"
             }
           >
             {children}

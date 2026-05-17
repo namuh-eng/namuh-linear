@@ -235,9 +235,9 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-[#1c1e21] px-4 py-3">
-        <h1 className="text-[14px] font-semibold text-[var(--color-text-primary)]">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 py-3">
+        <h1 className="text-[18px] font-semibold text-[var(--color-text-primary)]">
           Inbox
         </h1>
         {unreadCount > 0 && (
@@ -245,15 +245,16 @@ export default function InboxPage() {
             {unreadCount} unread
           </span>
         )}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           <button
             type="button"
             aria-label="Filter inbox notifications"
             onClick={() => setShowUnreadOnly((current) => !current)}
-            className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
+            data-editorial-control="true"
+            className={`rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors ${
               showUnreadOnly
-                ? "border-[#5E6AD2] bg-[rgba(94,106,210,0.16)] text-white"
-                : "border-[#2a2d31] text-[#b0b5c0] hover:border-[#3a3e45] hover:text-white"
+                ? "border-[var(--color-surface-active-line)] bg-[var(--color-surface-active)] text-[var(--color-text-primary)]"
+                : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--editorial-line-strong)] hover:text-[var(--color-text-primary)]"
             }`}
           >
             Filter: {showUnreadOnly ? "Unread" : "All"}
@@ -266,10 +267,11 @@ export default function InboxPage() {
                 current === "latest" ? "priority" : "latest",
               )
             }
-            className={`rounded-md border px-2.5 py-1 text-[12px] transition-colors ${
+            data-editorial-control="true"
+            className={`rounded-md border px-2.5 py-1 text-[12px] font-medium transition-colors ${
               sortMode === "priority"
-                ? "border-[#5E6AD2] bg-[rgba(94,106,210,0.16)] text-white"
-                : "border-[#2a2d31] text-[#b0b5c0] hover:border-[#3a3e45] hover:text-white"
+                ? "border-[var(--color-surface-active-line)] bg-[var(--color-surface-active)] text-[var(--color-text-primary)]"
+                : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--editorial-line-strong)] hover:text-[var(--color-text-primary)]"
             }`}
           >
             Sort: {sortMode === "priority" ? "Priority" : "Latest"}
@@ -277,8 +279,8 @@ export default function InboxPage() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <div className="w-full min-w-0 overflow-y-auto border-r border-[#1c1e21] md:w-[400px] md:shrink-0">
+      <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(300px,380px)_minmax(360px,1fr)]">
+        <div className="min-w-0 overflow-y-auto border-r border-[var(--color-border)]">
           {visibleNotifications.length > 0 ? (
             <div className="flex flex-col gap-0.5 p-1.5">
               {visibleNotifications.map((notification) => (
@@ -313,16 +315,16 @@ export default function InboxPage() {
           )}
         </div>
 
-        <div className="hidden flex-1 overflow-y-auto p-6 md:block">
+        <div className="hidden min-w-0 overflow-y-auto p-6 lg:block">
           {selected ? (
-            <div>
-              <div className="mb-2 text-[12px] text-[#6b6f76]">
+            <div className="mx-auto max-w-[68ch]">
+              <div className="mb-2 font-mono text-[12px] uppercase tracking-[0.08em] text-[var(--color-text-secondary)]">
                 {selected.issueIdentifier}
               </div>
-              <h2 className="mb-4 text-[16px] font-semibold text-[var(--color-text-primary)]">
+              <h2 className="mb-4 [overflow-wrap:anywhere] text-pretty break-words text-[24px] font-semibold leading-[1.18] text-[var(--color-text-primary)]">
                 {selected.issueTitle}
               </h2>
-              <p className="text-[13px] text-[#b0b5c0]">
+              <p className="text-[14px] leading-6 text-[var(--color-text-secondary)]">
                 <span className="font-medium text-[var(--color-text-primary)]">
                   {selected.actorName}
                 </span>{" "}
@@ -340,7 +342,7 @@ export default function InboxPage() {
                     `/issue/${selected.issueIdentifier}`,
                     workspaceSlug,
                   )}
-                  className="mt-4 inline-flex text-[12px] font-medium text-[#5E6AD2] hover:text-[#7a84dd]"
+                  className="mt-4 inline-flex text-[12px] font-semibold text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
                 >
                   Open issue
                 </Link>

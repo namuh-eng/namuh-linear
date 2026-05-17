@@ -60,9 +60,9 @@ export function NotificationRow({
           : `Select notification ${issueTitle}`
       }
       onClick={() => onClick(id)}
-      className={`flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors ${
+      className={`relative flex w-full min-w-0 items-start gap-3 rounded-md border border-transparent px-3 py-2.5 text-left transition-colors ${
         isSelected
-          ? "bg-[var(--color-surface-active)]"
+          ? "border-[var(--color-surface-active-line)] bg-[var(--color-surface-active)] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[2px] before:rounded-full before:bg-[var(--color-accent)]"
           : readAt
             ? "hover:bg-[var(--color-surface-hover)]"
             : "bg-[color-mix(in_srgb,var(--color-accent)_10%,var(--color-surface))] hover:bg-[color-mix(in_srgb,var(--color-accent)_16%,var(--color-surface))]"
@@ -86,8 +86,8 @@ export function NotificationRow({
       </div>
 
       {/* Content */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-1.5 text-[13px]">
+      <div className="min-w-0 flex-1" data-editorial-row-title>
+        <div className="flex min-w-0 items-baseline gap-1.5 text-[13px]">
           <span className="font-medium text-[var(--color-text-primary)]">
             {actorName}
           </span>
@@ -95,7 +95,7 @@ export function NotificationRow({
             {ACTION_TEXT[type]}
           </span>
         </div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-[13px]">
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[13px]">
           <span className="shrink-0 text-[var(--color-text-secondary)]">
             {issueIdentifier}
           </span>

@@ -119,7 +119,10 @@ export function IssueRow({
       )}
 
       {/* Title */}
-      <span className="min-w-0 flex-1 truncate font-medium text-[var(--color-text-primary)]">
+      <span
+        data-editorial-row-title
+        className="min-w-0 flex-1 truncate font-medium text-[var(--color-text-primary)]"
+      >
         {title}
       </span>
 
@@ -167,7 +170,9 @@ export function IssueRow({
   );
 
   const className = `group flex h-[42px] items-center gap-2 border-b border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-surface)_72%,transparent)] px-4 text-[13px] transition-colors hover:bg-[var(--color-surface-hover)] ${
-    selected ? "bg-[var(--color-surface-active)]" : ""
+    selected
+      ? "border-l-2 border-l-[var(--color-accent)] bg-[var(--color-surface-active)]"
+      : ""
   }`;
 
   if (onToggleSelected) {
@@ -175,7 +180,7 @@ export function IssueRow({
       <Link
         href={href}
         aria-label={`${identifier} ${title}`}
-        className="flex min-w-0 flex-1 items-center gap-2"
+        className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
         onClick={(event) => {
           if (event.shiftKey || selectionMode) {
             event.preventDefault();
