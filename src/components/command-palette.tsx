@@ -10,6 +10,7 @@ import {
 import {
   isCommandPaletteShortcut,
   isEditableShortcutTarget,
+  isSlashCommandPaletteShortcut,
 } from "@/lib/keyboard-shortcuts";
 import { stripWorkspaceSlug, withWorkspaceSlug } from "@/lib/workspace-paths";
 import { usePathname, useRouter } from "next/navigation";
@@ -426,7 +427,7 @@ export function CommandPalette({
         return;
       }
 
-      if (isCommandPaletteShortcut(e)) {
+      if (isCommandPaletteShortcut(e) || isSlashCommandPaletteShortcut(e)) {
         e.preventDefault();
         if (!open) {
           lastFocusedElementRef.current = document.activeElement as HTMLElement;
