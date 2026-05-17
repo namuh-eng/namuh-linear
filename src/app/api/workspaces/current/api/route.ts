@@ -19,6 +19,7 @@ import {
   serializeWorkspaceApiSettings,
   validateOAuthRedirectUrl,
   validateOAuthRedirectUrls,
+  validateWebhookUrl,
 } from "@/lib/api-settings";
 import { db } from "@/lib/db";
 import { apiKey, member, user, webhook, workspace } from "@/lib/db/schema";
@@ -46,23 +47,6 @@ function createSecret(prefix: string) {
 
 function createOAuthSecretHash(secret: string) {
   return createHash("sha256").update(secret).digest("hex");
-}
-
-function normalizeAbsoluteUrl(value: unknown) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  try {
-    const url = new URL(value.trim());
-    if (!["http:", "https:"].includes(url.protocol)) {
-      return null;
-    }
-
-    return url.toString();
-  } catch {
-    return null;
-  }
 }
 
 async function getWorkspaceAccess(
@@ -657,19 +641,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const url = normalizeAbsoluteUrl(body.url);
+    const urlValidation = validateWebhookUrl(body.url);
     const events = normalizeWebhookEvents(body.events);
     const label = typeof body.label === "string" ? body.label.trim() : "";
 
-    if (!url || events.length === 0) {
+    if (!urlValidation.ok) {
+      return NextResponse.json({ error: urlValidation.error }, { status: 400 });
+    }
+
+    if (events.length === 0) {
       return NextResponse.json(
-        { error: "A webhook URL and at least one event are required." },
+        { error: "At least one webhook event is required." },
         { status: 400 },
       );
     }
 
     await db.insert(webhook).values({
-      url,
+      url: urlValidation.url,
       label: label || null,
       workspaceId: access.workspaceId,
       secret: createSecret("whsec"),
