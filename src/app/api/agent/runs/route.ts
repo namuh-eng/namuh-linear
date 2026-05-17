@@ -2,7 +2,14 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { resolveEffectiveAgentGuidance } from "@/lib/agent-guidance";
 import { createAgentRun, listAgentRuns } from "@/lib/agent-runs";
 import { requireApiSession } from "@/lib/api-auth";
+import { db } from "@/lib/db";
+import { member, workspace } from "@/lib/db/schema";
 import { findAccessibleTeam } from "@/lib/teams";
+import {
+  canUseWorkspaceAi,
+  readWorkspaceAiSettings,
+} from "@/lib/workspace-ai-settings";
+import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 function normalizeString(value: unknown) {
@@ -35,6 +42,31 @@ export async function POST(request: Request) {
   const workspaceId = await resolveActiveWorkspaceId(session.user.id);
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
+  }
+
+  const [workspaceAccess] = await db
+    .select({ settings: workspace.settings, role: member.role })
+    .from(workspace)
+    .innerJoin(
+      member,
+      and(
+        eq(member.workspaceId, workspace.id),
+        eq(member.userId, session.user.id),
+        eq(member.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+
+  const aiSettings = readWorkspaceAiSettings(workspaceAccess?.settings);
+  if (!canUseWorkspaceAi(workspaceAccess?.role, aiSettings)) {
+    return NextResponse.json(
+      {
+        error: aiSettings.enabled
+          ? "You do not have permission to use AI agents"
+          : "AI agents are disabled for this workspace",
+      },
+      { status: 403 },
+    );
   }
 
   let body: Record<string, unknown>;

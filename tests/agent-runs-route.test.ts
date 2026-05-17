@@ -168,4 +168,31 @@ describe("agent runs route", () => {
     expect(instructions).toContain("OPS: prioritize runbook updates.");
     expect(instructions).not.toContain("ENG: include frontend test plan.");
   });
+
+  it("enforces workspace AI disable setting before creating agent runs", async () => {
+    mockSession();
+    await db
+      .update(workspace)
+      .set({ settings: { ai: { enabled: false } } })
+      .where(eq(workspace.id, WS_ID));
+
+    const response = await POST(
+      new Request("http://localhost/api/agent/runs", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Blocked AI run",
+          prompt: "Inspect this issue and propose the safest fix.",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    const payload = await response.json();
+    expect(payload.error).toBe("AI agents are disabled for this workspace");
+
+    await db
+      .update(workspace)
+      .set({ settings: { ai: { agentGuidance: "Workspace: cite evidence." } } })
+      .where(eq(workspace.id, WS_ID));
+  });
 });
