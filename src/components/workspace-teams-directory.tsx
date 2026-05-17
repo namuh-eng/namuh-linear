@@ -1,6 +1,8 @@
 "use client";
 
+import { useAppShellContext } from "@/app/(app)/app-shell";
 import type { WorkspaceDirectoryTeam } from "@/lib/workspace-directory";
+import { withWorkspaceSlug } from "@/lib/workspace-paths";
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useMemo, useState, useTransition } from "react";
@@ -44,6 +46,7 @@ export function WorkspaceTeamsDirectory({
   const [isPrivate, setIsPrivate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const workspaceSlug = useAppShellContext()?.workspaceSlug;
 
   const filteredTeams = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -244,14 +247,20 @@ export function WorkspaceTeamsDirectory({
                 <div className="flex flex-wrap gap-2">
                   <Link
                     className="rounded-md border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]"
-                    href={`/team/${encodeURIComponent(team.key)}/all`}
+                    href={withWorkspaceSlug(
+                      `/team/${encodeURIComponent(team.key)}/all`,
+                      workspaceSlug,
+                    )}
                   >
                     View issues
                   </Link>
                   {canManageTeams ? (
                     <Link
                       className="rounded-md border border-[var(--color-border)] px-3 py-2 text-sm text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]"
-                      href={`/settings/teams/${encodeURIComponent(team.key)}`}
+                      href={withWorkspaceSlug(
+                        `/settings/teams/${encodeURIComponent(team.key)}`,
+                        workspaceSlug,
+                      )}
                     >
                       Settings
                     </Link>

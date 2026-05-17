@@ -36,6 +36,10 @@ vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
 }));
 
+vi.mock("@/app/(app)/app-shell", () => ({
+  useAppShellContext: () => ({ workspaceSlug: "foreverbrowsing" }),
+}));
+
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -117,11 +121,11 @@ describe("workspace directory routes", () => {
     expect(screen.getByText("Engineering")).toBeVisible();
     expect(screen.getByRole("link", { name: /View issues/i })).toHaveAttribute(
       "href",
-      "/team/ENG/all",
+      "/foreverbrowsing/team/ENG/all",
     );
     expect(screen.getByRole("link", { name: /Settings/i })).toHaveAttribute(
       "href",
-      "/settings/teams/ENG",
+      "/foreverbrowsing/settings/teams/ENG",
     );
     expect(screen.getByRole("button", { name: "New team" })).toBeVisible();
     expect(getWorkspaceTeamsDirectoryMock).toHaveBeenCalledWith("user-1");
