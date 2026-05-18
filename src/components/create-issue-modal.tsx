@@ -376,7 +376,9 @@ export function CreateIssueModal({
     let cancelled = false;
     async function loadTemplates() {
       try {
-        const response = await fetch("/api/issue-templates");
+        const response = await fetch(
+          `/api/teams/${encodeURIComponent(teamKey)}/templates`,
+        );
         if (!response.ok) return;
         const data = (await response.json()) as {
           templates?: IssueTemplateOption[];
@@ -390,7 +392,7 @@ export function CreateIssueModal({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, teamKey]);
 
   useEffect(() => {
     if (!openMenu) {

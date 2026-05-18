@@ -65,7 +65,7 @@ describe("CreateIssueModal", () => {
         return mockJsonResponse(optionsResponse);
       }
 
-      if (url === "/api/issue-templates") {
+      if (url === "/api/teams/ENG/templates") {
         return mockJsonResponse({
           templates: [
             {
