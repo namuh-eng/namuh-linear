@@ -823,6 +823,13 @@ describe("Login page", () => {
     const learnMore = screen.getByText("learn more");
     expect(learnMore).toBeDefined();
     expect(learnMore.getAttribute("href")).toBe("/homepage");
+
+    const footerLinks = Array.from(
+      container.querySelectorAll<HTMLAnchorElement>("p:last-child a"),
+    ).map((link) => link.getAttribute("href"));
+
+    expect(footerLinks).toEqual(["/signup", "/homepage"]);
+    expect(footerLinks.join(" ")).not.toContain("linear.app");
     expect(container.innerHTML).not.toContain("https://linear.app/homepage");
     expect(screen.queryByText("Terms of Service")).toBeNull();
     expect(screen.queryByText("Privacy Policy")).toBeNull();
