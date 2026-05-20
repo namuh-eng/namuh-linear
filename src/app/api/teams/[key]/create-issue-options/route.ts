@@ -1,6 +1,7 @@
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import {
+  cycle,
   label,
   project,
   teamMember,
@@ -36,7 +37,7 @@ export async function GET(
     );
   }
 
-  const [statuses, assigneeRows, labels, projects] = await Promise.all([
+  const [statuses, assigneeRows, labels, projects, cycles] = await Promise.all([
     db
       .select({
         id: workflowState.id,
@@ -81,6 +82,11 @@ export async function GET(
       .from(project)
       .where(eq(project.workspaceId, teamContext.workspaceId))
       .orderBy(asc(project.name)),
+    db
+      .select({ id: cycle.id, name: cycle.name, number: cycle.number })
+      .from(cycle)
+      .where(eq(cycle.teamId, teamContext.id))
+      .orderBy(asc(cycle.number)),
   ]);
 
   const fallbackAssignees =
@@ -111,5 +117,10 @@ export async function GET(
     assignees: fallbackAssignees,
     labels,
     projects,
+    cycles,
+    estimates: [1, 2, 3, 5, 8].map((value) => ({
+      value,
+      label: `${value} points`,
+    })),
   });
 }
