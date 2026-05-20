@@ -104,6 +104,41 @@ describe("Account notification settings", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("preserves the workspace slug in notification channel links", async () => {
+    mockNotificationsFetch();
+    render(<NotificationsOverviewPage workspaceSlug="foreverbrowsing" />);
+
+    expect(
+      await screen.findByRole("link", { name: /Inbox notification settings/i }),
+    ).toHaveAttribute(
+      "href",
+      "/foreverbrowsing/settings/account/notifications/inbox",
+    );
+    expect(
+      screen.getByRole("link", { name: /Email notification settings/i }),
+    ).toHaveAttribute(
+      "href",
+      "/foreverbrowsing/settings/account/notifications/email",
+    );
+  });
+
+  it("preserves the workspace slug in notification detail back links", async () => {
+    mockNotificationsFetch();
+    render(
+      <NotificationChannelPage
+        channel="email"
+        workspaceSlug="foreverbrowsing"
+      />,
+    );
+
+    expect(
+      await screen.findByRole("link", { name: /Notifications/i }),
+    ).toHaveAttribute(
+      "href",
+      "/foreverbrowsing/settings/account/notifications",
+    );
+  });
+
   it("renders desktop-specific controls instead of a generic event matrix", async () => {
     mockNotificationsFetch();
     render(<NotificationChannelPage channel="desktop" />);
