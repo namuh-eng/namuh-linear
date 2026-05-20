@@ -1,4 +1,4 @@
-import { POST } from "@/app/api/agent/runs/route";
+import { GET, POST } from "@/app/api/agent/runs/route";
 import { db } from "@/lib/db";
 import { member, team, teamMember, user, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -171,5 +171,40 @@ describe("agent runs route", () => {
       payload.run.promptConfig.guidance.effectiveInstructions;
     expect(instructions).toContain("OPS: prioritize runbook updates.");
     expect(instructions).not.toContain("ENG: include frontend test plan.");
+  });
+  it("blocks creating agent runs when workspace AI is disabled", async () => {
+    await db
+      .update(workspace)
+      .set({ settings: { ai: { enabled: false, agentRunsEnabled: true } } })
+      .where(eq(workspace.id, WS_ID));
+
+    mockSession();
+    const getResponse = await GET();
+    expect(getResponse.status).toBe(200);
+    await expect(getResponse.json()).resolves.toMatchObject({
+      canCreateRuns: false,
+      createBlockedReason: "Workspace AI features are disabled",
+    });
+
+    mockSession();
+    const postResponse = await POST(
+      new Request("http://localhost/api/agent/runs", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Blocked AI run",
+          prompt: "Inspect this issue and propose the safest fix.",
+        }),
+      }),
+    );
+
+    expect(postResponse.status).toBe(403);
+    await expect(postResponse.json()).resolves.toEqual({
+      error: "Workspace AI features are disabled",
+    });
+
+    await db
+      .update(workspace)
+      .set({ settings: { ai: { agentGuidance: "Workspace: cite evidence." } } })
+      .where(eq(workspace.id, WS_ID));
   });
 });

@@ -2,11 +2,28 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { resolveEffectiveAgentGuidance } from "@/lib/agent-guidance";
 import { createAgentRun, listAgentRuns } from "@/lib/agent-runs";
 import { requireApiSession } from "@/lib/api-auth";
+import { db } from "@/lib/db";
+import { workspace } from "@/lib/db/schema";
 import { findAccessibleTeam } from "@/lib/teams";
+import {
+  describeWorkspaceAiCreateBlock,
+  readWorkspaceAiSettings,
+} from "@/lib/workspace-ai-settings";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 function normalizeString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+async function getWorkspaceAiSettings(workspaceId: string) {
+  const [workspaceRow] = await db
+    .select({ settings: workspace.settings })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1);
+
+  return readWorkspaceAiSettings(workspaceRow?.settings);
 }
 
 export async function GET() {
@@ -20,9 +37,13 @@ export async function GET() {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   }
 
+  const aiSettings = await getWorkspaceAiSettings(workspaceId);
+  const createBlockedReason = describeWorkspaceAiCreateBlock(aiSettings);
+
   return NextResponse.json({
     runs: listAgentRuns(workspaceId),
-    canCreateRuns: true,
+    canCreateRuns: createBlockedReason === null,
+    createBlockedReason,
   });
 }
 
@@ -35,6 +56,12 @@ export async function POST(request: Request) {
   const workspaceId = await resolveActiveWorkspaceId(session.user.id);
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
+  }
+
+  const aiSettings = await getWorkspaceAiSettings(workspaceId);
+  const createBlockedReason = describeWorkspaceAiCreateBlock(aiSettings);
+  if (createBlockedReason) {
+    return NextResponse.json({ error: createBlockedReason }, { status: 403 });
   }
 
   let body: Record<string, unknown>;

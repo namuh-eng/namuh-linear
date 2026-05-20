@@ -19,6 +19,7 @@ import {
 interface AgentRunsResponse {
   runs: AgentRun[];
   canCreateRuns: boolean;
+  createBlockedReason?: string | null;
   error?: string;
 }
 
@@ -97,6 +98,9 @@ export function AgentDashboard() {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [canCreateRuns, setCanCreateRuns] = useState(true);
+  const [createBlockedReason, setCreateBlockedReason] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -127,6 +131,7 @@ export function AgentDashboard() {
       const nextRuns = data?.runs ?? [];
       setRuns(nextRuns);
       setCanCreateRuns(data?.canCreateRuns ?? false);
+      setCreateBlockedReason(data?.createBlockedReason ?? null);
       setSelectedRunId((current) =>
         current && nextRuns.some((run) => run.id === current)
           ? current
@@ -155,7 +160,8 @@ export function AgentDashboard() {
 
     if (!canCreateRuns) {
       setFormError(
-        "You do not have permission to create agent runs in this workspace.",
+        createBlockedReason ??
+          "You do not have permission to create agent runs in this workspace.",
       );
       return;
     }
@@ -271,13 +277,13 @@ export function AgentDashboard() {
               Start an agent run
             </h2>
             <p className="mt-1 text-[12px] leading-5 text-[var(--color-text-secondary)]">
-              Mock execution is enabled for this workspace so the route remains
-              actionable until a live executor is wired in.
+              Mock execution follows the workspace AI toggles until a live
+              executor is wired in.
             </p>
             {!canCreateRuns && (
               <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] leading-5 text-amber-700 dark:text-amber-300">
-                Permission state: your role can view agent history but cannot
-                create or manage runs.
+                {createBlockedReason ??
+                  "Permission state: your role can view agent history but cannot create or manage runs."}
               </div>
             )}
             <form className="mt-4 space-y-3" onSubmit={createRun}>
