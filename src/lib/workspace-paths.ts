@@ -11,6 +11,7 @@ const appRoutePrefixes = [
   "issue",
   "initiatives",
   "roadmap",
+  "cycles",
   "settings",
   "search",
 ];
