@@ -33,6 +33,7 @@ interface NotificationRowProps {
   issueIdentifier: string | null;
   issueTitle: string;
   readAt: string | null;
+  snoozedUntilAt?: string | null;
   createdAt: string;
   isSelected: boolean;
   onClick: (id: string) => void;
@@ -46,6 +47,7 @@ export function NotificationRow({
   issueIdentifier,
   issueTitle,
   readAt,
+  snoozedUntilAt,
   createdAt,
   isSelected,
   onClick,
@@ -106,9 +108,14 @@ export function NotificationRow({
       </div>
 
       {/* Timestamp */}
-      <span className="shrink-0 pt-0.5 text-[12px] text-[var(--color-text-secondary)]">
-        {formatRelativeTime(createdAt)}
-      </span>
+      <div className="shrink-0 pt-0.5 text-right text-[12px] text-[var(--color-text-secondary)]">
+        <div>{formatRelativeTime(createdAt)}</div>
+        {snoozedUntilAt ? (
+          <div className="mt-1 rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 text-[11px]">
+            Snoozed
+          </div>
+        ) : null}
+      </div>
     </button>
   );
 }

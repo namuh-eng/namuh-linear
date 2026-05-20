@@ -447,7 +447,7 @@ describe("Inbox page", () => {
     });
   });
 
-  it("opens issue rows directly while marking them read", async () => {
+  it("opens notification deep links while marking issue rows read", async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce({
@@ -487,14 +487,14 @@ describe("Inbox page", () => {
     fireEvent.click(screen.getByTestId("notification-row"));
 
     await vi.waitFor(() => {
-      expect(mockRouterPush).toHaveBeenCalledWith("/issue/ENG-136");
+      expect(mockRouterPush).toHaveBeenCalledWith("/inbox/notification/n1");
     });
     expect(global.fetch).toHaveBeenCalledWith("/api/notifications/n1/read", {
       method: "PATCH",
     });
   });
 
-  it("still opens issue rows when marking read fails", async () => {
+  it("keeps notification deep links when marking read fails", async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce({
@@ -534,7 +534,7 @@ describe("Inbox page", () => {
     fireEvent.click(screen.getByTestId("notification-row"));
 
     await vi.waitFor(() => {
-      expect(mockRouterPush).toHaveBeenCalledWith("/issue/ENG-136");
+      expect(mockRouterPush).toHaveBeenCalledWith("/inbox/notification/n1");
     });
   });
 
@@ -577,7 +577,7 @@ describe("Inbox page", () => {
 
     fireEvent.click(screen.getByTestId("notification-row"));
 
-    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(mockRouterPush).toHaveBeenCalledWith("/inbox/notification/n1");
     await vi.waitFor(() => {
       expect(screen.getByText(/commented on this issue/)).toBeDefined();
     });
@@ -625,6 +625,225 @@ describe("Inbox page", () => {
     await vi.waitFor(() => {
       expect(screen.getAllByText(/Ashley Ha/).length).toBeGreaterThan(0);
       expect(screen.getByText(/mentioned you in this issue/)).toBeDefined();
+    });
+  });
+});
+
+describe("Inbox notification management parity", () => {
+  function notification(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "n1",
+      type: "assigned",
+      actorName: "Ashley Ha",
+      actorImage: null,
+      issueIdentifier: "ENG-196",
+      issueTitle: "Manage inbox notification",
+      issuePriority: "high",
+      issueId: "issue-1",
+      readAt: null,
+      snoozedUntilAt: null,
+      unsnoozedAt: null,
+      createdAt: "2026-05-20T12:00:00.000Z",
+      ...overrides,
+    };
+  }
+
+  it("marks a read notification unread from the detail pane", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            notifications: [
+              notification({ readAt: "2026-05-20T12:30:00.000Z" }),
+            ],
+            unreadCount: 0,
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      }) as unknown as typeof fetch;
+
+    cleanup();
+    vi.resetModules();
+    const { default: InboxPage } = await import("@/app/(app)/inbox/page");
+    render(<InboxPage />);
+
+    await vi.waitFor(() => {
+      expect(
+        screen.getAllByText("Manage inbox notification").length,
+      ).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /mark notification unread/i }),
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(/1 unread/)).toBeDefined();
+    });
+    expect(global.fetch).toHaveBeenCalledWith("/api/notifications/n1/unread", {
+      method: "PATCH",
+    });
+  });
+
+  it("bulk marks non-comment unread notifications as read while leaving comments unread", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            notifications: [
+              notification({
+                id: "n1",
+                type: "assigned",
+                issueTitle: "Assigned update",
+              }),
+              notification({
+                id: "n2",
+                type: "comment",
+                issueTitle: "Comment update",
+              }),
+            ],
+            unreadCount: 2,
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true, updatedCount: 1 }),
+      }) as unknown as typeof fetch;
+
+    cleanup();
+    vi.resetModules();
+    const { default: InboxPage } = await import("@/app/(app)/inbox/page");
+    render(<InboxPage />);
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(/2 unread/)).toBeDefined();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /mark non-comment notifications as read/i,
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(/1 unread/)).toBeDefined();
+    });
+    expect(global.fetch).toHaveBeenCalledWith("/api/notifications/bulk-read", {
+      method: "PATCH",
+    });
+  });
+
+  it("hides snoozed notifications by default and persists the show-snoozed option", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            notifications: [
+              notification({ id: "n1", issueTitle: "Visible notification" }),
+              notification({
+                id: "n2",
+                issueTitle: "Snoozed notification",
+                snoozedUntilAt: "2099-05-21T12:00:00.000Z",
+              }),
+            ],
+            unreadCount: 2,
+            preferences: {
+              showReadItems: true,
+              showUnreadItemsFirst: false,
+              showSnoozedItems: false,
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ preferences: { showSnoozedItems: true } }),
+      }) as unknown as typeof fetch;
+
+    cleanup();
+    vi.resetModules();
+    const { default: InboxPage } = await import("@/app/(app)/inbox/page");
+    render(<InboxPage />);
+
+    await vi.waitFor(() => {
+      expect(
+        screen.getAllByText("Visible notification").length,
+      ).toBeGreaterThan(0);
+      expect(screen.queryByText("Snoozed notification")).toBeNull();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /toggle snoozed notifications visibility/i,
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(
+        screen.getAllByText("Snoozed notification").length,
+      ).toBeGreaterThan(0);
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/notifications/preferences",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ preferences: { showSnoozedItems: true } }),
+      }),
+    );
+  });
+
+  it("selects the requested notification id for deep-link routes", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          notifications: [
+            notification({ id: "n1", issueTitle: "First notification" }),
+            notification({ id: "n2", issueTitle: "Deep linked notification" }),
+          ],
+          unreadCount: 2,
+        }),
+    }) as unknown as typeof fetch;
+
+    cleanup();
+    vi.resetModules();
+    const { InboxClient } = await import("@/components/inbox-client");
+    render(<InboxClient initialSelectedId="n2" />);
+
+    await vi.waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Deep linked notification" }),
+      ).toBeDefined();
+    });
+  });
+
+  it("renders a not-found state for missing notification deep links", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          notifications: [
+            notification({ id: "n1", issueTitle: "First notification" }),
+          ],
+          unreadCount: 1,
+        }),
+    }) as unknown as typeof fetch;
+
+    cleanup();
+    vi.resetModules();
+    const { InboxClient } = await import("@/components/inbox-client");
+    render(<InboxClient initialSelectedId="missing-notification" />);
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(/Notification not found/)).toBeDefined();
     });
   });
 });

@@ -22,6 +22,26 @@ vi.mock("@/lib/db", () => ({
       if (selectCallCount === 1) {
         return {
           from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([
+                {
+                  settings: {
+                    inboxNotificationPreferences: {
+                      showReadItems: false,
+                      showUnreadItemsFirst: true,
+                      showSnoozedItems: true,
+                    },
+                  },
+                },
+              ]),
+            }),
+          }),
+        };
+      }
+
+      if (selectCallCount === 2) {
+        return {
+          from: vi.fn().mockReturnValue({
             leftJoin: vi.fn().mockReturnValue({
               leftJoin: vi.fn().mockReturnValue({
                 where: vi.fn().mockReturnValue({
@@ -69,6 +89,8 @@ describe("notifications route", () => {
         issueTitle: "Ship notifications",
         issuePriority: "high",
         readAt: null,
+        snoozedUntilAt: null,
+        unsnoozedAt: null,
         createdAt: new Date("2026-04-23T11:00:00.000Z"),
       },
       {
@@ -81,6 +103,8 @@ describe("notifications route", () => {
         issueTitle: null,
         issuePriority: null,
         readAt: new Date("2026-04-23T12:00:00.000Z"),
+        snoozedUntilAt: new Date("2026-04-24T12:00:00.000Z"),
+        unsnoozedAt: null,
         createdAt: new Date("2026-04-23T12:30:00.000Z"),
       },
     ]);
@@ -115,6 +139,8 @@ describe("notifications route", () => {
           issuePriority: "high",
           issueId: "issue-1",
           readAt: null,
+          snoozedUntilAt: null,
+          unsnoozedAt: null,
           createdAt: "2026-04-23T11:00:00.000Z",
         },
         {
@@ -127,10 +153,17 @@ describe("notifications route", () => {
           issuePriority: "none",
           issueId: null,
           readAt: "2026-04-23T12:00:00.000Z",
+          snoozedUntilAt: "2026-04-24T12:00:00.000Z",
+          unsnoozedAt: null,
           createdAt: "2026-04-23T12:30:00.000Z",
         },
       ],
       unreadCount: 2,
+      preferences: {
+        showReadItems: false,
+        showUnreadItemsFirst: true,
+        showSnoozedItems: true,
+      },
     });
   });
 

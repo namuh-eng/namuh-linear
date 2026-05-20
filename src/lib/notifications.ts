@@ -364,3 +364,77 @@ export async function createCommentNotifications(input: {
     })),
   );
 }
+
+export interface InboxNotificationPreferences {
+  showReadItems: boolean;
+  showUnreadItemsFirst: boolean;
+  showSnoozedItems: boolean;
+}
+
+export type InboxNotificationPreferencesPatch =
+  Partial<InboxNotificationPreferences>;
+
+export const DEFAULT_INBOX_NOTIFICATION_PREFERENCES: InboxNotificationPreferences =
+  {
+    showReadItems: true,
+    showUnreadItemsFirst: false,
+    showSnoozedItems: false,
+  };
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function readBoolean(value: unknown, fallback: boolean) {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+export function readInboxNotificationPreferencesFromUserSettings(
+  settings: unknown,
+): InboxNotificationPreferences {
+  const parsed = asRecord(asRecord(settings).inboxNotificationPreferences);
+
+  return {
+    showReadItems: readBoolean(
+      parsed.showReadItems,
+      DEFAULT_INBOX_NOTIFICATION_PREFERENCES.showReadItems,
+    ),
+    showUnreadItemsFirst: readBoolean(
+      parsed.showUnreadItemsFirst,
+      DEFAULT_INBOX_NOTIFICATION_PREFERENCES.showUnreadItemsFirst,
+    ),
+    showSnoozedItems: readBoolean(
+      parsed.showSnoozedItems,
+      DEFAULT_INBOX_NOTIFICATION_PREFERENCES.showSnoozedItems,
+    ),
+  };
+}
+
+export function mergeInboxNotificationPreferences(
+  current: InboxNotificationPreferences,
+  patch: InboxNotificationPreferencesPatch,
+): InboxNotificationPreferences {
+  return {
+    showReadItems: readBoolean(patch.showReadItems, current.showReadItems),
+    showUnreadItemsFirst: readBoolean(
+      patch.showUnreadItemsFirst,
+      current.showUnreadItemsFirst,
+    ),
+    showSnoozedItems: readBoolean(
+      patch.showSnoozedItems,
+      current.showSnoozedItems,
+    ),
+  };
+}
+
+export function writeInboxNotificationPreferencesToUserSettings(
+  settings: unknown,
+  inboxNotificationPreferences: InboxNotificationPreferences,
+) {
+  return {
+    ...asRecord(settings),
+    inboxNotificationPreferences,
+  };
+}

@@ -59,7 +59,7 @@ test.describe("Canonical inbox notifications", () => {
     await expect(page.getByText("No unread notifications")).toBeVisible();
   });
 
-  test("notification row click opens the referenced issue directly", async ({
+  test("notification row click opens the notification deep link", async ({
     page,
   }) => {
     await page.goto("/foreverbrowsing/inbox");
@@ -72,14 +72,16 @@ test.describe("Canonical inbox notifications", () => {
 
     await row.click();
 
-    await expect(page).toHaveURL(/\/foreverbrowsing\/issue\/ENG-179$/);
+    await expect(page).toHaveURL(
+      /\/foreverbrowsing\/inbox\/notification\/[0-9a-f-]+$/,
+    );
     await expect(page.getByText("ENG-179").first()).toBeVisible();
     await expect(
       page.getByText("Issue added to FOREVER-AGENT").first(),
     ).toBeVisible();
   });
 
-  test("notification row keyboard activation opens the referenced issue", async ({
+  test("notification row keyboard activation opens the notification deep link", async ({
     page,
   }) => {
     await page.goto("/foreverbrowsing/inbox");
@@ -93,19 +95,57 @@ test.describe("Canonical inbox notifications", () => {
     await row.focus();
     await page.keyboard.press("Enter");
 
-    await expect(page).toHaveURL(/\/foreverbrowsing\/issue\/ENG-179$/);
+    await expect(page).toHaveURL(
+      /\/foreverbrowsing\/inbox\/notification\/[0-9a-f-]+$/,
+    );
+  });
 
+  test("deep link supports read and unread management after reload", async ({
+    page,
+  }) => {
     await page.goto("/foreverbrowsing/inbox");
-    const spaceRow = page
-      .getByTestId("notification-row")
-      .filter({ hasText: "ENG-179" })
-      .first();
-    await expect(spaceRow).toBeVisible();
 
-    await spaceRow.focus();
-    await page.keyboard.press("Space");
+    const payload = await page.evaluate(async () => {
+      const response = await fetch("/api/notifications", {
+        credentials: "include",
+      });
+      return response.json() as Promise<{
+        notifications: Array<{
+          id: string;
+          issueIdentifier: string;
+          type: string;
+        }>;
+      }>;
+    });
+    const target = payload.notifications.find(
+      (notification) =>
+        notification.issueIdentifier === "ENG-179" &&
+        notification.type !== "comment",
+    );
+    expect(target).toBeTruthy();
 
-    await expect(page).toHaveURL(/\/foreverbrowsing\/issue\/ENG-179$/);
+    await page.evaluate(async (id) => {
+      await fetch(`/api/notifications/${id}/unread`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+    }, target?.id);
+
+    await page.goto(`/foreverbrowsing/inbox/notification/${target?.id}`);
+    await expect(page.getByText("1 unread")).toBeVisible();
+    await expect(
+      page.getByRole("heading").filter({ hasText: /Issue added/ }),
+    ).toBeVisible();
+
+    await page.reload();
+    await expect(page).toHaveURL(
+      new RegExp(`/foreverbrowsing/inbox/notification/${target?.id}$`),
+    );
+    await expect(
+      page.getByRole("button", { name: "Mark notification read" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Mark notification read" }).click();
+    await expect(page.getByText("1 unread")).not.toBeVisible();
   });
 
   test("Open issue CTA navigates from workspace inbox to selected issue detail", async ({
