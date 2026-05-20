@@ -20,7 +20,11 @@ import {
   getTeamRestorableUntil,
   isTeamRestorable,
 } from "@/lib/team-lifecycle";
-import { getMutableTeamSettings, readTeamSettings } from "@/lib/team-settings";
+import {
+  type TeamWorkflowAutomationSettings,
+  getMutableTeamSettings,
+  readTeamSettings,
+} from "@/lib/team-settings";
 import { findAccessibleTeam } from "@/lib/teams";
 import {
   canPerformWorkspacePermission,
@@ -239,6 +243,8 @@ async function buildTeamResponse(
     triageDeclineDestinationStateId: flags.triageDeclineDestinationStateId,
     acceptDestinationStates,
     declineDestinationStates,
+    workflowStates: workflowStateRows,
+    workflowAutomation: flags.workflowAutomation,
     cyclesEnabled: teamRecord.cyclesEnabled ?? false,
     cycleStartDay: teamRecord.cycleStartDay ?? 1,
     cycleDurationWeeks: teamRecord.cycleDurationWeeks ?? 2,
@@ -343,6 +349,7 @@ export async function PATCH(
     discussionSummariesEnabled?: boolean;
     discussionSummaryMinComments?: number;
     discussionSummaryRefreshMode?: "manual" | "automatic";
+    workflowAutomation?: Partial<TeamWorkflowAutomationSettings>;
     parentTeamId?: string | null;
   } | null;
 
@@ -573,6 +580,17 @@ export async function PATCH(
 
   const currentFlags = readTeamSettings(teamRecord.settings);
   const currentSettings = getMutableTeamSettings(teamRecord.settings);
+  const workflowStateRows = await db
+    .select({
+      id: workflowState.id,
+      name: workflowState.name,
+      category: workflowState.category,
+      color: workflowState.color,
+      position: workflowState.position,
+    })
+    .from(workflowState)
+    .where(eq(workflowState.teamId, teamRecord.id))
+    .orderBy(asc(workflowState.position), asc(workflowState.name));
   const nextTriageAcceptDestinationStateId =
     body.triageAcceptDestinationStateId === undefined
       ? currentFlags.triageAcceptDestinationStateId
@@ -608,6 +626,121 @@ export async function PATCH(
       { error: "Discussion summary refresh mode is invalid" },
       { status: 400 },
     );
+  }
+
+  const workflowStateIds = new Set(workflowStateRows.map((state) => state.id));
+  const normalizeStatusId = (value: string | null | undefined) =>
+    typeof value === "string" ? value.trim() || null : (value ?? null);
+  const currentWorkflowAutomation = currentFlags.workflowAutomation;
+  const workflowAutomationPatch = body.workflowAutomation ?? {};
+  const nextWorkflowAutomation: TeamWorkflowAutomationSettings = {
+    ...currentWorkflowAutomation,
+    ...workflowAutomationPatch,
+    gitBranchFormat:
+      typeof workflowAutomationPatch.gitBranchFormat === "string"
+        ? workflowAutomationPatch.gitBranchFormat.trim()
+        : currentWorkflowAutomation.gitBranchFormat,
+    gitBranchCreateTargetStatusId:
+      workflowAutomationPatch.gitBranchCreateTargetStatusId === undefined
+        ? currentWorkflowAutomation.gitBranchCreateTargetStatusId
+        : normalizeStatusId(
+            workflowAutomationPatch.gitBranchCreateTargetStatusId,
+          ),
+    gitPrMergeTargetStatusId:
+      workflowAutomationPatch.gitPrMergeTargetStatusId === undefined
+        ? currentWorkflowAutomation.gitPrMergeTargetStatusId
+        : normalizeStatusId(workflowAutomationPatch.gitPrMergeTargetStatusId),
+    defaultAssigneeId:
+      workflowAutomationPatch.defaultAssigneeId === undefined
+        ? currentWorkflowAutomation.defaultAssigneeId
+        : normalizeStatusId(workflowAutomationPatch.defaultAssigneeId),
+    statusTransitionRules:
+      workflowAutomationPatch.statusTransitionRules ??
+      currentWorkflowAutomation.statusTransitionRules,
+  };
+
+  if (!nextWorkflowAutomation.gitBranchFormat) {
+    return NextResponse.json(
+      { error: "Git branch format is required" },
+      { status: 400 },
+    );
+  }
+  if (
+    nextWorkflowAutomation.autoAssignMode &&
+    !["creator", "team_lead", "round_robin", "none"].includes(
+      nextWorkflowAutomation.autoAssignMode,
+    )
+  ) {
+    return NextResponse.json(
+      { error: "Auto-assignment mode is invalid" },
+      { status: 400 },
+    );
+  }
+
+  for (const [field, value] of [
+    [
+      "Branch creation target status",
+      nextWorkflowAutomation.gitBranchCreateTargetStatusId,
+    ],
+    [
+      "Pull request merge target status",
+      nextWorkflowAutomation.gitPrMergeTargetStatusId,
+    ],
+  ] as const) {
+    if (value && !workflowStateIds.has(value)) {
+      return NextResponse.json(
+        { error: `${field} must belong to this team's workflow` },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (!Array.isArray(nextWorkflowAutomation.statusTransitionRules)) {
+    return NextResponse.json(
+      { error: "Status transition rules must be an array" },
+      { status: 400 },
+    );
+  }
+
+  nextWorkflowAutomation.statusTransitionRules =
+    nextWorkflowAutomation.statusTransitionRules.map((rule, index) => ({
+      id: rule.id?.trim() || `rule-${index + 1}`,
+      name: rule.name?.trim() || `Transition rule ${index + 1}`,
+      trigger: rule.trigger,
+      sourceStatusId: normalizeStatusId(rule.sourceStatusId),
+      targetStatusId: normalizeStatusId(rule.targetStatusId) ?? "",
+      enabled: rule.enabled !== false,
+    }));
+
+  for (const rule of nextWorkflowAutomation.statusTransitionRules) {
+    if (
+      ![
+        "issue_created",
+        "branch_created",
+        "pull_request_merged",
+        "issue_assigned",
+      ].includes(rule.trigger)
+    ) {
+      return NextResponse.json(
+        { error: "Status transition trigger is invalid" },
+        { status: 400 },
+      );
+    }
+    if (rule.sourceStatusId && !workflowStateIds.has(rule.sourceStatusId)) {
+      return NextResponse.json(
+        { error: "Source status must belong to this team's workflow" },
+        { status: 400 },
+      );
+    }
+    if (!rule.targetStatusId || !workflowStateIds.has(rule.targetStatusId)) {
+      return NextResponse.json(
+        {
+          error:
+            "Transition rules require a target status from this team's workflow",
+        },
+        { status: 400 },
+      );
+    }
   }
 
   if (
@@ -662,7 +795,11 @@ export async function PATCH(
         emailEnabled: body.emailEnabled ?? currentFlags.emailEnabled,
         detailedHistory: body.detailedHistory ?? currentFlags.detailedHistory,
         agentGuidance: nextAgentGuidance,
-        autoAssignment: body.autoAssignment ?? currentFlags.autoAssignment,
+        autoAssignment:
+          nextWorkflowAutomation.autoAssignEnabled ??
+          body.autoAssignment ??
+          currentFlags.autoAssignment,
+        workflowAutomation: nextWorkflowAutomation,
         discussionSummariesEnabled:
           body.discussionSummariesEnabled ??
           currentFlags.discussionSummariesEnabled,
