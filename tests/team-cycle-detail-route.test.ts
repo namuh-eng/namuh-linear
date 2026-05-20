@@ -33,6 +33,7 @@ vi.mock("@/lib/issue-labels", () => ({
 vi.mock("@/lib/db/schema", () => ({
   issue: issueTable,
   cycle: cycleTable,
+  project: {},
   user: {},
   workflowState: {},
 }));
@@ -62,14 +63,14 @@ vi.mock("@/lib/db", () => ({
       }
 
       if ("identifier" in selection) {
-        return {
-          from: vi.fn().mockReturnValue({
-            leftJoin: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                orderBy: issuesOrderByMock,
-              }),
-            }),
+        const queryAfterJoin = {
+          leftJoin: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnValue({
+            orderBy: issuesOrderByMock,
           }),
+        };
+        return {
+          from: vi.fn().mockReturnValue(queryAfterJoin),
         };
       }
 
@@ -267,15 +268,42 @@ describe("team cycle detail route", () => {
               stateId: "state-2",
               assigneeId: "user-2",
               assignee: { name: "Alice", image: null },
+              creatorName: null,
               labels: [{ id: "label-1", name: "Bug", color: "#f00" }],
-              labelIds: ["Bug"],
+              labelIds: ["label-1"],
               projectId: "project-1",
+              cycleName: "Cycle 1",
               dueDate: "2026-04-10T00:00:00.000Z",
               createdAt: "2026-04-02T00:00:00.000Z",
             },
           ],
         },
       ],
+      filterOptions: {
+        statuses: [
+          {
+            id: "state-1",
+            name: "Backlog",
+            category: "backlog",
+            color: "#999",
+          },
+          { id: "state-2", name: "Done", category: "completed", color: "#0f0" },
+        ],
+        assignees: [{ id: "user-2", name: "Alice", image: null }],
+        labels: [{ id: "label-1", name: "Bug", color: "#f00" }],
+        projects: [],
+        creators: [],
+        cycles: [{ id: "cycle-1", name: "Cycle 1" }],
+        estimates: [],
+        dueDates: [{ value: "2026-04-10", label: "Apr 10" }],
+        priorities: [
+          { value: "urgent", label: "Urgent" },
+          { value: "high", label: "High" },
+          { value: "medium", label: "Medium" },
+          { value: "low", label: "Low" },
+          { value: "none", label: "No priority" },
+        ],
+      },
     });
   });
 

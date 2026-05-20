@@ -4,6 +4,7 @@ const getSessionMock = vi.fn();
 const teamLimitMock = vi.fn();
 const maxWhereMock = vi.fn();
 const defaultStateLimitMock = vi.fn();
+const cycleLimitMock = vi.fn();
 const currentUserLimitMock = vi.fn();
 const teamMemberWhereMock = vi.fn();
 const loadGroupByMock = vi.fn();
@@ -91,6 +92,16 @@ vi.mock("@/lib/db", () => ({
         };
       }
 
+      if ("teamId" in selection && "id" in selection && !("key" in selection)) {
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: cycleLimitMock,
+            }),
+          }),
+        };
+      }
+
       if ("maxNum" in selection) {
         return {
           from: vi.fn().mockReturnValue({
@@ -167,6 +178,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/db/schema", () => ({
+  cycle: { id: "cycle.id", teamId: "cycle.teamId" },
   issue: { __name: "issue", assigneeId: "issue.assigneeId" },
   issueHistory: { __name: "issueHistory" },
   issueLabel: { __name: "issueLabel" },
@@ -201,6 +213,7 @@ describe("issues route", () => {
     ]);
     maxWhereMock.mockResolvedValue([{ maxNum: 7 }]);
     defaultStateLimitMock.mockResolvedValue([{ id: "state-backlog" }]);
+    cycleLimitMock.mockResolvedValue([{ id: "cycle-1", teamId: "team-1" }]);
     currentUserLimitMock.mockResolvedValue([{ settings: {} }]);
     teamMemberWhereMock.mockResolvedValue([]);
     loadGroupByMock.mockResolvedValue([]);
@@ -312,6 +325,7 @@ describe("issues route", () => {
       assigneeId: "user-2",
       projectId: "project-1",
       parentIssueId: null,
+      cycleId: null,
     });
     expect(insertLabelsValuesMock).toHaveBeenCalledWith([
       { issueId: "issue-1", labelId: "label-1" },
@@ -327,6 +341,7 @@ describe("issues route", () => {
         identifier: "ENG-8",
         title: "Ship this",
         teamId: "team-1",
+        cycleId: null,
       },
     });
     expect(insertNotificationsMock).toHaveBeenCalledWith([
@@ -345,6 +360,55 @@ describe("issues route", () => {
       assigneeId: "user-2",
       projectId: "project-1",
       parentIssueId: null,
+    });
+  });
+
+  it("creates an issue in a validated cycle", async () => {
+    const { POST } = await import("@/app/api/issues/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/issues", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Cycle scoped",
+          teamId: "team-1",
+          cycleId: "cycle-1",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(cycleLimitMock).toHaveBeenCalled();
+    expect(insertIssueValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ cycleId: "cycle-1" }),
+    );
+    expect(insertHistoryValuesMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ cycleId: "cycle-1" }),
+      }),
+    );
+  });
+
+  it("rejects a cycle from another team", async () => {
+    cycleLimitMock.mockResolvedValue([]);
+    const { POST } = await import("@/app/api/issues/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/issues", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "Wrong cycle",
+          teamId: "team-1",
+          cycleId: "cycle-other",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Cycle not found for team",
     });
   });
 

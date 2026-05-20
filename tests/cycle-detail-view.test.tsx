@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ key: "ENG", cycleId: "cycle-1" }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/team/ENG/cycles/cycle-1",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("next/link", () => ({
@@ -30,6 +32,7 @@ const cycleDetailResponse = {
     endDate: "2026-05-15T00:00:00.000Z",
     issueCount: 1,
     completedIssueCount: 0,
+    autoRollover: true,
   },
   groups: [
     {
@@ -50,24 +53,65 @@ const cycleDetailResponse = {
           stateId: "state-1",
           assigneeId: null,
           assignee: null,
+          creatorId: null,
+          creatorName: null,
           labels: [],
+          labelIds: [],
           projectId: null,
+          projectName: null,
+          cycleId: "cycle-1",
+          cycleName: "Current Cycle",
+          estimate: null,
           dueDate: null,
           createdAt: "2026-05-10T00:00:00.000Z",
         },
       ],
     },
   ],
+  filterOptions: {
+    statuses: [
+      {
+        id: "state-1",
+        name: "In Progress",
+        category: "started",
+        color: "#f2c94c",
+      },
+    ],
+    assignees: [],
+    labels: [],
+    projects: [],
+    creators: [],
+    cycles: [{ id: "cycle-1", name: "Current Cycle" }],
+    estimates: [],
+    dueDates: [],
+    priorities: [
+      { value: "urgent", label: "Urgent" },
+      { value: "high", label: "High" },
+      { value: "medium", label: "Medium" },
+      { value: "low", label: "Low" },
+      { value: "none", label: "No priority" },
+    ],
+  },
 };
 
 describe("CycleDetailPage", () => {
   beforeEach(() => {
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    });
     vi.stubGlobal(
       "fetch",
-      vi.fn(() =>
+      vi.fn((input) =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve(cycleDetailResponse),
+          json: () =>
+            Promise.resolve(
+              String(input).includes("display-options")
+                ? { displayOptions: null }
+                : cycleDetailResponse,
+            ),
         }),
       ),
     );

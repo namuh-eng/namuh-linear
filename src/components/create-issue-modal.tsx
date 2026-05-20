@@ -20,6 +20,8 @@ interface CreateIssueModalProps {
   defaultStateId?: string;
   defaultStateName?: string;
   defaultProjectId?: string | null;
+  defaultCycleId?: string | null;
+  defaultCycleName?: string | null;
   onCreated?: () => void | Promise<void>;
 }
 
@@ -262,6 +264,8 @@ export function CreateIssueModal({
   defaultStateId,
   defaultStateName = "Backlog",
   defaultProjectId = null,
+  defaultCycleId = null,
+  defaultCycleName = null,
   onCreated,
 }: CreateIssueModalProps) {
   const [title, setTitle] = useState("");
@@ -469,6 +473,7 @@ export function CreateIssueModal({
           assigneeId: selectedAssigneeId,
           projectId: selectedProjectId,
           labelIds: selectedLabelIds,
+          cycleId: defaultCycleId,
         }),
       });
 
@@ -807,6 +812,11 @@ export function CreateIssueModal({
           <span className="text-[13px] text-[var(--color-text-primary)]">
             New issue
           </span>
+          {defaultCycleId && (
+            <span className="rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
+              Cycle: {defaultCycleName ?? "Current cycle"}
+            </span>
+          )}
           {isFullscreen && (
             <span className="rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-text-secondary)]">
               Fullscreen composer

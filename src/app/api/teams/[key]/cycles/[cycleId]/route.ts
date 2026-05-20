@@ -1,10 +1,10 @@
 import { requireApiSession } from "@/lib/api-auth";
 import { cycleRangesOverlap, parseCycleDateInput } from "@/lib/cycle-utils";
 import { db } from "@/lib/db";
-import { cycle, issue, user, workflowState } from "@/lib/db/schema";
+import { cycle, issue, project, user, workflowState } from "@/lib/db/schema";
 import { getLabelsForIssues } from "@/lib/issue-labels";
 import { findAccessibleTeam } from "@/lib/teams";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET(
@@ -54,21 +54,42 @@ export async function GET(
       priority: issue.priority,
       stateId: issue.stateId,
       assigneeId: issue.assigneeId,
+      creatorId: issue.creatorId,
       assigneeName: user.name,
       assigneeImage: user.image,
       projectId: issue.projectId,
+      projectName: project.name,
+      cycleId: issue.cycleId,
+      estimate: issue.estimate,
       dueDate: issue.dueDate,
       createdAt: issue.createdAt,
       sortOrder: issue.sortOrder,
     })
     .from(issue)
     .leftJoin(user, eq(issue.assigneeId, user.id))
+    .leftJoin(project, eq(issue.projectId, project.id))
     .where(and(eq(issue.cycleId, cycleId), eq(issue.teamId, teamRecord.id)))
     .orderBy(asc(issue.sortOrder), desc(issue.createdAt));
 
   // Get labels for issues
   const issueIds = issues.map((i) => i.id);
   const labelsMap = await getLabelsForIssues(issueIds);
+
+  const creatorIds = [
+    ...new Set(
+      issues.map((i) => i.creatorId).filter((id): id is string => !!id),
+    ),
+  ];
+  const creators =
+    creatorIds.length > 0
+      ? await db
+          .select({ id: user.id, name: user.name })
+          .from(user)
+          .where(inArray(user.id, creatorIds))
+      : [];
+  const creatorMap = new Map(
+    creators.map((creator) => [creator.id, creator.name ?? "Unknown user"]),
+  );
 
   // Group issues by workflow state
   const completedStates = states.filter((s) => s.category === "completed");
@@ -95,13 +116,107 @@ export async function GET(
         assignee: i.assigneeName
           ? { name: i.assigneeName, image: i.assigneeImage }
           : null,
+        creatorId: i.creatorId,
+        creatorName: creatorMap.get(i.creatorId) ?? null,
         labels: labelsMap[i.id] ?? [],
-        labelIds: (labelsMap[i.id] ?? []).map((l) => l.name),
+        labelIds: (labelsMap[i.id] ?? []).map((l) => l.id),
         projectId: i.projectId,
+        projectName: i.projectName,
+        cycleId: i.cycleId,
+        cycleName: cycleRecord.name ?? `Cycle ${cycleRecord.number}`,
+        estimate: i.estimate,
         dueDate: i.dueDate,
         createdAt: i.createdAt,
       })),
   }));
+
+  const uniqueAssignees: { id: string; name: string; image: string | null }[] =
+    [];
+  const seenAssignees = new Set<string>();
+  for (const issueRecord of issues) {
+    if (
+      issueRecord.assigneeId &&
+      issueRecord.assigneeName &&
+      !seenAssignees.has(issueRecord.assigneeId)
+    ) {
+      seenAssignees.add(issueRecord.assigneeId);
+      uniqueAssignees.push({
+        id: issueRecord.assigneeId,
+        name: issueRecord.assigneeName,
+        image: issueRecord.assigneeImage,
+      });
+    }
+  }
+
+  const uniqueLabels: { id: string; name: string; color: string }[] = [];
+  const seenLabels = new Set<string>();
+  for (const labelList of Object.values(labelsMap)) {
+    for (const labelRecord of labelList) {
+      if (!seenLabels.has(labelRecord.id)) {
+        seenLabels.add(labelRecord.id);
+        uniqueLabels.push({
+          id: labelRecord.id,
+          name: labelRecord.name,
+          color: labelRecord.color,
+        });
+      }
+    }
+  }
+
+  const uniqueProjects = issues
+    .filter((issueRecord) => issueRecord.projectId && issueRecord.projectName)
+    .reduce<{ id: string; name: string }[]>((projects, issueRecord) => {
+      if (
+        projects.some(
+          (projectRecord) => projectRecord.id === issueRecord.projectId,
+        )
+      ) {
+        return projects;
+      }
+
+      projects.push({
+        id: issueRecord.projectId as string,
+        name: issueRecord.projectName as string,
+      });
+      return projects;
+    }, []);
+
+  const uniqueCreators = creators
+    .filter((creator) => creator.name)
+    .map((creator) => ({
+      id: creator.id,
+      name: creator.name as string,
+    }));
+
+  const uniqueEstimates = [
+    ...new Set(issues.map((i) => i.estimate).filter((value) => value != null)),
+  ]
+    .sort((a, b) => Number(a) - Number(b))
+    .map((value) => ({
+      value: String(value),
+      label: String(value),
+    }));
+
+  const uniqueDueDates = [
+    ...new Set(
+      issues
+        .map((i) => (i.dueDate ? i.dueDate.toISOString().split("T")[0] : null))
+        .filter((value): value is string => !!value),
+    ),
+  ]
+    .sort()
+    .map((value) => ({
+      value,
+      label: new Date(`${value}T00:00:00`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year:
+          new Date(`${value}T00:00:00`).getFullYear() !==
+          new Date().getFullYear()
+            ? "numeric"
+            : undefined,
+      }),
+    }));
 
   return NextResponse.json({
     team: { id: teamRecord.id, name: teamRecord.name, key: teamRecord.key },
@@ -113,6 +228,33 @@ export async function GET(
       ).length,
     },
     groups,
+    filterOptions: {
+      statuses: states.map((state) => ({
+        id: state.id,
+        name: state.name,
+        category: state.category,
+        color: state.color,
+      })),
+      assignees: uniqueAssignees,
+      labels: uniqueLabels,
+      projects: uniqueProjects,
+      creators: uniqueCreators,
+      cycles: [
+        {
+          id: cycleRecord.id,
+          name: cycleRecord.name ?? `Cycle ${cycleRecord.number}`,
+        },
+      ],
+      estimates: uniqueEstimates,
+      dueDates: uniqueDueDates,
+      priorities: [
+        { value: "urgent", label: "Urgent" },
+        { value: "high", label: "High" },
+        { value: "medium", label: "Medium" },
+        { value: "low", label: "Low" },
+        { value: "none", label: "No priority" },
+      ],
+    },
   });
 }
 
