@@ -110,6 +110,63 @@ test.describe("Unauthenticated workspace deep links", () => {
     ).toBeVisible();
   });
 
+  test("login footer learn more stays clone-local and homepage is public", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+
+    const learnMore = page.getByRole("link", { name: "learn more" });
+    await expect(learnMore).toHaveAttribute("href", "/homepage");
+    expect(
+      await learnMore.evaluate((link) => (link as HTMLAnchorElement).href),
+    ).toBe(new URL("/homepage", page.url()).href);
+
+    const footerHrefs = await page
+      .locator("p", { hasText: "Don’t have an account?" })
+      .locator("a")
+      .evaluateAll((links) =>
+        links.map((link) => ({
+          text: link.textContent?.trim(),
+          href: link.getAttribute("href"),
+          resolved: (link as HTMLAnchorElement).href,
+        })),
+      );
+
+    expect(footerHrefs).toEqual([
+      {
+        text: "Sign up",
+        href: "/signup",
+        resolved: new URL("/signup", page.url()).href,
+      },
+      {
+        text: "learn more",
+        href: "/homepage",
+        resolved: new URL("/homepage", page.url()).href,
+      },
+    ]);
+    expect(footerHrefs.map((link) => link.resolved).join(" ")).not.toContain(
+      "linear.app",
+    );
+
+    await learnMore.click();
+    await expect(page).toHaveURL(/\/homepage$/);
+    await expect(
+      page.getByRole("heading", {
+        name: /Linear is a purpose-built system for planning and building products/i,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Log in to Linear" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Sign up" })).toHaveAttribute(
+      "href",
+      "/signup",
+    );
+    await expect(
+      page.getByRole("link", { name: "Log in to Linear" }),
+    ).toHaveAttribute("href", "/login");
+  });
+
   test("login email empty submit shows Linear inline validation for click and Enter", async ({
     page,
   }) => {
