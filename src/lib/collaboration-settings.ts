@@ -12,13 +12,25 @@ export type PulseSettings = {
   velocityTarget: number;
 };
 
+export type CustomerRequestSettings = {
+  enabled: boolean;
+  intakeEmail: string;
+  defaultPriority: "low" | "medium" | "high" | "urgent";
+  autoLinkIssues: boolean;
+  requireCompany: boolean;
+  confirmationMessage: string;
+};
+
 export type CollaborationSettings = {
   asks: AsksSettings;
   pulse: PulseSettings;
+  customerRequests: CustomerRequestSettings;
 };
 
 const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
 const DIGEST_FREQUENCIES = new Set(["daily", "weekly", "off"]);
+const DEFAULT_CONFIRMATION_MESSAGE =
+  "Thanks for the feedback — our product team will review it.";
 
 export function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -43,6 +55,7 @@ export function readCollaborationSettings(
   const collaboration = asRecord(root.collaboration);
   const asks = asRecord(collaboration.asks);
   const pulse = asRecord(collaboration.pulse);
+  const customerRequests = asRecord(collaboration.customerRequests);
 
   return {
     asks: {
@@ -65,6 +78,25 @@ export function readCollaborationSettings(
       burnoutAlerts: readBoolean(pulse.burnoutAlerts, true),
       velocityTarget: readPositiveInteger(pulse.velocityTarget, 40),
     },
+    customerRequests: {
+      enabled: readBoolean(customerRequests.enabled, false),
+      intakeEmail:
+        typeof customerRequests.intakeEmail === "string"
+          ? customerRequests.intakeEmail
+          : "",
+      defaultPriority:
+        typeof customerRequests.defaultPriority === "string" &&
+        PRIORITIES.has(customerRequests.defaultPriority)
+          ? (customerRequests.defaultPriority as CustomerRequestSettings["defaultPriority"])
+          : "medium",
+      autoLinkIssues: readBoolean(customerRequests.autoLinkIssues, true),
+      requireCompany: readBoolean(customerRequests.requireCompany, false),
+      confirmationMessage:
+        typeof customerRequests.confirmationMessage === "string" &&
+        customerRequests.confirmationMessage.trim()
+          ? customerRequests.confirmationMessage
+          : DEFAULT_CONFIRMATION_MESSAGE,
+    },
   };
 }
 
@@ -73,6 +105,7 @@ export function mergeCollaborationSettings(
   updates: Partial<{
     asks: Partial<AsksSettings>;
     pulse: Partial<PulseSettings>;
+    customerRequests: Partial<CustomerRequestSettings>;
   }>,
 ) {
   const root = asRecord(existingSettings);
@@ -90,6 +123,10 @@ export function mergeCollaborationSettings(
         ...current.pulse,
         ...updates.pulse,
       },
+      customerRequests: {
+        ...current.customerRequests,
+        ...updates.customerRequests,
+      },
     },
   };
 }
@@ -99,6 +136,7 @@ export function parseCollaborationUpdate(body: unknown) {
   const updates: Partial<{
     asks: Partial<AsksSettings>;
     pulse: Partial<PulseSettings>;
+    customerRequests: Partial<CustomerRequestSettings>;
   }> = {};
 
   const asks = asRecord(record.asks);
@@ -117,6 +155,36 @@ export function parseCollaborationUpdate(body: unknown) {
     }
     if (typeof asks.autoAssign === "boolean") {
       updates.asks.autoAssign = asks.autoAssign;
+    }
+  }
+
+  const customerRequests = asRecord(record.customerRequests);
+  if (Object.keys(customerRequests).length > 0) {
+    updates.customerRequests = {};
+    if (typeof customerRequests.enabled === "boolean") {
+      updates.customerRequests.enabled = customerRequests.enabled;
+    }
+    if (typeof customerRequests.intakeEmail === "string") {
+      updates.customerRequests.intakeEmail = customerRequests.intakeEmail
+        .trim()
+        .slice(0, 120);
+    }
+    if (
+      typeof customerRequests.defaultPriority === "string" &&
+      PRIORITIES.has(customerRequests.defaultPriority)
+    ) {
+      updates.customerRequests.defaultPriority =
+        customerRequests.defaultPriority as CustomerRequestSettings["defaultPriority"];
+    }
+    if (typeof customerRequests.autoLinkIssues === "boolean") {
+      updates.customerRequests.autoLinkIssues = customerRequests.autoLinkIssues;
+    }
+    if (typeof customerRequests.requireCompany === "boolean") {
+      updates.customerRequests.requireCompany = customerRequests.requireCompany;
+    }
+    if (typeof customerRequests.confirmationMessage === "string") {
+      updates.customerRequests.confirmationMessage =
+        customerRequests.confirmationMessage.trim().slice(0, 240);
     }
   }
 

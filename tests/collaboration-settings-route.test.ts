@@ -47,6 +47,11 @@ describe("workspace collaboration settings route", () => {
           collaboration: {
             asks: { enabled: true, intakeEmail: "help@example.com" },
             pulse: { digestFrequency: "daily", velocityTarget: 20 },
+            customerRequests: {
+              enabled: true,
+              intakeEmail: "feedback@example.com",
+              defaultPriority: "high",
+            },
           },
         },
       },
@@ -75,7 +80,17 @@ describe("workspace collaboration settings route", () => {
           burnoutAlerts: true,
           velocityTarget: 20,
         },
+        customerRequests: {
+          enabled: true,
+          intakeEmail: "feedback@example.com",
+          defaultPriority: "high",
+          autoLinkIssues: true,
+          requireCompany: false,
+          confirmationMessage:
+            "Thanks for the feedback — our product team will review it.",
+        },
       },
+      permissions: { canManage: true, role: "owner" },
     });
   });
 
@@ -90,6 +105,11 @@ describe("workspace collaboration settings route", () => {
         body: JSON.stringify({
           asks: { enabled: false, defaultPriority: "urgent" },
           pulse: { velocityTarget: 55 },
+          customerRequests: {
+            enabled: false,
+            intakeEmail: "customers@example.com",
+            requireCompany: true,
+          },
         }),
       }),
     );
@@ -110,6 +130,15 @@ describe("workspace collaboration settings route", () => {
               digestFrequency: "daily",
               burnoutAlerts: true,
               velocityTarget: 55,
+            },
+            customerRequests: {
+              enabled: false,
+              intakeEmail: "customers@example.com",
+              defaultPriority: "high",
+              autoLinkIssues: true,
+              requireCompany: true,
+              confirmationMessage:
+                "Thanks for the feedback — our product team will review it.",
             },
           },
         }),
