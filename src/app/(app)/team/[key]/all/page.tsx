@@ -255,6 +255,28 @@ export default function TeamIssuesPage() {
     () => filteredGroups.flatMap((group) => group.issues),
     [filteredGroups],
   );
+  const isTimelineLayout = searchParams.get("layout") === "timeline";
+  const timelineGroups = useMemo(() => {
+    const grouped = new Map<string, IssueData[]>();
+    for (const issue of visibleIssues) {
+      const label = issue.dueDate
+        ? new Date(issue.dueDate).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year:
+              new Date(issue.dueDate).getFullYear() !== new Date().getFullYear()
+                ? "numeric"
+                : undefined,
+          })
+        : "No date";
+      grouped.set(label, [...(grouped.get(label) ?? []), issue]);
+    }
+
+    return Array.from(grouped.entries()).map(([label, issues]) => ({
+      label,
+      issues,
+    }));
+  }, [visibleIssues]);
   const selectedIssues = useMemo(
     () => visibleIssues.filter((issue) => selectedIssueIds.has(issue.id)),
     [selectedIssueIds, visibleIssues],
@@ -581,48 +603,95 @@ export default function TeamIssuesPage() {
 
       {/* Issues list */}
       <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
-        {filteredGroups.map((group) => (
-          <div key={group.state.id} className="group">
-            <IssuesGroupHeader
-              name={group.state.name}
-              count={group.issues.length}
-              statusCategory={group.state.category as StatusCategory}
-              statusColor={group.state.color}
-              onAddIssue={() =>
-                openCreateIssue({
-                  stateId: group.state.id,
-                  stateName: group.state.name,
-                })
-              }
-            />
-            {group.issues.map((iss) => (
-              <IssueRow
-                key={iss.id}
-                identifier={iss.identifier}
-                title={iss.title}
-                priority={priorityMap[iss.priority] ?? 0}
-                statusCategory={group.state.category as StatusCategory}
-                statusColor={group.state.color}
-                assigneeName={iss.assignee?.name}
-                assigneeImage={iss.assignee?.image ?? undefined}
-                labels={iss.labels}
-                projectName={iss.projectName ?? undefined}
-                dueDate={iss.dueDate}
-                createdAt={iss.createdAt}
-                href={withWorkspaceSlug(
-                  `/team/${data.team.key}/issue/${iss.id}`,
-                  workspaceSlug,
-                )}
-                selected={selectedIssueIds.has(iss.id)}
-                selectionMode={selectedCount > 0}
-                onToggleSelected={({ shiftKey }) =>
-                  toggleIssueSelection(iss.id, shiftKey)
-                }
-                displayProperties={options.displayProperties}
-              />
+        {isTimelineLayout ? (
+          <div aria-label="Timeline view" className="px-4 py-3">
+            <div className="mb-3 flex items-center justify-between rounded-md border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-3 py-2 text-[12px] text-[var(--color-text-secondary)]">
+              <span>Timeline view</span>
+              <span>{visibleIssueCount} scheduled issues</span>
+            </div>
+            {timelineGroups.map((group) => (
+              <div
+                key={group.label}
+                className="mb-4 border-l border-[var(--color-border)] pl-3"
+              >
+                <div className="mb-1 text-[12px] font-medium text-[var(--color-text-primary)]">
+                  {group.label}
+                </div>
+                <div className="rounded-md border border-[var(--color-border)]">
+                  {group.issues.map((iss) => (
+                    <IssueRow
+                      key={iss.id}
+                      identifier={iss.identifier}
+                      title={iss.title}
+                      priority={priorityMap[iss.priority] ?? 0}
+                      statusCategory="started"
+                      statusColor="#6b6f76"
+                      assigneeName={iss.assignee?.name}
+                      assigneeImage={iss.assignee?.image ?? undefined}
+                      labels={iss.labels}
+                      projectName={iss.projectName ?? undefined}
+                      dueDate={iss.dueDate}
+                      createdAt={iss.createdAt}
+                      href={withWorkspaceSlug(
+                        `/team/${data.team.key}/issue/${iss.id}`,
+                        workspaceSlug,
+                      )}
+                      selected={selectedIssueIds.has(iss.id)}
+                      selectionMode={selectedCount > 0}
+                      onToggleSelected={({ shiftKey }) =>
+                        toggleIssueSelection(iss.id, shiftKey)
+                      }
+                      displayProperties={options.displayProperties}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        ))}
+        ) : (
+          filteredGroups.map((group) => (
+            <div key={group.state.id} className="group">
+              <IssuesGroupHeader
+                name={group.state.name}
+                count={group.issues.length}
+                statusCategory={group.state.category as StatusCategory}
+                statusColor={group.state.color}
+                onAddIssue={() =>
+                  openCreateIssue({
+                    stateId: group.state.id,
+                    stateName: group.state.name,
+                  })
+                }
+              />
+              {group.issues.map((iss) => (
+                <IssueRow
+                  key={iss.id}
+                  identifier={iss.identifier}
+                  title={iss.title}
+                  priority={priorityMap[iss.priority] ?? 0}
+                  statusCategory={group.state.category as StatusCategory}
+                  statusColor={group.state.color}
+                  assigneeName={iss.assignee?.name}
+                  assigneeImage={iss.assignee?.image ?? undefined}
+                  labels={iss.labels}
+                  projectName={iss.projectName ?? undefined}
+                  dueDate={iss.dueDate}
+                  createdAt={iss.createdAt}
+                  href={withWorkspaceSlug(
+                    `/team/${data.team.key}/issue/${iss.id}`,
+                    workspaceSlug,
+                  )}
+                  selected={selectedIssueIds.has(iss.id)}
+                  selectionMode={selectedCount > 0}
+                  onToggleSelected={({ shiftKey }) =>
+                    toggleIssueSelection(iss.id, shiftKey)
+                  }
+                  displayProperties={options.displayProperties}
+                />
+              ))}
+            </div>
+          ))
+        )}
       </div>
 
       {selectedCount > 0 && (

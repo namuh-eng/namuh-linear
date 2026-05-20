@@ -143,6 +143,12 @@ export async function PATCH(
   }
 
   const body = await request.json();
+  const requestedLayout =
+    body.layout === "list" ||
+    body.layout === "board" ||
+    body.layout === "timeline"
+      ? body.layout
+      : existing.layout;
   const selectedTeam =
     body.teamId === undefined
       ? await getWorkspaceTeam(workspaceId, existing.teamId)
@@ -169,12 +175,7 @@ export async function PATCH(
         typeof body.name === "string" && body.name.trim()
           ? body.name.trim()
           : existing.name,
-      layout:
-        filterState.entityType === "projects"
-          ? "list"
-          : body.layout === "board" || existing.layout === "board"
-            ? (body.layout ?? existing.layout)
-            : "list",
+      layout: filterState.entityType === "projects" ? "list" : requestedLayout,
       isPersonal:
         typeof body.isPersonal === "boolean"
           ? body.isPersonal

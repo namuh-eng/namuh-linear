@@ -265,16 +265,30 @@ describe("ViewsPage", () => {
     expect(screen.queryByText("No views")).not.toBeInTheDocument();
   });
 
-  it("creates issue views with captured team filters", async () => {
-    window.localStorage.setItem(
-      "exponential-filters:team:ONB",
-      JSON.stringify([{ type: "status", operator: "is", values: ["started"] }]),
-    );
-
+  it("creates issue views with editable filters, timeline layout, and display options", async () => {
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({ teams: buildViewsResponse().teams, views: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          groups: [
+            {
+              issues: [
+                {
+                  id: "issue-1",
+                  stateId: "started",
+                  priority: "high",
+                  assigneeId: null,
+                  labelIds: [],
+                  projectId: null,
+                },
+              ],
+            },
+          ],
+        }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -290,6 +304,24 @@ describe("ViewsPage", () => {
     fireEvent.change(screen.getByPlaceholderText(/view name/i), {
       target: { value: "Filtered Issues" },
     });
+    fireEvent.click(screen.getByRole("button", { name: /add filter/i }));
+    fireEvent.change(screen.getByLabelText("Filter 1 values"), {
+      target: { value: "started" },
+    });
+    fireEvent.change(screen.getByLabelText("Select issue view layout"), {
+      target: { value: "timeline" },
+    });
+    fireEvent.change(screen.getByLabelText("Select issue grouping"), {
+      target: { value: "priority" },
+    });
+    fireEvent.change(screen.getByLabelText("Select issue ordering"), {
+      target: { value: "created" },
+    });
+
+    expect(
+      await screen.findByText("1 of 1 issues match this view."),
+    ).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
     await waitFor(() => {
@@ -297,9 +329,23 @@ describe("ViewsPage", () => {
         "/api/views",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining('"issueFilters":[{"type":"status"'),
+          body: expect.stringContaining('"layout":"timeline"'),
         }),
       );
+    });
+    const createCall = mockFetch.mock.calls.find(
+      ([url, init]) =>
+        url === "/api/views" && init && (init as RequestInit).method === "POST",
+    );
+    expect(createCall).toBeDefined();
+    const payload = JSON.parse((createCall?.[1] as RequestInit).body as string);
+    expect(payload.filterState.issueFilters).toEqual([
+      { type: "status", operator: "is", values: ["started"] },
+    ]);
+    expect(payload.filterState.issueDisplayOptions).toMatchObject({
+      groupBy: "priority",
+      orderBy: "created",
+      timelineBy: "dueDate",
     });
   });
 
@@ -348,6 +394,10 @@ describe("ViewsPage", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => buildViewsResponse(),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ groups: [] }),
       })
       .mockResolvedValueOnce({
         ok: true,

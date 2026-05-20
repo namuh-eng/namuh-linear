@@ -3,15 +3,27 @@
 import { useAppShellContext } from "@/app/(app)/app-shell";
 import { Avatar } from "@/components/avatar";
 import { EmptyState } from "@/components/empty-state";
-import type { FilterCondition } from "@/components/filter-bar";
+import {
+  type FilterCondition,
+  type FilterType,
+  applyFilters,
+} from "@/components/filter-bar";
 import { SidebarFavoriteButton } from "@/components/sidebar-favorite-button";
 import { TeamRouteErrorState } from "@/components/team-route-error-state";
 import {
+  type GroupByOption,
+  type IssueViewDisplayOptions,
+  type OrderByOption,
+  type ProjectViewDisplayOptions,
+  type ProjectViewGroupBy,
   type ProjectViewSortOption,
   type ProjectViewStatusFilter,
   type ViewEntityType,
+  type ViewLayout,
   type ViewScope,
   type ViewSummary,
+  defaultIssueViewDisplayOptions,
+  defaultProjectViewDisplayOptions,
   projectViewSortOptions,
   projectViewStatusOptions,
 } from "@/lib/views";
@@ -27,6 +39,7 @@ interface ViewTeam {
 
 const ISSUE_FILTER_STORAGE_PREFIX = "exponential-filters:team:";
 const PROJECT_VIEW_STORAGE_KEY = "exponential-project-view:workspace";
+const DISPLAY_OPTIONS_STORAGE_PREFIX = "exponential-display-options:team:";
 
 function getStorage(): Pick<
   Storage,
@@ -85,6 +98,24 @@ function writeStoredIssueFilters(teamKey: string, filters: FilterCondition[]) {
   );
 }
 
+function writeStoredDisplayOptions(
+  teamKey: string,
+  displayOptions: IssueViewDisplayOptions,
+) {
+  const storage = getStorage();
+  if (!storage) {
+    return;
+  }
+
+  storage.setItem(
+    `${DISPLAY_OPTIONS_STORAGE_PREFIX}${teamKey}`,
+    JSON.stringify({
+      ...displayOptions,
+      layout: "list",
+    }),
+  );
+}
+
 function writeStoredProjectViewState(options: {
   statusFilter: ProjectViewStatusFilter;
   sortBy: ProjectViewSortOption;
@@ -103,6 +134,30 @@ function LayoutIcon({
 }: {
   layout: "list" | "board" | "timeline";
 }) {
+  if (layout === "timeline") {
+    return (
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        role="img"
+        aria-label="Timeline layout"
+      >
+        <path d="M4 6h16" />
+        <path d="M4 12h16" />
+        <path d="M4 18h16" />
+        <circle cx="8" cy="6" r="2" />
+        <rect x="10" y="10" width="7" height="4" rx="1" />
+        <rect x="6" y="16" width="9" height="4" rx="1" />
+      </svg>
+    );
+  }
+
   if (layout === "board") {
     return (
       <svg
@@ -222,6 +277,82 @@ function ViewRow({
   );
 }
 
+const filterTypeOptions: Array<{ value: FilterType; label: string }> = [
+  { value: "status", label: "Status" },
+  { value: "priority", label: "Priority" },
+  { value: "assignee", label: "Assignee" },
+  { value: "label", label: "Label" },
+  { value: "project", label: "Project" },
+  { value: "cycle", label: "Cycle" },
+  { value: "creator", label: "Creator" },
+  { value: "dueDate", label: "Due date" },
+  { value: "estimate", label: "Estimate" },
+  { value: "team", label: "Team" },
+];
+
+const groupByOptions: Array<{ value: GroupByOption; label: string }> = [
+  { value: "status", label: "Status" },
+  { value: "priority", label: "Priority" },
+  { value: "assignee", label: "Assignee" },
+  { value: "label", label: "Label" },
+  { value: "project", label: "Project" },
+  { value: "none", label: "No grouping" },
+];
+
+const orderByOptions: Array<{ value: OrderByOption; label: string }> = [
+  { value: "priority", label: "Priority" },
+  { value: "created", label: "Created" },
+  { value: "updated", label: "Updated" },
+  { value: "manual", label: "Manual" },
+];
+
+const projectGroupOptions: Array<{ value: ProjectViewGroupBy; label: string }> =
+  [
+    { value: "status", label: "Status" },
+    { value: "team", label: "Team" },
+    { value: "none", label: "No grouping" },
+  ];
+
+const propertyOptions: Array<{
+  key: keyof IssueViewDisplayOptions["displayProperties"];
+  label: string;
+}> = [
+  { key: "id", label: "ID" },
+  { key: "status", label: "Status" },
+  { key: "assignee", label: "Assignee" },
+  { key: "priority", label: "Priority" },
+  { key: "project", label: "Project" },
+  { key: "dueDate", label: "Due date" },
+  { key: "labels", label: "Labels" },
+  { key: "created", label: "Created" },
+  { key: "updated", label: "Updated" },
+];
+
+interface PreviewIssue {
+  id: string;
+  stateId: string;
+  priority: string;
+  assigneeId: string | null;
+  labelIds: string[];
+  projectId: string | null;
+  creatorId?: string | null;
+  cycleId?: string | null;
+  dueDate?: string | Date | null;
+  estimate?: number | string | null;
+  teamId?: string | null;
+}
+
+function splitFilterValues(value: string): string[] {
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function formatFilterValues(values: string[]): string {
+  return values.join(", ");
+}
+
 function CreateViewModal({
   activeTab,
   teams,
@@ -238,9 +369,7 @@ function CreateViewModal({
   onSaved: (view: ViewSummary) => void;
 }) {
   const [name, setName] = useState(view?.name ?? "");
-  const [layout, setLayout] = useState<"list" | "board">(
-    view?.layout === "board" ? "board" : "list",
-  );
+  const [layout, setLayout] = useState<ViewLayout>(view?.layout ?? "list");
   const [isPersonal, setIsPersonal] = useState(view?.isPersonal ?? true);
   const [scope, setScope] = useState<ViewScope>(view?.scope ?? "workspace");
   const [teamId, setTeamId] = useState<string>(
@@ -249,6 +378,13 @@ function CreateViewModal({
       teams[0]?.id ??
       "",
   );
+  const [issueFilters, setIssueFilters] = useState<FilterCondition[]>(
+    view?.filterState.issueFilters ?? [],
+  );
+  const [issueDisplayOptions, setIssueDisplayOptions] =
+    useState<IssueViewDisplayOptions>(
+      view?.filterState.issueDisplayOptions ?? defaultIssueViewDisplayOptions,
+    );
   const [projectStatusFilter, setProjectStatusFilter] =
     useState<ProjectViewStatusFilter>(
       view?.filterState.projectStatusFilter ?? "all",
@@ -256,6 +392,14 @@ function CreateViewModal({
   const [projectSortBy, setProjectSortBy] = useState<ProjectViewSortOption>(
     view?.filterState.projectSortBy ?? "created-desc",
   );
+  const [projectDisplayOptions, setProjectDisplayOptions] =
+    useState<ProjectViewDisplayOptions>(
+      view?.filterState.projectDisplayOptions ??
+        defaultProjectViewDisplayOptions,
+    );
+  const [previewIssues, setPreviewIssues] = useState<PreviewIssue[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -266,10 +410,74 @@ function CreateViewModal({
   }, [activeTab]);
 
   const selectedTeam = teams.find((team) => team.id === teamId) ?? null;
-  const capturedFilters =
-    activeTab === "issues" && selectedTeam
-      ? readStoredIssueFilters(selectedTeam.key)
-      : [];
+
+  useEffect(() => {
+    if (activeTab !== "issues" || !selectedTeam) {
+      setPreviewIssues([]);
+      return;
+    }
+
+    let cancelled = false;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    fetch(`/api/teams/${selectedTeam.key}/issues`)
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error("preview unavailable");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) {
+          return;
+        }
+        const issues = (data.groups ?? []).flatMap(
+          (group: { issues?: PreviewIssue[] }) => group.issues ?? [],
+        );
+        setPreviewIssues(issues);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreviewError("Preview unavailable for this team.");
+          setPreviewIssues([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPreviewLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, selectedTeam]);
+
+  const matchingPreviewCount = applyFilters(previewIssues, issueFilters).length;
+
+  const updateIssueFilter = (
+    index: number,
+    update: Partial<FilterCondition>,
+  ) => {
+    setIssueFilters((current) =>
+      current.map((filter, filterIndex) =>
+        filterIndex === index ? { ...filter, ...update } : filter,
+      ),
+    );
+  };
+
+  const addIssueFilter = () => {
+    setIssueFilters((current) => [
+      ...current,
+      { type: "status", operator: "is", values: [] },
+    ]);
+  };
+
+  const removeIssueFilter = (index: number) => {
+    setIssueFilters((current) =>
+      current.filter((_, filterIndex) => filterIndex !== index),
+    );
+  };
 
   const handleSubmit = async () => {
     if (!name.trim() || submitting) {
@@ -288,13 +496,18 @@ function CreateViewModal({
       name: name.trim(),
       layout: activeTab === "projects" ? "list" : layout,
       isPersonal,
-      teamId: scope === "team" ? (selectedTeam?.id ?? null) : null,
+      teamId:
+        activeTab === "issues" || scope === "team"
+          ? (selectedTeam?.id ?? null)
+          : null,
       filterState: {
         entityType: activeTab,
         scope: activeTab === "issues" ? "team" : scope,
-        issueFilters: activeTab === "issues" ? capturedFilters : [],
+        issueFilters: activeTab === "issues" ? issueFilters : [],
+        issueDisplayOptions,
         projectStatusFilter,
         projectSortBy,
+        projectDisplayOptions,
       },
     };
 
@@ -323,7 +536,7 @@ function CreateViewModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-[440px] rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-4 shadow-xl">
         <h2 className="mb-3 text-[14px] font-medium text-[var(--color-text-primary)]">
           {view ? "Edit view" : "Create view"}
         </h2>
@@ -355,11 +568,90 @@ function CreateViewModal({
               </select>
             </div>
 
-            <div className="mb-3 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-3 py-2 text-[12px] text-[var(--color-text-secondary)]">
-              Uses {capturedFilters.length} saved filter
-              {capturedFilters.length === 1 ? "" : "s"} from{" "}
-              {selectedTeam?.name ?? "this team"}.
-            </div>
+            <section className="mb-3 rounded-md border border-[var(--color-border)] p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-[12px] font-medium text-[var(--color-text-primary)]">
+                  Filters
+                </h3>
+                <button
+                  type="button"
+                  onClick={addIssueFilter}
+                  className="rounded-md px-2 py-1 text-[12px] text-[var(--color-accent)] hover:bg-[var(--color-surface-hover)]"
+                >
+                  Add filter
+                </button>
+              </div>
+              {issueFilters.length === 0 ? (
+                <p className="text-[12px] text-[var(--color-text-secondary)]">
+                  No filters. This view includes every issue in{" "}
+                  {selectedTeam?.name ?? "the selected team"}.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {issueFilters.map((filter, index) => (
+                    <div
+                      key={`${filter.type}-${index}`}
+                      className="grid gap-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]"
+                    >
+                      <select
+                        aria-label={`Filter ${index + 1} field`}
+                        value={filter.type}
+                        onChange={(event) =>
+                          updateIssueFilter(index, {
+                            type: event.target.value as FilterType,
+                          })
+                        }
+                        className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1.5 text-[12px] text-[var(--color-text-primary)]"
+                      >
+                        {filterTypeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label={`Filter ${index + 1} operator`}
+                        value={filter.operator}
+                        onChange={(event) =>
+                          updateIssueFilter(index, {
+                            operator: event.target
+                              .value as FilterCondition["operator"],
+                          })
+                        }
+                        className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1.5 text-[12px] text-[var(--color-text-primary)]"
+                      >
+                        <option value="is">is</option>
+                        <option value="isNot">is not</option>
+                      </select>
+                      <input
+                        aria-label={`Filter ${index + 1} values`}
+                        placeholder="Value IDs, comma-separated"
+                        value={formatFilterValues(filter.values)}
+                        onChange={(event) =>
+                          updateIssueFilter(index, {
+                            values: splitFilterValues(event.target.value),
+                          })
+                        }
+                        className="rounded-md border border-[var(--color-border)] bg-transparent px-2 py-1.5 text-[12px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeIssueFilter(index)}
+                        className="rounded-md px-2 py-1.5 text-[12px] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="mt-3 rounded-md bg-[var(--color-surface-hover)] px-3 py-2 text-[12px] text-[var(--color-text-secondary)]">
+                {previewLoading
+                  ? "Loading matching issue preview…"
+                  : (previewError ??
+                    `${matchingPreviewCount} of ${previewIssues.length} issues match this view.`)}
+              </div>
+            </section>
           </>
         )}
 
@@ -456,39 +748,174 @@ function CreateViewModal({
                 </select>
               </label>
             </div>
+
+            <section className="mb-3 rounded-md border border-[var(--color-border)] p-3">
+              <h3 className="mb-2 text-[12px] font-medium text-[var(--color-text-primary)]">
+                Project display
+              </h3>
+              <label className="block text-[12px] text-[var(--color-text-secondary)]">
+                <span className="mb-1 block">Group by</span>
+                <select
+                  aria-label="Select project grouping"
+                  value={projectDisplayOptions.groupBy}
+                  onChange={(event) =>
+                    setProjectDisplayOptions((current) => ({
+                      ...current,
+                      groupBy: event.target.value as ProjectViewGroupBy,
+                    }))
+                  }
+                  className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
+                >
+                  {projectGroupOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {(
+                  [
+                    ["showTeam", "Team"],
+                    ["showLead", "Lead"],
+                    ["showTargetDate", "Target date"],
+                    ["showProgress", "Progress"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label
+                    key={key}
+                    className="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={projectDisplayOptions[key]}
+                      onChange={() =>
+                        setProjectDisplayOptions((current) => ({
+                          ...current,
+                          [key]: !current[key],
+                        }))
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </section>
           </>
         )}
 
         {activeTab === "issues" && (
-          <div className="mb-3">
-            <span className="mb-1 block text-[12px] text-[var(--color-text-secondary)]">
-              Layout
-            </span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setLayout("list")}
-                className={`rounded-md px-3 py-1.5 text-[12px] ${
-                  layout === "list"
-                    ? "bg-[var(--color-surface-active)] text-[var(--color-text-primary)]"
-                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                }`}
-              >
-                List
-              </button>
-              <button
-                type="button"
-                onClick={() => setLayout("board")}
-                className={`rounded-md px-3 py-1.5 text-[12px] ${
-                  layout === "board"
-                    ? "bg-[var(--color-surface-active)] text-[var(--color-text-primary)]"
-                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                }`}
-              >
-                Board
-              </button>
+          <section className="mb-3 rounded-md border border-[var(--color-border)] p-3">
+            <h3 className="mb-2 text-[12px] font-medium text-[var(--color-text-primary)]">
+              Display options
+            </h3>
+            <div className="mb-3 grid gap-3 sm:grid-cols-3">
+              <label className="text-[12px] text-[var(--color-text-secondary)]">
+                <span className="mb-1 block">Layout</span>
+                <select
+                  aria-label="Select issue view layout"
+                  value={layout}
+                  onChange={(event) =>
+                    setLayout(event.target.value as ViewLayout)
+                  }
+                  className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1.5 text-[12px] text-[var(--color-text-primary)]"
+                >
+                  <option value="list">List</option>
+                  <option value="board">Board</option>
+                  <option value="timeline">Timeline</option>
+                </select>
+              </label>
+              <label className="text-[12px] text-[var(--color-text-secondary)]">
+                <span className="mb-1 block">Group by</span>
+                <select
+                  aria-label="Select issue grouping"
+                  value={issueDisplayOptions.groupBy}
+                  onChange={(event) =>
+                    setIssueDisplayOptions((current) => ({
+                      ...current,
+                      groupBy: event.target.value as GroupByOption,
+                    }))
+                  }
+                  className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1.5 text-[12px] text-[var(--color-text-primary)]"
+                >
+                  {groupByOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-[12px] text-[var(--color-text-secondary)]">
+                <span className="mb-1 block">Order by</span>
+                <select
+                  aria-label="Select issue ordering"
+                  value={issueDisplayOptions.orderBy}
+                  onChange={(event) =>
+                    setIssueDisplayOptions((current) => ({
+                      ...current,
+                      orderBy: event.target.value as OrderByOption,
+                    }))
+                  }
+                  className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1.5 text-[12px] text-[var(--color-text-primary)]"
+                >
+                  {orderByOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          </div>
+
+            {layout === "timeline" && (
+              <label className="mb-3 block text-[12px] text-[var(--color-text-secondary)]">
+                <span className="mb-1 block">Timeline date</span>
+                <select
+                  aria-label="Select timeline date field"
+                  value={issueDisplayOptions.timelineBy}
+                  onChange={(event) =>
+                    setIssueDisplayOptions((current) => ({
+                      ...current,
+                      timelineBy: event.target
+                        .value as IssueViewDisplayOptions["timelineBy"],
+                    }))
+                  }
+                  className="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1.5 text-[12px] text-[var(--color-text-primary)]"
+                >
+                  <option value="dueDate">Due date</option>
+                  <option value="created">Created</option>
+                  <option value="updated">Updated</option>
+                </select>
+              </label>
+            )}
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              {propertyOptions.map((property) => (
+                <label
+                  key={property.key}
+                  className="flex items-center gap-2 text-[12px] text-[var(--color-text-secondary)]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={
+                      issueDisplayOptions.displayProperties[property.key]
+                    }
+                    onChange={() =>
+                      setIssueDisplayOptions((current) => ({
+                        ...current,
+                        displayProperties: {
+                          ...current.displayProperties,
+                          [property.key]:
+                            !current.displayProperties[property.key],
+                        },
+                      }))
+                    }
+                  />
+                  {property.label}
+                </label>
+              ))}
+            </div>
+          </section>
         )}
 
         <div className="mb-4">
@@ -643,14 +1070,17 @@ export function ViewsPage({
       }
 
       writeStoredIssueFilters(view.teamKey, view.filterState.issueFilters);
-      router.push(
-        withWorkspaceSlug(
-          view.layout === "board"
-            ? `/team/${view.teamKey}/board`
-            : `/team/${view.teamKey}/all`,
-          workspaceSlug,
-        ),
+      writeStoredDisplayOptions(
+        view.teamKey,
+        view.filterState.issueDisplayOptions ?? defaultIssueViewDisplayOptions,
       );
+      const targetPath =
+        view.layout === "board"
+          ? `/team/${view.teamKey}/board`
+          : view.layout === "timeline"
+            ? `/team/${view.teamKey}/all?layout=timeline`
+            : `/team/${view.teamKey}/all`;
+      router.push(withWorkspaceSlug(targetPath, workspaceSlug));
       return;
     }
 

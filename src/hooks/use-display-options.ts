@@ -30,14 +30,38 @@ export const defaultDisplayOptions: DisplayOptionsState = {
   showEmptyColumns: false,
 };
 
+const DISPLAY_OPTIONS_STORAGE_PREFIX = "exponential-display-options:team:";
+
+function readStoredDisplayOptions(
+  teamKey: string,
+): Partial<DisplayOptionsState> | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(
+    `${DISPLAY_OPTIONS_STORAGE_PREFIX}${teamKey}`,
+  );
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as Partial<DisplayOptionsState>;
+  } catch {
+    return null;
+  }
+}
+
 export function useDisplayOptions(
   teamKey: string,
   initialLayout: "list" | "board",
 ) {
-  const [options, setOptions] = useState<DisplayOptionsState>({
+  const [options, setOptions] = useState<DisplayOptionsState>(() => ({
     ...defaultDisplayOptions,
+    ...readStoredDisplayOptions(teamKey),
     layout: initialLayout,
-  });
+  }));
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -46,10 +70,12 @@ export function useDisplayOptions(
         const res = await fetch(`/api/teams/${teamKey}/display-options`);
         if (res.ok) {
           const data = await res.json();
-          if (data.displayOptions) {
+          const storedOptions = readStoredDisplayOptions(teamKey);
+          if (data.displayOptions || storedOptions) {
             setOptions((prev) => ({
               ...prev,
               ...data.displayOptions,
+              ...storedOptions,
               layout: initialLayout,
             }));
           }

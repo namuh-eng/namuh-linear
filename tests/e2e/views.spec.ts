@@ -97,6 +97,68 @@ test.describe("Workspace Views canonical route", () => {
   });
 });
 
+test.describe("Custom view builder configuration", () => {
+  test("creates, reloads, and opens configured issue views from workspace and team routes", async ({
+    page,
+  }) => {
+    const suffix = Date.now().toString(36);
+    const workspaceViewName = `Configured workspace issue view ${suffix}`;
+    const teamViewName = `Configured team issue view ${suffix}`;
+
+    await page.goto("/views");
+    await expect(page).toHaveURL(/\/foreverbrowsing\/views$/);
+    await page.getByLabel("Create view").first().click();
+    await page.getByPlaceholder("View name").fill(workspaceViewName);
+    await page.getByRole("button", { name: /Add filter/i }).click();
+    await page.getByLabel("Filter 1 field").selectOption("priority");
+    await page.getByLabel("Filter 1 values").fill("high");
+    await page.getByLabel("Select issue view layout").selectOption("timeline");
+    await page.getByLabel("Select issue grouping").selectOption("priority");
+    await page.getByLabel("Select issue ordering").selectOption("created");
+    await expect(page.getByText(/issues match this view/i)).toBeVisible();
+    await page.getByRole("button", { name: /^Create$/ }).click();
+    await expect(page.getByText(workspaceViewName)).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByText(workspaceViewName)).toBeVisible();
+    await page.getByText(workspaceViewName).click();
+    await expect(page).toHaveURL(
+      /\/foreverbrowsing\/team\/ENG\/all\?layout=timeline/,
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          filters: window.localStorage.getItem("exponential-filters:team:ENG"),
+          display: window.localStorage.getItem(
+            "exponential-display-options:team:ENG",
+          ),
+        })),
+      )
+      .toEqual({
+        filters: JSON.stringify([
+          { type: "priority", operator: "is", values: ["high"] },
+        ]),
+        display: expect.stringContaining('"groupBy":"priority"'),
+      });
+
+    await page.goto("/team/ENG/views");
+    await expect(page).toHaveURL(/\/foreverbrowsing\/team\/ENG\/views$/);
+    await page.getByLabel("Create view").first().click();
+    await page.getByPlaceholder("View name").fill(teamViewName);
+    await page.getByRole("button", { name: /Add filter/i }).click();
+    await page.getByLabel("Filter 1 field").selectOption("status");
+    await page.getByLabel("Filter 1 values").fill("backlog");
+    await page.getByLabel("Select issue view layout").selectOption("list");
+    await page.getByLabel("Select issue grouping").selectOption("status");
+    await page.getByLabel("Select issue ordering").selectOption("updated");
+    await expect(page.getByText(/issues match this view/i)).toBeVisible();
+    await page.getByRole("button", { name: /^Create$/ }).click();
+    await expect(page.getByText(teamViewName)).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(teamViewName)).toBeVisible();
+  });
+});
+
 test.describe("Team Views tab routes", () => {
   test("direct slug-prefixed and legacy team views tab routes render the team Views shell", async ({
     page,
