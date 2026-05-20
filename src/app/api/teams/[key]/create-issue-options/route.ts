@@ -12,6 +12,24 @@ import { findAccessibleTeam } from "@/lib/teams";
 import { and, asc, eq, isNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
+type WorkflowStateBehavior = {
+  terminalBehavior?: "open" | "resolved" | "canceled";
+  autoArchiveDays?: number | null;
+  autoCloseTriage?: boolean;
+  automationUrl?: string | null;
+};
+
+function readWorkflowBehaviors(
+  settings: unknown,
+): Record<string, WorkflowStateBehavior> {
+  if (!settings || typeof settings !== "object") return {};
+  const behaviors = (settings as { workflowStateBehaviors?: unknown })
+    .workflowStateBehaviors;
+  return behaviors && typeof behaviors === "object"
+    ? (behaviors as Record<string, WorkflowStateBehavior>)
+    : {};
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ key: string }> },
@@ -94,13 +112,18 @@ export async function GET(
           },
         ];
 
+  const workflowBehaviors = readWorkflowBehaviors(teamContext.settings);
+
   return NextResponse.json({
     team: {
       id: teamContext.id,
       name: teamContext.name,
       key: teamContext.key,
     },
-    statuses,
+    statuses: statuses.map((status) => ({
+      ...status,
+      behavior: workflowBehaviors[status.id] ?? { terminalBehavior: "open" },
+    })),
     priorities: [
       { value: "urgent", label: "Urgent" },
       { value: "high", label: "High" },

@@ -112,6 +112,7 @@ describe("TeamIssueStatusesPage", () => {
                       issueCount: 0,
                       description: "Ready for QA",
                       color: "#123abc",
+                      behavior: { terminalBehavior: "open" },
                     },
                   ],
                 },
@@ -153,6 +154,12 @@ describe("TeamIssueStatusesPage", () => {
     fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "Ready for QA" },
     });
+    fireEvent.change(screen.getByLabelText("Workflow type"), {
+      target: { value: "completed" },
+    });
+    fireEvent.change(screen.getByLabelText("Workflow automation link"), {
+      target: { value: "https://example.com/qa" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => screen.getByText("Status created."));
@@ -160,7 +167,7 @@ describe("TeamIssueStatusesPage", () => {
       "/api/teams/TEAM/statuses",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"name":"QA Review"'),
+        body: expect.stringContaining('"category":"completed"'),
       }),
     );
     expect(screen.getAllByText("QA Review").length).toBeGreaterThan(0);
@@ -209,6 +216,9 @@ describe("TeamIssueStatusesPage", () => {
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Incoming" },
     });
+    fireEvent.change(screen.getByLabelText("Workflow type"), {
+      target: { value: "started" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => screen.getByText("Status updated."));
@@ -216,7 +226,7 @@ describe("TeamIssueStatusesPage", () => {
       "/api/teams/TEAM/statuses",
       expect.objectContaining({
         method: "PATCH",
-        body: expect.stringContaining('"name":"Incoming"'),
+        body: expect.stringContaining('"category":"started"'),
       }),
     );
 
@@ -359,11 +369,28 @@ describe("TeamIssueStatusesPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders duplicate issue status selector with all statuses", async () => {
+  it("renders workflow behavior controls and duplicate issue status selector with all statuses", async () => {
     render(<TeamIssueStatusesPage />);
     await waitFor(() => screen.getByText("Duplicate issue status"));
 
-    const select = screen.getByRole("combobox");
+    expect(
+      screen.getByText(/workflow automation links for every team status/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[6]);
+    expect(screen.getByText("Workflow behavior")).toBeInTheDocument();
+    expect(screen.getByLabelText("Workflow type")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Auto-archive issues after days"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(
+        "Auto-close matching triage issues when moved here",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    const select = screen.getAllByRole("combobox").at(-1);
     expect(select).toBeInTheDocument();
 
     // Check if some statuses from different categories are options
