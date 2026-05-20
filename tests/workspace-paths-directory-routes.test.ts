@@ -7,10 +7,11 @@ import {
 import { describe, expect, it } from "vitest";
 
 describe("workspace directory path support", () => {
-  it("treats members, teams, agent, and cycles as workspace app routes", () => {
+  it("treats members, teams, agent, roadmap, and cycles as workspace app routes", () => {
     expect(isAppRoutePrefix("agent")).toBe(true);
     expect(isAppRoutePrefix("members")).toBe(true);
     expect(isAppRoutePrefix("teams")).toBe(true);
+    expect(isAppRoutePrefix("roadmap")).toBe(true);
     expect(isAppRoutePrefix("cycles")).toBe(true);
   });
 
@@ -21,7 +22,7 @@ describe("workspace directory path support", () => {
     );
   });
 
-  it("supports workspace slug-prefixed agent, members, and teams routes", () => {
+  it("supports workspace slug-prefixed agent, members, teams, roadmap, and cycles routes", () => {
     expect(withWorkspaceSlug("/agent", "foreverbrowsing")).toBe(
       "/foreverbrowsing/agent",
     );
@@ -30,6 +31,9 @@ describe("workspace directory path support", () => {
     );
     expect(withWorkspaceSlug("/teams", "foreverbrowsing")).toBe(
       "/foreverbrowsing/teams",
+    );
+    expect(withWorkspaceSlug("/roadmap", "foreverbrowsing")).toBe(
+      "/foreverbrowsing/roadmap",
     );
     expect(withWorkspaceSlug("/cycles", "foreverbrowsing")).toBe(
       "/foreverbrowsing/cycles",
@@ -43,6 +47,9 @@ describe("workspace directory path support", () => {
     expect(
       stripWorkspaceSlug("/foreverbrowsing/teams", "foreverbrowsing"),
     ).toBe("/teams");
+    expect(
+      stripWorkspaceSlug("/foreverbrowsing/roadmap", "foreverbrowsing"),
+    ).toBe("/roadmap");
     expect(
       stripWorkspaceSlug("/foreverbrowsing/cycles", "foreverbrowsing"),
     ).toBe("/cycles");
