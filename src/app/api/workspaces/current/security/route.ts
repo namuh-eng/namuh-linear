@@ -12,6 +12,11 @@ import {
   isWorkspaceAdminRole,
   readPermissionLevel,
 } from "@/lib/workspace-permissions";
+import {
+  readSamlSecuritySettings,
+  readStoredScimSecuritySettings,
+  safeScimSettings,
+} from "@/lib/workspace-saml-scim";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -326,6 +331,13 @@ function buildResponse(
         currentWorkspace.approvedEmailDomains,
       ),
       ...securityState,
+      saml: readSamlSecuritySettings(currentWorkspace.settings),
+      scim: safeScimSettings(
+        readStoredScimSecuritySettings(
+          currentWorkspace.settings,
+          `${new URL(request.url).origin}/api/scim/v2`,
+        ),
+      ),
       capabilities: {
         canInviteMembers: canPerformWorkspacePermission(
           currentWorkspace.role,

@@ -49,6 +49,31 @@ type TestSecurity = {
   improveAi: boolean;
   webSearch: boolean;
   hipaa: boolean;
+  saml: {
+    enabled: boolean;
+    domains: string[];
+    idpSsoUrl: string;
+    entityId: string;
+    certificate: string;
+    metadataUrl: string;
+    lastTestedAt: string | null;
+    status: "not_configured" | "configured" | "tested" | "error";
+    lastError: string | null;
+  };
+  scim: {
+    enabled: boolean;
+    baseUrl: string;
+    status: "disabled" | "enabled";
+    lastSyncAt: string | null;
+    tokens: Array<{
+      id: string;
+      name: string;
+      prefix: string;
+      createdAt: string;
+      revokedAt: string | null;
+      lastUsedAt: string | null;
+    }>;
+  };
 };
 
 function defaultSecurity(): TestSecurity {
@@ -72,6 +97,24 @@ function defaultSecurity(): TestSecurity {
     improveAi: true,
     webSearch: true,
     hipaa: false,
+    saml: {
+      enabled: false,
+      domains: [],
+      idpSsoUrl: "",
+      entityId: "",
+      certificate: "",
+      metadataUrl: "",
+      lastTestedAt: null,
+      status: "not_configured",
+      lastError: null,
+    },
+    scim: {
+      enabled: false,
+      baseUrl: "http://localhost:3015/api/scim/v2",
+      status: "disabled",
+      lastSyncAt: null,
+      tokens: [],
+    },
   };
 }
 
@@ -128,10 +171,10 @@ describe("Security settings page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("acme.com")).toBeInTheDocument();
     expect(screen.getByText(defaultSecurity().inviteUrl)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "SAML & SCIM ↗" })).toHaveAttribute(
-      "href",
-      "https://linear.app/docs/saml-and-access-control",
-    );
+    expect(screen.getByText("SAML & SCIM")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Save SAML settings" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("switch", { name: "Google authentication" }),
     ).toHaveAttribute("aria-checked", "false");
@@ -212,6 +255,144 @@ describe("Security settings page", () => {
       permissions: expect.objectContaining({
         invitationsRole: "anyone",
       }),
+    });
+  });
+
+  it("saves and tests SAML settings in-product", async () => {
+    mockSecurityLoad();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        saml: {
+          ...defaultSecurity().saml,
+          enabled: true,
+          domains: ["example.com"],
+          idpSsoUrl: "https://idp.example.com/saml",
+          entityId: "https://idp.example.com/entity",
+          metadataUrl: "https://idp.example.com/metadata.xml",
+          status: "configured",
+        },
+      }),
+    });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        saml: {
+          ...defaultSecurity().saml,
+          enabled: true,
+          domains: ["example.com"],
+          idpSsoUrl: "https://idp.example.com/saml",
+          entityId: "https://idp.example.com/entity",
+          metadataUrl: "https://idp.example.com/metadata.xml",
+          status: "tested",
+          lastTestedAt: "2026-05-20T00:00:00.000Z",
+        },
+      }),
+    });
+
+    render(<SecurityPage />);
+    await waitForLoaded();
+
+    fireEvent.change(screen.getByPlaceholderText("sso.example.com"), {
+      target: { value: "Example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.change(screen.getByLabelText("IdP SSO URL"), {
+      target: { value: "https://idp.example.com/saml" },
+    });
+    fireEvent.change(screen.getByLabelText("Issuer or entity ID"), {
+      target: { value: "https://idp.example.com/entity" },
+    });
+    fireEvent.change(screen.getByLabelText("Metadata URL"), {
+      target: { value: "https://idp.example.com/metadata.xml" },
+    });
+    fireEvent.click(screen.getByRole("switch", { name: "Enable SAML SSO" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save SAML settings" }));
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    expect(mockFetch.mock.calls[1][0]).toBe(
+      "/api/workspaces/current/security/saml",
+    );
+    expect(JSON.parse(String(mockFetch.mock.calls[1][1]?.body))).toMatchObject({
+      enabled: true,
+      domains: ["example.com"],
+      idpSsoUrl: "https://idp.example.com/saml",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+    expect(mockFetch.mock.calls[2][0]).toBe(
+      "/api/workspaces/current/security/saml",
+    );
+    expect(JSON.parse(String(mockFetch.mock.calls[2][1]?.body))).toEqual({
+      action: "test",
+    });
+  });
+
+  it("generates copy-once and revokeable SCIM tokens", async () => {
+    mockSecurityLoad();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        scim: {
+          ...defaultSecurity().scim,
+          enabled: true,
+          status: "enabled",
+          tokens: [
+            {
+              id: "token-1",
+              name: "SCIM token",
+              prefix: "scim_abcd…",
+              createdAt: "2026-05-20T00:00:00.000Z",
+              revokedAt: null,
+              lastUsedAt: null,
+            },
+          ],
+        },
+        token: "scim_secret-once",
+      }),
+    });
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        scim: {
+          ...defaultSecurity().scim,
+          enabled: true,
+          status: "enabled",
+          tokens: [
+            {
+              id: "token-1",
+              name: "SCIM token",
+              prefix: "scim_abcd…",
+              createdAt: "2026-05-20T00:00:00.000Z",
+              revokedAt: "2026-05-20T00:01:00.000Z",
+              lastUsedAt: null,
+            },
+          ],
+        },
+      }),
+    });
+
+    render(<SecurityPage />);
+    await waitForLoaded();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Generate SCIM token" }),
+    );
+    await waitFor(() => screen.getByText("scim_secret-once"));
+    expect(mockFetch.mock.calls[1][0]).toBe(
+      "/api/workspaces/current/security/scim",
+    );
+    expect(JSON.parse(String(mockFetch.mock.calls[1][1]?.body))).toEqual({
+      action: "generate-token",
+      name: "SCIM token",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+    expect(JSON.parse(String(mockFetch.mock.calls[2][1]?.body))).toEqual({
+      action: "revoke-token",
+      tokenId: "token-1",
     });
   });
 });

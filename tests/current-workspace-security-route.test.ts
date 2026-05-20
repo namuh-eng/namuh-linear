@@ -153,6 +153,24 @@ describe("current workspace security route", () => {
         improveAi: true,
         webSearch: true,
         hipaa: false,
+        saml: {
+          enabled: false,
+          domains: [],
+          idpSsoUrl: "",
+          entityId: "",
+          certificate: "",
+          metadataUrl: "",
+          lastTestedAt: null,
+          status: "not_configured",
+          lastError: null,
+        },
+        scim: {
+          enabled: false,
+          baseUrl: "https://app.test/api/scim/v2",
+          status: "disabled",
+          lastSyncAt: null,
+          tokens: [],
+        },
         ipRestrictions: [
           {
             range: "203.0.113.0/24",
@@ -380,5 +398,357 @@ describe("current workspace security route", () => {
     await expect(response.json()).resolves.toEqual({
       error: "You do not have permission to manage workspace security",
     });
+  });
+
+  it("persists SAML settings through the dedicated admin endpoint", async () => {
+    const { PATCH, POST } = await import(
+      "@/app/api/workspaces/current/security/saml/route"
+    );
+
+    const saveResponse = await PATCH(
+      new Request("https://app.test/api/workspaces/current/security/saml", {
+        method: "PATCH",
+        body: JSON.stringify({
+          enabled: true,
+          domains: ["Example.com"],
+          idpSsoUrl: "https://idp.example.com/saml",
+          entityId: "https://idp.example.com/entity",
+          metadataUrl: "https://idp.example.com/metadata.xml",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(saveResponse.status).toBe(200);
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.objectContaining({
+          security: expect.objectContaining({
+            saml: expect.objectContaining({
+              enabled: true,
+              domains: ["example.com"],
+              ssoUrl: "https://idp.example.com/saml",
+              status: "configured",
+            }),
+          }),
+        }),
+      }),
+    );
+
+    currentWorkspaceLimitMock.mockResolvedValueOnce([
+      {
+        id: "workspace-1",
+        settings: {
+          security: {
+            saml: {
+              enabled: true,
+              domains: ["example.com"],
+              idpSsoUrl: "https://idp.example.com/saml",
+              entityId: "https://idp.example.com/entity",
+              metadataUrl: "https://idp.example.com/metadata.xml",
+            },
+          },
+        },
+        role: "admin",
+      },
+    ]);
+
+    const testResponse = await POST(
+      new Request("https://app.test/api/workspaces/current/security/saml", {
+        method: "POST",
+        body: JSON.stringify({ action: "test" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(testResponse.status).toBe(200);
+    await expect(testResponse.json()).resolves.toMatchObject({
+      saml: { status: "tested", lastError: null },
+    });
+  });
+
+  it("generates and revokes SCIM tokens without returning stored hashes", async () => {
+    const { POST } = await import(
+      "@/app/api/workspaces/current/security/scim/route"
+    );
+
+    const generateResponse = await POST(
+      new Request("https://app.test/api/workspaces/current/security/scim", {
+        method: "POST",
+        body: JSON.stringify({ action: "generate-token", name: "Okta" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(generateResponse.status).toBe(200);
+    const generated = await generateResponse.json();
+    expect(generated.token).toMatch(/^scim_/);
+    expect(generated.scim.tokens[0]).toMatchObject({
+      name: "Okta",
+      revokedAt: null,
+    });
+    expect(generated.scim.tokens[0].tokenHash).toBeUndefined();
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.objectContaining({
+          security: expect.objectContaining({
+            scim: expect.objectContaining({
+              enabled: true,
+              tokens: [
+                expect.objectContaining({ tokenHash: expect.any(String) }),
+              ],
+            }),
+          }),
+        }),
+      }),
+    );
+
+    currentWorkspaceLimitMock.mockResolvedValueOnce([
+      {
+        id: "workspace-1",
+        settings: {
+          security: {
+            scim: {
+              enabled: true,
+              tokens: [
+                {
+                  id: "token-1",
+                  name: "Okta",
+                  tokenHash: "hash",
+                  prefix: "scim_abc…",
+                  createdAt: "2026-05-20T00:00:00.000Z",
+                  revokedAt: null,
+                  lastUsedAt: null,
+                },
+              ],
+            },
+          },
+        },
+        role: "admin",
+      },
+    ]);
+
+    const revokeResponse = await POST(
+      new Request("https://app.test/api/workspaces/current/security/scim", {
+        method: "POST",
+        body: JSON.stringify({ action: "revoke-token", tokenId: "token-1" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(revokeResponse.status).toBe(200);
+    await expect(revokeResponse.json()).resolves.toMatchObject({
+      scim: {
+        tokens: [expect.objectContaining({ revokedAt: expect.any(String) })],
+      },
+    });
+  });
+
+  it("blocks non-admin members from mutating SAML and SCIM settings", async () => {
+    currentWorkspaceLimitMock.mockResolvedValue([
+      {
+        id: "workspace-1",
+        settings: {},
+        role: "member",
+      },
+    ]);
+    const samlRoute = await import(
+      "@/app/api/workspaces/current/security/saml/route"
+    );
+    const scimRoute = await import(
+      "@/app/api/workspaces/current/security/scim/route"
+    );
+
+    const samlResponse = await samlRoute.PATCH(
+      new Request("https://app.test/api/workspaces/current/security/saml", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: true }),
+      }),
+    );
+    const scimResponse = await scimRoute.POST(
+      new Request("https://app.test/api/workspaces/current/security/scim", {
+        method: "POST",
+        body: JSON.stringify({ action: "generate-token" }),
+      }),
+    );
+
+    expect(samlResponse.status).toBe(403);
+    expect(scimResponse.status).toBe(403);
+  });
+
+  it("persists SAML settings through the dedicated admin endpoint", async () => {
+    const { PATCH, POST } = await import(
+      "@/app/api/workspaces/current/security/saml/route"
+    );
+
+    const saveResponse = await PATCH(
+      new Request("https://app.test/api/workspaces/current/security/saml", {
+        method: "PATCH",
+        body: JSON.stringify({
+          enabled: true,
+          domains: ["Example.com"],
+          idpSsoUrl: "https://idp.example.com/saml",
+          entityId: "https://idp.example.com/entity",
+          metadataUrl: "https://idp.example.com/metadata.xml",
+        }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(saveResponse.status).toBe(200);
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.objectContaining({
+          security: expect.objectContaining({
+            saml: expect.objectContaining({
+              enabled: true,
+              domains: ["example.com"],
+              ssoUrl: "https://idp.example.com/saml",
+              status: "configured",
+            }),
+          }),
+        }),
+      }),
+    );
+
+    currentWorkspaceLimitMock.mockResolvedValueOnce([
+      {
+        id: "workspace-1",
+        settings: {
+          security: {
+            saml: {
+              enabled: true,
+              domains: ["example.com"],
+              idpSsoUrl: "https://idp.example.com/saml",
+              entityId: "https://idp.example.com/entity",
+              metadataUrl: "https://idp.example.com/metadata.xml",
+            },
+          },
+        },
+        role: "admin",
+      },
+    ]);
+
+    const testResponse = await POST(
+      new Request("https://app.test/api/workspaces/current/security/saml", {
+        method: "POST",
+        body: JSON.stringify({ action: "test" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(testResponse.status).toBe(200);
+    await expect(testResponse.json()).resolves.toMatchObject({
+      saml: { status: "tested", lastError: null },
+    });
+  });
+
+  it("generates and revokes SCIM tokens without returning stored hashes", async () => {
+    const { POST } = await import(
+      "@/app/api/workspaces/current/security/scim/route"
+    );
+
+    const generateResponse = await POST(
+      new Request("https://app.test/api/workspaces/current/security/scim", {
+        method: "POST",
+        body: JSON.stringify({ action: "generate-token", name: "Okta" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(generateResponse.status).toBe(200);
+    const generated = await generateResponse.json();
+    expect(generated.token).toMatch(/^scim_/);
+    expect(generated.scim.tokens[0]).toMatchObject({
+      name: "Okta",
+      revokedAt: null,
+    });
+    expect(generated.scim.tokens[0].tokenHash).toBeUndefined();
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.objectContaining({
+          security: expect.objectContaining({
+            scim: expect.objectContaining({
+              enabled: true,
+              tokens: [
+                expect.objectContaining({ tokenHash: expect.any(String) }),
+              ],
+            }),
+          }),
+        }),
+      }),
+    );
+
+    currentWorkspaceLimitMock.mockResolvedValueOnce([
+      {
+        id: "workspace-1",
+        settings: {
+          security: {
+            scim: {
+              enabled: true,
+              tokens: [
+                {
+                  id: "token-1",
+                  name: "Okta",
+                  tokenHash: "hash",
+                  prefix: "scim_abc…",
+                  createdAt: "2026-05-20T00:00:00.000Z",
+                  revokedAt: null,
+                  lastUsedAt: null,
+                },
+              ],
+            },
+          },
+        },
+        role: "admin",
+      },
+    ]);
+
+    const revokeResponse = await POST(
+      new Request("https://app.test/api/workspaces/current/security/scim", {
+        method: "POST",
+        body: JSON.stringify({ action: "revoke-token", tokenId: "token-1" }),
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    expect(revokeResponse.status).toBe(200);
+    await expect(revokeResponse.json()).resolves.toMatchObject({
+      scim: {
+        tokens: [expect.objectContaining({ revokedAt: expect.any(String) })],
+      },
+    });
+  });
+
+  it("blocks non-admin members from mutating SAML and SCIM settings", async () => {
+    currentWorkspaceLimitMock.mockResolvedValue([
+      {
+        id: "workspace-1",
+        settings: {},
+        role: "member",
+      },
+    ]);
+    const samlRoute = await import(
+      "@/app/api/workspaces/current/security/saml/route"
+    );
+    const scimRoute = await import(
+      "@/app/api/workspaces/current/security/scim/route"
+    );
+
+    const samlResponse = await samlRoute.PATCH(
+      new Request("https://app.test/api/workspaces/current/security/saml", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: true }),
+      }),
+    );
+    const scimResponse = await scimRoute.POST(
+      new Request("https://app.test/api/workspaces/current/security/scim", {
+        method: "POST",
+        body: JSON.stringify({ action: "generate-token" }),
+      }),
+    );
+
+    expect(samlResponse.status).toBe(403);
+    expect(scimResponse.status).toBe(403);
   });
 });

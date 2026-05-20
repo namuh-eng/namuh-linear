@@ -1,23 +1,10 @@
 import { db } from "@/lib/db";
 import { workspace } from "@/lib/db/schema";
+import { readSamlSecuritySettings } from "@/lib/workspace-saml-scim";
 
 export const SAML_NO_WORKSPACE_MESSAGE =
   "No SAML SSO enabled workspace could be found.";
 export const SAML_INVALID_EMAIL_MESSAGE = "Enter a valid email address.";
-
-type SamlSettings = {
-  enabled?: boolean;
-  domains?: string[];
-  emailDomains?: string[];
-  ssoUrl?: string;
-  ssoURL?: string;
-  url?: string;
-};
-
-type WorkspaceSettings = {
-  saml?: SamlSettings;
-  sso?: SamlSettings;
-};
 
 export type SamlDiscoveryResult =
   | { ok: true; url: string }
@@ -33,40 +20,6 @@ export function extractEmailDomain(email: string): string | null {
   return domain && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain) ? domain : null;
 }
 
-function readSamlSettings(settings: unknown): SamlSettings | null {
-  if (!settings || typeof settings !== "object") {
-    return null;
-  }
-
-  const candidate = settings as WorkspaceSettings;
-  return candidate.saml ?? candidate.sso ?? null;
-}
-
-function getConfiguredSamlUrl(settings: SamlSettings): string | null {
-  const configuredUrl = settings.ssoUrl ?? settings.ssoURL ?? settings.url;
-  if (!configuredUrl || typeof configuredUrl !== "string") {
-    return null;
-  }
-
-  try {
-    const url = new URL(configuredUrl);
-    return url.protocol === "https:" || url.protocol === "http:"
-      ? url.toString()
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function samlDomains(settings: SamlSettings): string[] {
-  const domains = settings.domains ?? settings.emailDomains ?? [];
-  return Array.isArray(domains)
-    ? domains
-        .filter((domain): domain is string => typeof domain === "string")
-        .map((domain) => domain.trim().toLowerCase())
-    : [];
-}
-
 export async function discoverSamlUrlFromEmail(
   email: string,
 ): Promise<SamlDiscoveryResult> {
@@ -80,18 +33,13 @@ export async function discoverSamlUrlFromEmail(
     .from(workspace);
 
   for (const record of workspaces) {
-    const saml = readSamlSettings(record.settings);
-    if (!saml?.enabled) {
+    const saml = readSamlSecuritySettings(record.settings);
+    if (!saml.enabled || !saml.idpSsoUrl) {
       continue;
     }
 
-    const url = getConfiguredSamlUrl(saml);
-    if (!url) {
-      continue;
-    }
-
-    if (samlDomains(saml).includes(domain)) {
-      return { ok: true, url };
+    if (saml.domains.includes(domain)) {
+      return { ok: true, url: saml.idpSsoUrl };
     }
   }
 
