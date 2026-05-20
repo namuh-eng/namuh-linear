@@ -101,6 +101,21 @@ describe("CycleRow", () => {
     render(<CycleRow cycle={cycle} teamKey="ENG" />);
     expect(screen.getByText(/10/)).toBeTruthy();
   });
+
+  it("preserves workspace slug in cycle detail links when provided", async () => {
+    const { CycleRow } = await import("@/components/cycle-row");
+    render(
+      <CycleRow
+        cycle={makeCycle({ id: "cycle-1" })}
+        teamKey="ENG"
+        workspaceSlug="foreverbrowsing"
+      />,
+    );
+
+    expect(screen.getByTestId("cycle-row").getAttribute("href")).toBe(
+      "/foreverbrowsing/team/ENG/cycles/cycle-1",
+    );
+  });
 });
 
 // ─── CycleSection ───────────────────────────────────────────────────
