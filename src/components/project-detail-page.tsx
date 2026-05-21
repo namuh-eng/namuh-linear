@@ -31,7 +31,8 @@ interface ProjectDetail {
   description: string | null;
   icon: string | null;
   slug: string;
-  status: "planned" | "started" | "paused" | "completed" | "canceled";
+  status: string;
+  statusLabel?: string;
   priority: "none" | "urgent" | "high" | "medium" | "low";
   startDate: string | null;
   targetDate: string | null;
@@ -71,6 +72,12 @@ interface ProjectResponse {
   availableTeams: { id: string; name: string; key: string }[];
   availableLabels: { id: string; name: string; color: string }[];
   slackChannel: string | null;
+  projectStatuses?: {
+    key: string;
+    name: string;
+    color?: string;
+    icon?: string;
+  }[];
   resources: ProjectResource[];
   activity: ProjectActivityEntry[];
   milestones: MilestoneData[];
@@ -268,7 +275,9 @@ export function ProjectDetailPage() {
   const summaryItems = [
     {
       label: "Status",
-      value: project.status.replace(/^./, (char) => char.toUpperCase()),
+      value:
+        project.statusLabel ??
+        project.status.replace(/^./, (char) => char.toUpperCase()),
     },
     {
       label: "Priority",
@@ -354,6 +363,7 @@ export function ProjectDetailPage() {
         teams={data.teams}
         labels={data.labels}
         slackChannel={data.slackChannel}
+        availableStatuses={data.projectStatuses}
         availableMembers={data.availableMembers}
         availableTeams={data.availableTeams}
         availableLabels={data.availableLabels}
