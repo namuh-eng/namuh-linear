@@ -1,47 +1,47 @@
 "use client";
 
 import { EmptyState } from "@/components/empty-state";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-type Provider = "csv" | "github" | "jira";
-type Job = {
+type ExportJob = {
   id: string;
-  type: "import" | "export";
-  provider?: Provider;
-  status: "queued" | "processing" | "completed" | "failed";
+  status: string;
   createdAt: string;
   completedAt?: string;
+  downloadUrl?: string;
+  counts?: Record<string, number>;
+};
+type ImportJob = {
+  id: string;
+  status: string;
+  createdAt: string;
+  provider: string;
   fileName?: string;
-  message: string;
-  rowCount?: number;
   importedCount?: number;
   errorCount?: number;
-  downloadUrl?: string;
+  errors?: Array<{ row: number; message: string }>;
+  message?: string;
+};
+type TeamOption = {
+  id: string;
+  name: string;
+  key: string;
+  states: Array<{ id: string; name: string; category: string }>;
+};
+type PreviewRow = {
+  row: number;
+  title: string;
+  description: string;
+  priority: string;
+  status: string;
+  errors: string[];
 };
 
-type TeamOption = { id: string; key: string; name: string };
-type CsvPreview = {
-  headers: string[];
-  rowCount: number;
-  validCount: number;
-  errorCount: number;
-  rows: Array<{
-    rowNumber: number;
-    values: Record<string, string>;
-    errors: string[];
-  }>;
-};
-type CsvMapping = {
-  title: string;
-  description?: string;
-  priority?: string;
-  teamKey?: string;
-};
-type ImportExportPayload = {
-  teams: TeamOption[];
-  imports: Job[];
-  exports: Job[];
-};
+type Provider = "csv" | "github" | "jira";
+type CsvStep = "upload" | "map" | "preview" | "complete";
+
+const REQUIRED_COLUMNS = ["title"];
+const OPTIONAL_COLUMNS = ["description", "status", "priority"];
 
 const providerCopy: Record<Provider, { name: string; description: string }> = {
   csv: {
@@ -61,16 +61,18 @@ const providerCopy: Record<Provider, { name: string; description: string }> = {
   },
 };
 
-async function readFileAsText(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(new Error("Unable to read CSV file"));
-    reader.readAsText(file);
-  });
+function guessMapping(headers: string[]) {
+  const find = (names: string[]) =>
+    headers.find((h) => names.includes(h.trim().toLowerCase())) ?? "";
+  return {
+    title: find(["title", "summary", "name"]),
+    description: find(["description", "body", "details"]),
+    status: find(["status", "state"]),
+    priority: find(["priority"]),
+  };
 }
 
-function JobList({ title, jobs }: { title: string; jobs: Job[] }) {
+function JobList({ title, jobs }: { title: string; jobs: ImportJob[] }) {
   return (
     <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
       <h2 className="text-[15px] font-medium text-[var(--color-text-primary)]">
@@ -90,23 +92,18 @@ function JobList({ title, jobs }: { title: string; jobs: Job[] }) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                    {job.message}
+                    {job.message ?? `${job.provider} import — ${job.fileName ?? job.id.slice(0, 8)}`}
                   </p>
                   <p className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
                     {new Date(job.createdAt).toLocaleString()} · {job.status}
-                    {typeof job.rowCount === "number"
-                      ? ` · ${job.rowCount} rows`
+                    {typeof job.importedCount === "number"
+                      ? ` · ${job.importedCount} imported`
+                      : ""}
+                    {typeof job.errorCount === "number" && job.errorCount > 0
+                      ? ` · ${job.errorCount} errors`
                       : ""}
                   </p>
                 </div>
-                {job.downloadUrl ? (
-                  <a
-                    className="rounded-md bg-[#5E6AD2] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#4F5ABF]"
-                    href={job.downloadUrl}
-                  >
-                    Download
-                  </a>
-                ) : null}
               </div>
             </li>
           ))}
@@ -116,139 +113,118 @@ function JobList({ title, jobs }: { title: string; jobs: Job[] }) {
   );
 }
 
-function ProviderPicker({
-  onSelect,
-}: { onSelect: (provider: Provider) => void }) {
-  return (
-    <div className="space-y-3" aria-label="Import providers">
-      {(Object.keys(providerCopy) as Provider[]).map((provider) => (
-        <button
-          key={provider}
-          type="button"
-          onClick={() => onSelect(provider)}
-          aria-describedby={`${provider}-description`}
-          className="flex w-full items-start justify-between gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-left transition-colors hover:bg-[var(--color-surface-hover)]"
-        >
-          <span>
-            <span className="block text-[14px] font-medium text-[var(--color-text-primary)]">
-              {providerCopy[provider].name}
-            </span>
-            <span
-              id={`${provider}-description`}
-              className="mt-1 block text-[13px] text-[var(--color-text-secondary)]"
-            >
-              {providerCopy[provider].description}
-            </span>
-          </span>
-          <span className="shrink-0 rounded-full border border-[var(--color-border)] px-2 py-1 text-[11px] text-[var(--color-text-tertiary)]">
-            Actionable
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function ImportModal({
-  teams,
   onClose,
-  onJobCreated,
-}: {
-  teams: TeamOption[];
-  onClose: () => void;
-  onJobCreated: (job: Job) => void;
-}) {
-  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(
-    null,
-  );
+  onComplete,
+}: { onClose: () => void; onComplete: () => void }) {
+  const [provider, setProvider] = useState<Provider | null>(null);
+  const [step, setStep] = useState<CsvStep>("upload");
   const [fileName, setFileName] = useState("");
-  const [csv, setCsv] = useState("");
-  const [mapping, setMapping] = useState<CsvMapping>({ title: "" });
-  const [preview, setPreview] = useState<CsvPreview | null>(null);
-  const [defaultTeamId, setDefaultTeamId] = useState(teams[0]?.id ?? "");
+  const [csvText, setCsvText] = useState("");
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [mapping, setMapping] = useState({
+    title: "",
+    description: "",
+    status: "",
+    priority: "",
+  });
+  const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [teamId, setTeamId] = useState("");
+  const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  const headerOptions = useMemo(() => preview?.headers ?? [], [preview]);
+  useEffect(() => {
+    fetch("/api/workspaces/imports")
+      .then((r) => r.json())
+      .then((data) => {
+        setTeams(data.teams ?? []);
+        setTeamId(data.teams?.[0]?.id ?? "");
+      })
+      .catch(() => setError("Unable to load workspace import settings."));
+  }, []);
 
-  const previewCsv = async (file: File) => {
+  const selectedTeam = teams.find((team) => team.id === teamId);
+
+  const uploadCsv = async (file: File | undefined) => {
+    if (!file) return;
     setError("");
-    setMessage("");
-    const text = await readFileAsText(file);
-    const response = await fetch("/api/workspaces/current/import-export", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        action: "preview_csv",
-        fileName: file.name,
-        csv: text,
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? "Unable to preview CSV");
-    setFileName(file.name);
-    setCsv(text);
-    setMapping(data.mapping);
-    setPreview(data.preview);
-  };
-
-  const startCsvImport = async () => {
-    setSaving(true);
-    setError("");
-    setMessage("");
-    try {
-      const response = await fetch("/api/workspaces/current/import-export", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          action: "start_csv_import",
-          fileName,
-          csv,
-          mapping,
-          defaultTeamId,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setPreview(data.preview ?? preview);
-        throw new Error(data.error ?? "Unable to start CSV import");
-      }
-      onJobCreated(data.import);
-      setMessage(data.import.message);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Unable to start CSV import",
-      );
-    } finally {
-      setSaving(false);
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setError("Choose a .csv file.");
+      return;
     }
+    const text = await file.text();
+    const firstLine = text.split(/\r?\n/)[0] ?? "";
+    const parsedHeaders = firstLine
+      .split(",")
+      .map((h) => h.trim().replace(/^"|"$/g, ""))
+      .filter(Boolean);
+    setFileName(file.name);
+    setCsvText(text);
+    setHeaders(parsedHeaders);
+    setMapping(guessMapping(parsedHeaders));
+    setStep("map");
   };
 
-  const prepareProvider = async (provider: "github" | "jira") => {
-    setSaving(true);
+  const validate = async () => {
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/workspaces/imports/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csv: csvText, mapping, teamId }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(data.error ?? "CSV validation failed.");
+      return;
+    }
+    setPreview(data.preview ?? []);
+    setStep("preview");
+  };
+
+  const startImport = async () => {
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/workspaces/imports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ csv: csvText, mapping, teamId, fileName }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(data.error ?? "Import failed.");
+      setPreview(data.preview ?? preview);
+      return;
+    }
+    setStep("complete");
+    onComplete();
+  };
+
+  const prepareProvider = async (p: "github" | "jira") => {
+    setBusy(true);
     setError("");
     try {
       const response = await fetch("/api/workspaces/current/import-export", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "prepare_provider", provider }),
+        body: JSON.stringify({ action: "prepare_provider", provider: p }),
       });
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error ?? "Unable to prepare provider import");
-      onJobCreated(data.import);
       setMessage(
-        `${providerCopy[provider].name} setup queued. Open integrations to connect the source.`,
+        `${providerCopy[p].name} setup queued. Open integrations to connect the source.`,
       );
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to prepare provider import",
+        err instanceof Error ? err.message : "Unable to prepare provider import",
       );
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   };
 
@@ -257,175 +233,64 @@ function ImportModal({
       <dialog
         open
         aria-label="Start import"
-        className="m-0 max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)] p-5 text-[var(--color-text-primary)] shadow-2xl"
+        className="m-0 max-h-[90vh] w-full max-w-[680px] overflow-y-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)] p-5 text-[var(--color-text-primary)] shadow-2xl"
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-[18px] font-semibold text-[var(--color-text-primary)]">
-              Start import
-            </h2>
+            <h2 className="text-[18px] font-semibold">Start import</h2>
             <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
-              Choose where your workspace data is coming from.
+              Import issues with validation, mapping, and reload-safe job
+              history.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close import dialog"
-            className="rounded-md px-2 py-1 text-[18px] text-[var(--color-text-tertiary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+            className="rounded-md px-2 py-1 text-[18px]"
           >
             ×
           </button>
         </div>
 
-        {selectedProvider === null ? (
-          <ProviderPicker onSelect={setSelectedProvider} />
-        ) : null}
-
-        {selectedProvider === "csv" ? (
-          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
-            <button
-              type="button"
-              onClick={() => setSelectedProvider(null)}
-              className="mb-4 text-[12px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-            >
-              ← Back to providers
-            </button>
-            <h3 className="text-[15px] font-medium text-[var(--color-text-primary)]">
-              CSV import
-            </h3>
-            <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
-              Upload a CSV, map columns, preview validation, and create issues
-              in this workspace.
-            </p>
-            <label className="mt-4 block text-[13px] text-[var(--color-text-primary)]">
-              CSV file
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file)
-                    void previewCsv(file).catch((err) =>
-                      setError(
-                        err instanceof Error
-                          ? err.message
-                          : "Unable to preview CSV",
-                      ),
-                    );
-                }}
-                className="mt-2 block w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 text-[13px] text-[var(--color-text-primary)] file:mr-3 file:rounded-md file:border-0 file:bg-[#5E6AD2] file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-white"
-              />
-            </label>
-
-            {preview ? (
-              <div className="mt-4 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {(
-                    ["title", "description", "priority", "teamKey"] as const
-                  ).map((field) => (
-                    <label
-                      key={field}
-                      className="text-[13px] text-[var(--color-text-primary)]"
-                    >
-                      {field === "teamKey"
-                        ? "Team key"
-                        : field[0].toUpperCase() + field.slice(1)}{" "}
-                      column
-                      <select
-                        value={mapping[field] ?? ""}
-                        onChange={(event) =>
-                          setMapping((current) => ({
-                            ...current,
-                            [field]: event.target.value,
-                          }))
-                        }
-                        className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5 text-[13px]"
-                      >
-                        <option value="">None</option>
-                        {headerOptions.map((header) => (
-                          <option key={header} value={header}>
-                            {header}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ))}
-                </div>
-                <label className="block text-[13px] text-[var(--color-text-primary)]">
-                  Default team
-                  <select
-                    value={defaultTeamId}
-                    onChange={(event) => setDefaultTeamId(event.target.value)}
-                    className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5 text-[13px]"
+        {provider === null ? (
+          <div className="space-y-3" aria-label="Import providers">
+            {(Object.keys(providerCopy) as Provider[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setProvider(p)}
+                aria-describedby={`${p}-description`}
+                className="flex w-full items-start justify-between gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-left transition-colors hover:bg-[var(--color-surface-hover)]"
+              >
+                <span>
+                  <span className="block text-[14px] font-medium text-[var(--color-text-primary)]">
+                    {providerCopy[p].name}
+                  </span>
+                  <span
+                    id={`${p}-description`}
+                    className="mt-1 block text-[13px] text-[var(--color-text-secondary)]"
                   >
-                    {teams.map((team) => (
-                      <option key={team.id} value={team.id}>
-                        {team.name} ({team.key})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-3 text-[13px]">
-                  <p className="font-medium text-[var(--color-text-primary)]">
-                    Preview: {preview.validCount} valid, {preview.errorCount}{" "}
-                    with errors, {preview.rowCount} total
-                  </p>
-                  <ul className="mt-2 max-h-28 space-y-1 overflow-auto text-[12px] text-[var(--color-text-secondary)]">
-                    {preview.rows.slice(0, 5).map((row) => (
-                      <li key={row.rowNumber}>
-                        Row {row.rowNumber}:{" "}
-                        {row.errors.length
-                          ? row.errors.join(", ")
-                          : row.values[mapping.title] || "Ready"}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            ) : null}
-
-            {error ? (
-              <p role="alert" className="mt-3 text-[13px] text-red-400">
-                {error}
-              </p>
-            ) : null}
-            {message ? (
-              <output className="mt-3 block text-[13px] text-green-400">
-                {message}
-              </output>
-            ) : null}
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] hover:bg-[var(--color-surface-hover)]"
-              >
-                Close
+                    {providerCopy[p].description}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-full border border-[var(--color-border)] px-2 py-1 text-[11px] text-[var(--color-text-tertiary)]">
+                  {p === "csv" ? "Actionable" : "Connect integration"}
+                </span>
               </button>
-              <button
-                type="button"
-                onClick={startCsvImport}
-                disabled={!preview || saving}
-                className="rounded-md bg-[#5E6AD2] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-[#4F5ABF] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Start import job
-              </button>
-            </div>
+            ))}
           </div>
-        ) : null}
-
-        {selectedProvider === "github" || selectedProvider === "jira" ? (
+        ) : provider === "github" || provider === "jira" ? (
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
             <button
               type="button"
-              onClick={() => setSelectedProvider(null)}
+              onClick={() => setProvider(null)}
               className="mb-4 text-[12px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
             >
               ← Back to providers
             </button>
             <h3 className="text-[15px] font-medium text-[var(--color-text-primary)]">
-              {providerCopy[selectedProvider].name} import setup
+              {providerCopy[provider].name} import setup
             </h3>
             <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
               Create a reload-safe setup record, then connect the integration to
@@ -450,93 +315,211 @@ function ImportModal({
               </a>
               <button
                 type="button"
-                disabled={saving}
-                onClick={() => prepareProvider(selectedProvider)}
+                disabled={busy}
+                onClick={() => prepareProvider(provider)}
                 className="rounded-md bg-[#5E6AD2] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-[#4F5ABF] disabled:opacity-60"
               >
                 Save setup
               </button>
             </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+            <button
+              type="button"
+              onClick={() => { setProvider(null); setStep("upload"); }}
+              className="mb-4 text-[12px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+            >
+              ← Back to providers
+            </button>
+            {step === "upload" && (
+              <>
+                <h3 className="font-medium">Upload CSV</h3>
+                <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
+                  Required column: {REQUIRED_COLUMNS.join(", ")}. Optional:{" "}
+                  {OPTIONAL_COLUMNS.join(", ")}.
+                </p>
+                <input
+                  aria-label="CSV file"
+                  className="mt-4 block w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 text-[13px] file:mr-3 file:rounded-md file:border-0 file:bg-[#5E6AD2] file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-white"
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => void uploadCsv(e.target.files?.[0])}
+                />
+              </>
+            )}
+            {step === "map" && (
+              <>
+                <h3 className="font-medium">Map CSV columns</h3>
+                <label className="mt-3 block text-[13px]">
+                  Target team
+                  <select
+                    className="mt-1 block w-full rounded-md bg-[var(--color-panel)] p-2"
+                    value={teamId}
+                    onChange={(e) => setTeamId(e.target.value)}
+                  >
+                    {teams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.key})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {Object.keys(mapping).map((field) => (
+                  <label
+                    key={field}
+                    className="mt-3 block text-[13px] capitalize"
+                  >
+                    {field}
+                    {field === "title" ? " *" : ""}
+                    <select
+                      className="mt-1 block w-full rounded-md bg-[var(--color-panel)] p-2"
+                      value={mapping[field as keyof typeof mapping]}
+                      onChange={(e) =>
+                        setMapping({ ...mapping, [field]: e.target.value })
+                      }
+                    >
+                      <option value="">Do not import</option>
+                      {headers.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={validate}
+                  className="mt-4 rounded-md bg-[#5E6AD2] px-3 py-1.5 text-white"
+                >
+                  Preview validation
+                </button>
+              </>
+            )}
+            {step === "preview" && (
+              <>
+                <h3 className="font-medium">Preview validation</h3>
+                <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
+                  {preview.filter((r) => r.errors.length === 0).length} valid
+                  rows, {preview.filter((r) => r.errors.length > 0).length} rows
+                  with errors.
+                </p>
+                <div className="mt-3 max-h-64 overflow-auto rounded border border-[var(--color-border)]">
+                  <table className="w-full text-left text-[12px]">
+                    <thead>
+                      <tr>
+                        <th>Row</th>
+                        <th>Title</th>
+                        <th>Status</th>
+                        <th>Validation</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.map((r) => (
+                        <tr key={r.row}>
+                          <td>{r.row}</td>
+                          <td>{r.title}</td>
+                          <td>{r.status || selectedTeam?.states[0]?.name}</td>
+                          <td
+                            className={
+                              r.errors.length
+                                ? "text-red-400"
+                                : "text-green-400"
+                            }
+                          >
+                            {r.errors.join("; ") || "Ready"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy || preview.some((r) => r.errors.length > 0)}
+                  onClick={startImport}
+                  className="mt-4 rounded-md bg-[#5E6AD2] px-3 py-1.5 text-white disabled:opacity-50"
+                >
+                  Start import job
+                </button>
+              </>
+            )}
+            {step === "complete" && (
+              <>
+                <h3 className="font-medium text-green-400">Import complete</h3>
+                <p className="mt-2 text-[13px]">
+                  Issues were created and the import job was saved to history.
+                </p>
+              </>
+            )}
+            {error && (
+              <p role="alert" className="mt-3 text-[13px] text-red-400">
+                {error}
+              </p>
+            )}
+          </div>
+        )}
       </dialog>
     </div>
   );
 }
 
 export default function ImportExportPage() {
-  const [loading, setLoading] = useState(true);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [teams, setTeams] = useState<TeamOption[]>([]);
-  const [imports, setImports] = useState<Job[]>([]);
-  const [exports, setExports] = useState<Job[]>([]);
-  const [statusMessage, setStatusMessage] = useState("");
+  const [exports, setExports] = useState<ExportJob[]>([]);
+  const [imports, setImports] = useState<ImportJob[]>([]);
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const latestExport = useMemo(() => exports[0], [exports]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/workspaces/current/import-export")
-      .then(async (response) => {
-        const data = (await response.json()) as ImportExportPayload & {
-          error?: string;
-        };
-        if (!response.ok)
-          throw new Error(
-            data.error ?? "Unable to load import/export settings",
-          );
-        if (!cancelled) {
-          setTeams(data.teams);
-          setImports(data.imports);
-          setExports(data.exports);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled)
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Unable to load import/export settings",
-          );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    try {
+      const [e, i] = await Promise.all([
+        fetch("/api/workspaces/exports").then((r) => r.json()),
+        fetch("/api/workspaces/imports").then((r) => r.json()),
+      ]);
+      setExports(e.exports ?? []);
+      setImports(i.imports ?? []);
+    } catch {
+      setError("Unable to load import/export history.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   const requestExport = async () => {
+    setBusy(true);
+    setMessage("");
     setError("");
-    setStatusMessage("Preparing workspace export...");
     try {
-      const response = await fetch("/api/workspaces/current/import-export", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "request_export" }),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error ?? "Unable to export workspace data");
-      setExports((current) => [
-        data.export,
-        ...current.filter((job) => job.id !== data.export.id),
-      ]);
-      setStatusMessage(data.export.message);
-    } catch (err) {
-      setStatusMessage("");
-      setError(
-        err instanceof Error ? err.message : "Unable to export workspace data",
-      );
+      const res = await fetch("/api/workspaces/exports", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Export failed.");
+        return;
+      }
+      setExports(data.exports ?? [data.export]);
+      setMessage("Workspace export is ready to download.");
+    } finally {
+      setBusy(false);
     }
   };
 
-  if (loading)
+  if (loading) {
     return (
       <div className="p-8 text-[var(--color-text-tertiary)]">
         Loading import/export settings...
       </div>
     );
+  }
 
   return (
     <div className="max-w-[760px]">
@@ -547,6 +530,7 @@ export default function ImportExportPage() {
         Move workspace data in and out with admin-controlled CSV import jobs,
         provider setup records, and downloadable workspace exports.
       </p>
+
       {error ? (
         <p
           role="alert"
@@ -555,9 +539,9 @@ export default function ImportExportPage() {
           {error}
         </p>
       ) : null}
-      {statusMessage ? (
+      {message ? (
         <output className="mt-4 block rounded-md border border-green-500/40 bg-green-500/10 p-3 text-[13px] text-green-300">
-          {statusMessage}
+          {message}
         </output>
       ) : null}
 
@@ -575,39 +559,47 @@ export default function ImportExportPage() {
       <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-[15px] font-medium text-[var(--color-text-primary)]">
-              Export workspace data
-            </h2>
+            <h2 className="text-[15px] font-medium">Export workspace data</h2>
             <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
               Generate a downloadable JSON bundle with workspace, teams,
               members, projects, labels, issues, and comments.
             </p>
+            {latestExport ? (
+              <p className="mt-2 text-[12px] text-[var(--color-text-secondary)]">
+                Latest export: {latestExport.status} ·{" "}
+                {new Date(latestExport.createdAt).toLocaleString()}
+              </p>
+            ) : null}
           </div>
-          <button
-            type="button"
-            onClick={requestExport}
-            className="rounded-md bg-[#5E6AD2] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-[#4F5ABF]"
-          >
-            Request export
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={requestExport}
+              className="rounded-md bg-[#5E6AD2] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-[#4F5ABF] disabled:opacity-50"
+            >
+              Request export
+            </button>
+            {latestExport?.downloadUrl ? (
+              <a
+                className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[13px]"
+                href={latestExport.downloadUrl}
+              >
+                Download
+              </a>
+            ) : null}
+          </div>
         </div>
       </div>
 
       <div className="mt-4 grid gap-4">
-        <JobList title="Export history" jobs={exports} />
         <JobList title="Import history" jobs={imports} />
       </div>
 
       {showImportModal ? (
         <ImportModal
-          teams={teams}
           onClose={() => setShowImportModal(false)}
-          onJobCreated={(job) =>
-            setImports((current) => [
-              job,
-              ...current.filter((candidate) => candidate.id !== job.id),
-            ])
-          }
+          onComplete={load}
         />
       ) : null}
     </div>
