@@ -77,7 +77,7 @@ describe("CreateIssueModal", () => {
         return mockJsonResponse(optionsResponse);
       }
 
-      if (url === "/api/issue-templates?teamKey=ENG") {
+      if (url === "/api/teams/ENG/templates") {
         return mockJsonResponse({
           templates: [
             {
@@ -232,7 +232,7 @@ describe("CreateIssueModal", () => {
     await screen.findByLabelText("Issue template");
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      "/api/issue-templates?teamKey=ENG",
+      "/api/teams/ENG/templates",
     );
   });
 

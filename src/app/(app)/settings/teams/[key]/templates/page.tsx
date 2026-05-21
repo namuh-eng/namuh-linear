@@ -2,209 +2,208 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
-
-type TemplateType = "issue" | "document" | "project";
+import { type FormEvent, useEffect, useState } from "react";
 
 interface TeamTemplate {
   id: string;
   name: string;
   description: string;
-  type?: TemplateType;
   settings?: {
     title?: string;
     body?: string;
     defaultPriority?: string;
     defaultStatusName?: string;
+    defaultTeamId?: string;
+    defaultTeamKey?: string;
   };
 }
 
 interface TemplatesResponse {
-  team: { id: string; name: string; key: string };
+  team: { name: string; key: string };
   templates: TeamTemplate[];
 }
 
-interface TemplateFormState {
-  name: string;
-  description: string;
-  type: TemplateType;
-  title: string;
-  body: string;
-  defaultPriority: string;
-  defaultStatusName: string;
-}
+type DialogState =
+  | { mode: "create"; template: null }
+  | { mode: "edit"; template: TeamTemplate };
 
-const emptyForm: TemplateFormState = {
+const emptyForm = {
   name: "",
   description: "",
-  type: "issue",
   title: "",
   body: "",
   defaultPriority: "none",
   defaultStatusName: "",
 };
 
-function formFromTemplate(template?: TeamTemplate): TemplateFormState {
-  if (!template) return emptyForm;
-  return {
-    name: template.name,
-    description: template.description ?? "",
-    type: template.type ?? "issue",
-    title: template.settings?.title ?? "",
-    body: template.settings?.body ?? template.description ?? "",
-    defaultPriority: template.settings?.defaultPriority ?? "none",
-    defaultStatusName: template.settings?.defaultStatusName ?? "",
-  };
-}
-
-function templateTypeLabel(type: TemplateType | undefined) {
-  if (type === "document") return "Document";
-  if (type === "project") return "Project";
-  return "Issue";
+function readError(payload: unknown, fallback: string) {
+  return typeof payload === "object" &&
+    payload !== null &&
+    typeof (payload as { error?: unknown }).error === "string"
+    ? (payload as { error: string }).error
+    : fallback;
 }
 
 export default function TeamTemplatesSettingsPage() {
   const params = useParams();
-  const teamKey = params.key as string;
+  const teamKey = String(params.key ?? "").toUpperCase();
   const [data, setData] = useState<TemplatesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  const [editing, setEditing] = useState<TeamTemplate | null>(null);
-  const [form, setForm] = useState<TemplateFormState>(emptyForm);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialog, setDialog] = useState<DialogState | null>(null);
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const loadTemplates = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    setNotFound(false);
-    try {
-      const response = await fetch(`/api/teams/${teamKey}/templates`);
-      const payload = (await response.json().catch(() => null)) as
-        | TemplatesResponse
-        | { error?: string }
-        | null;
-
-      if (response.status === 404) {
-        setData(null);
-        setNotFound(true);
-        return;
-      }
-
-      if (!response.ok) {
-        setData(null);
-        setLoadError(
-          payload && "error" in payload && payload.error
-            ? payload.error
-            : "Unable to load templates.",
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTemplates() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const response = await fetch(
+          `/api/teams/${encodeURIComponent(teamKey)}/templates`,
         );
-        return;
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(readError(payload, "Unable to load team templates."));
+        }
+        if (!cancelled) setData(payload as TemplatesResponse);
+      } catch (error) {
+        if (!cancelled) {
+          setData(null);
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load team templates.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      setData(payload as TemplatesResponse);
-    } catch {
-      setData(null);
-      setLoadError("Unable to load templates.");
-    } finally {
-      setLoading(false);
     }
+    void loadTemplates();
+    return () => {
+      cancelled = true;
+    };
   }, [teamKey]);
 
-  useEffect(() => {
-    void loadTemplates();
-  }, [loadTemplates]);
-
-  function openCreate() {
-    setEditing(null);
-    setForm(emptyForm);
+  function openDialog(template?: TeamTemplate) {
     setFormError(null);
-    setDialogOpen(true);
+    setDialog(
+      template
+        ? { mode: "edit", template }
+        : { mode: "create", template: null },
+    );
+    setForm({
+      name: template?.name ?? "",
+      description: template?.description ?? "",
+      title: template?.settings?.title ?? "",
+      body: template?.settings?.body ?? template?.description ?? "",
+      defaultPriority: template?.settings?.defaultPriority ?? "none",
+      defaultStatusName: template?.settings?.defaultStatusName ?? "",
+    });
   }
 
-  function openEdit(template: TeamTemplate) {
-    setEditing(template);
-    setForm(formFromTemplate(template));
-    setFormError(null);
-    setDialogOpen(true);
-  }
-
-  async function saveTemplate() {
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    const name = form.name.trim();
+    const description = form.description.trim();
+    const body = form.body.trim();
+    if (!name) {
+      setFormError("Template name is required.");
+      return;
+    }
+    if (!description && !body) {
+      setFormError("Issue description is required.");
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
-      const response = await fetch(`/api/teams/${teamKey}/templates`, {
-        method: editing ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editing?.id,
-          name: form.name,
-          description: form.description,
-          type: form.type,
-          settings: {
-            title: form.title,
-            body: form.body || form.description,
-            defaultPriority: form.defaultPriority,
-            defaultStatusName: form.defaultStatusName,
-          },
-        }),
-      });
-      const payload = (await response.json().catch(() => null)) as {
-        template?: TeamTemplate;
-        error?: string;
-      } | null;
-
-      if (!response.ok || !payload?.template) {
-        setFormError(payload?.error ?? "Failed to save template.");
-        return;
+      const response = await fetch(
+        `/api/teams/${encodeURIComponent(teamKey)}/templates`,
+        {
+          method: dialog?.mode === "edit" ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: dialog?.mode === "edit" ? dialog.template.id : undefined,
+            name,
+            description: description || body,
+            settings: {
+              title: form.title.trim(),
+              body,
+              defaultPriority: form.defaultPriority,
+              defaultStatusName: form.defaultStatusName.trim(),
+            },
+          }),
+        },
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(readError(payload, "Failed to save team template."));
       }
-
-      const savedTemplate = payload.template;
-      setData((current) => {
-        if (!current) return current;
-        return {
-          ...current,
-          templates: editing
-            ? current.templates.map((template) =>
-                template.id === editing.id ? savedTemplate : template,
-              )
-            : [savedTemplate, ...current.templates],
-        };
-      });
-      setDialogOpen(false);
-    } catch {
-      setFormError("Failed to save template.");
+      const template = (payload as { template: TeamTemplate }).template;
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              templates:
+                dialog?.mode === "edit"
+                  ? current.templates.map((item) =>
+                      item.id === template.id ? template : item,
+                    )
+                  : [template, ...current.templates],
+            }
+          : current,
+      );
+      setDialog(null);
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Failed to save team template.",
+      );
     } finally {
       setSaving(false);
     }
   }
 
   async function deleteTemplate(template: TeamTemplate) {
-    if (!window.confirm(`Delete the ${template.name} template?`)) return;
-    const previous = data?.templates ?? [];
-    setData((current) =>
-      current
-        ? {
-            ...current,
-            templates: current.templates.filter(
-              (item) => item.id !== template.id,
-            ),
-          }
-        : current,
-    );
-
-    const response = await fetch(`/api/teams/${teamKey}/templates`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: template.id }),
-    });
-
-    if (!response.ok) {
-      setData((current) =>
-        current ? { ...current, templates: previous } : current,
+    setFormError(null);
+    setSaving(true);
+    try {
+      const response = await fetch(
+        `/api/teams/${encodeURIComponent(teamKey)}/templates`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: template.id }),
+        },
       );
-      setLoadError("Failed to delete template.");
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(readError(payload, "Failed to delete team template."));
+      }
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              templates: current.templates.filter(
+                (item) => item.id !== template.id,
+              ),
+            }
+          : current,
+      );
+      setDialog(null);
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete team template.",
+      );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -216,38 +215,23 @@ export default function TeamTemplatesSettingsPage() {
     );
   }
 
-  if (notFound) {
-    return (
-      <div className="max-w-[720px]">
-        <Link
-          href="/settings/teams"
-          className="text-[12px] text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-primary)]"
-        >
-          Back to teams
-        </Link>
-        <div className="mt-8 rounded-lg border border-[var(--color-border)] p-8">
-          <h1 className="text-[20px] font-semibold text-[var(--color-text-primary)]">
-            Team not found
-          </h1>
-          <p className="mt-2 text-[13px] text-[var(--color-text-tertiary)]">
-            The requested team key is not available in this workspace.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   if (loadError || !data) {
     return (
-      <div className="max-w-[720px] rounded-lg border border-[var(--color-border)] p-8 text-[var(--color-text-secondary)]">
-        {loadError ?? "Unable to load templates."}
-        <button
-          type="button"
-          onClick={() => void loadTemplates()}
-          className="ml-3 text-[12px] text-[var(--color-accent)] hover:underline"
+      <div className="max-w-[720px]">
+        <div className="mb-6">
+          <Link
+            href={`/settings/teams/${encodeURIComponent(teamKey)}`}
+            className="text-[12px] text-[var(--color-text-tertiary)] transition-colors hover:text-[var(--color-text-primary)]"
+          >
+            Back to team settings
+          </Link>
+        </div>
+        <div
+          role="alert"
+          className="rounded-lg border border-[var(--color-border)] border-dashed p-12 text-center text-[var(--color-text-tertiary)]"
         >
-          Retry
-        </button>
+          {loadError ?? "Team not found"}
+        </div>
       </div>
     );
   }
@@ -269,7 +253,7 @@ export default function TeamTemplatesSettingsPage() {
         </h1>
         <button
           type="button"
-          onClick={openCreate}
+          onClick={() => openDialog()}
           className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white transition-opacity hover:opacity-90"
         >
           New template
@@ -300,9 +284,6 @@ export default function TeamTemplatesSettingsPage() {
               <div>
                 <div className="flex items-center gap-2 text-[14px] font-medium text-[var(--color-text-primary)]">
                   {template.name}
-                  <span className="rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 text-[10px] uppercase text-[var(--color-text-tertiary)]">
-                    {templateTypeLabel(template.type)}
-                  </span>
                 </div>
                 <div className="text-[12px] text-[var(--color-text-tertiary)]">
                   {template.description ||
@@ -310,159 +291,164 @@ export default function TeamTemplatesSettingsPage() {
                     "No description"}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => openEdit(template)}
-                  className="text-[12px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void deleteTemplate(template)}
-                  className="text-[12px] text-[var(--color-text-tertiary)] hover:text-red-300"
-                >
-                  Delete
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => openDialog(template)}
+                className="text-[12px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
+              >
+                Edit
+              </button>
             </div>
           ))
         )}
       </div>
 
-      {dialogOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <dialog
-            open
-            aria-labelledby="team-template-dialog-title"
-            className="w-full max-w-[520px] rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-5 shadow-xl"
+      {dialog ? (
+        <dialog
+          open
+          aria-modal="true"
+          aria-labelledby="team-template-dialog-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+        >
+          <form
+            onSubmit={handleSubmit}
+            className="w-full max-w-[520px] rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-primary)] p-5 shadow-xl"
           >
             <h2
               id="team-template-dialog-title"
               className="text-[16px] font-semibold text-[var(--color-text-primary)]"
             >
-              {editing ? "Edit template" : "Create template"}
+              {dialog.mode === "edit"
+                ? "Edit team template"
+                : "Create team template"}
             </h2>
-            <div className="mt-4 grid gap-3">
-              <label className="text-[12px] text-[var(--color-text-secondary)]">
-                Template type
+            {formError ? (
+              <p
+                role="alert"
+                className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-[12px] text-red-500"
+              >
+                {formError}
+              </p>
+            ) : null}
+            <label className="mt-4 block text-[12px] font-medium text-[var(--color-text-secondary)]">
+              Name
+              <input
+                value={form.name}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
+              />
+            </label>
+            <label className="mt-3 block text-[12px] font-medium text-[var(--color-text-secondary)]">
+              Description
+              <textarea
+                value={form.description}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                className="mt-1 min-h-16 w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
+              />
+            </label>
+            <label className="mt-3 block text-[12px] font-medium text-[var(--color-text-secondary)]">
+              Default title
+              <input
+                value={form.title}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
+                className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
+              />
+            </label>
+            <label className="mt-3 block text-[12px] font-medium text-[var(--color-text-secondary)]">
+              Issue body
+              <textarea
+                value={form.body}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    body: event.target.value,
+                  }))
+                }
+                className="mt-1 min-h-24 w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
+              />
+            </label>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <label className="block text-[12px] font-medium text-[var(--color-text-secondary)]">
+                Priority
                 <select
-                  value={form.type}
+                  value={form.defaultPriority}
                   onChange={(event) =>
-                    setForm({
-                      ...form,
-                      type: event.target.value as TemplateType,
-                    })
+                    setForm((current) => ({
+                      ...current,
+                      defaultPriority: event.target.value,
+                    }))
                   }
-                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
+                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
                 >
-                  <option value="issue">Issue</option>
-                  <option value="document">Document</option>
-                  <option value="project">Project</option>
+                  <option value="none">No priority</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
                 </select>
               </label>
-              <label className="text-[12px] text-[var(--color-text-secondary)]">
-                Name
+              <label className="block text-[12px] font-medium text-[var(--color-text-secondary)]">
+                Status name
                 <input
-                  value={form.name}
+                  value={form.defaultStatusName}
                   onChange={(event) =>
-                    setForm({ ...form, name: event.target.value })
+                    setForm((current) => ({
+                      ...current,
+                      defaultStatusName: event.target.value,
+                    }))
                   }
-                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
-                  placeholder="Bug report"
+                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
                 />
               </label>
-              <label className="text-[12px] text-[var(--color-text-secondary)]">
-                Description
-                <input
-                  value={form.description}
-                  onChange={(event) =>
-                    setForm({ ...form, description: event.target.value })
-                  }
-                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
-                  placeholder="When to use this template"
-                />
-              </label>
-              <label className="text-[12px] text-[var(--color-text-secondary)]">
-                Default issue title
-                <input
-                  value={form.title}
-                  onChange={(event) =>
-                    setForm({ ...form, title: event.target.value })
-                  }
-                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
-                  placeholder="Optional pre-filled title"
-                />
-              </label>
-              <label className="text-[12px] text-[var(--color-text-secondary)]">
-                Body
-                <textarea
-                  value={form.body}
-                  onChange={(event) =>
-                    setForm({ ...form, body: event.target.value })
-                  }
-                  className="mt-1 min-h-[110px] w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
-                  placeholder="Template body"
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-[12px] text-[var(--color-text-secondary)]">
-                  Priority
-                  <select
-                    value={form.defaultPriority}
-                    onChange={(event) =>
-                      setForm({ ...form, defaultPriority: event.target.value })
-                    }
-                    className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
+            </div>
+            <div className="mt-5 flex justify-between gap-3">
+              <div>
+                {dialog.mode === "edit" ? (
+                  <button
+                    type="button"
+                    onClick={() => void deleteTemplate(dialog.template)}
+                    disabled={saving}
+                    className="rounded-md border border-red-500/50 px-3 py-1.5 text-[12px] font-medium text-red-500 disabled:opacity-60"
                   >
-                    <option value="none">No priority</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
-                </label>
-                <label className="text-[12px] text-[var(--color-text-secondary)]">
-                  Status name
-                  <input
-                    value={form.defaultStatusName}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        defaultStatusName: event.target.value,
-                      })
-                    }
-                    className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
-                    placeholder="Backlog"
-                  />
-                </label>
+                    Delete
+                  </button>
+                ) : null}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDialog(null)}
+                  disabled={saving}
+                  className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[12px] font-medium text-[var(--color-text-secondary)] disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60"
+                >
+                  {saving ? "Saving..." : "Save template"}
+                </button>
               </div>
             </div>
-            {formError ? (
-              <div className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-[12px] text-red-300">
-                {formError}
-              </div>
-            ) : null}
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDialogOpen(false)}
-                className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-[12px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void saveTemplate()}
-                disabled={saving}
-                className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-50"
-              >
-                {saving ? "Saving..." : "Save template"}
-              </button>
-            </div>
-          </dialog>
-        </div>
+          </form>
+        </dialog>
       ) : null}
     </div>
   );

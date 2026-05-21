@@ -525,7 +525,7 @@ export function CreateIssueModal({
     async function loadTemplates() {
       try {
         const response = await fetch(
-          `/api/issue-templates?teamKey=${encodeURIComponent(teamKey)}`,
+          `/api/teams/${encodeURIComponent(teamKey)}/templates`,
         );
         if (!response.ok) return;
         const data = (await response.json()) as {

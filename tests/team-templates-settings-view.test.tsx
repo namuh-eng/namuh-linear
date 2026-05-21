@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom/vitest";
 import {
   cleanup,
   fireEvent,
@@ -8,7 +9,6 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TeamTemplatesSettingsPage from "../src/app/(app)/settings/teams/[key]/templates/page";
 
-// Mock useParams
 vi.mock("next/navigation", () => ({
   useParams: () => ({ key: "ENG" }),
 }));
@@ -26,12 +26,18 @@ describe("TeamTemplatesSettingsPage component", () => {
   const mockTemplatesData = {
     team: {
       name: "Engineering",
+      key: "ENG",
     },
     templates: [
       {
         id: "t1",
         name: "Bug Report",
         description: "Standard template for bugs",
+        settings: {
+          body: "Steps to reproduce",
+          defaultPriority: "high",
+          defaultStatusName: "In Progress",
+        },
       },
     ],
   };
@@ -58,6 +64,21 @@ describe("TeamTemplatesSettingsPage component", () => {
     expect(screen.getByText("Edit")).toBeDefined();
   });
 
+  it("shows a controlled error when the team fetch is not OK", async () => {
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: "Team not found" }),
+    });
+
+    render(<TeamTemplatesSettingsPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Team not found",
+    );
+    expect(screen.queryByText("New template")).toBeNull();
+  });
+
   it("shows empty state when no templates exist", async () => {
     (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -76,27 +97,11 @@ describe("TeamTemplatesSettingsPage component", () => {
     });
   });
 
-  it("renders a controlled not found state for missing teams", async () => {
-    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: false,
-      status: 404,
-      json: async () => ({ error: "Team not found" }),
-    });
-
-    render(<TeamTemplatesSettingsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Team not found")).toBeDefined();
-    });
-    expect(screen.queryByText("This page couldn’t load")).toBeNull();
-  });
-
-  it("creates and edits templates without a page reload", async () => {
+  it("validates, creates, edits, and deletes a team template", async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
-        status: 200,
         json: async () => ({ ...mockTemplatesData, templates: [] }),
       })
       .mockResolvedValueOnce({
@@ -105,80 +110,82 @@ describe("TeamTemplatesSettingsPage component", () => {
         json: async () => ({
           template: {
             id: "t2",
-            name: "Incident",
-            description: "Incident body",
-            type: "issue",
-            settings: { body: "Incident body", defaultPriority: "high" },
+            name: "Escalation",
+            description: "Escalate customer issues",
+            settings: { body: "Escalation details", defaultPriority: "urgent" },
           },
         }),
       })
       .mockResolvedValueOnce({
         ok: true,
-        status: 200,
         json: async () => ({
           template: {
             id: "t2",
-            name: "Incident edited",
-            description: "Edited body",
-            type: "issue",
-            settings: { body: "Edited body", defaultPriority: "medium" },
+            name: "Escalation edited",
+            description: "Updated escalation details",
+            settings: { body: "Updated body", defaultPriority: "high" },
           },
         }),
-      });
-
-    render(<TeamTemplatesSettingsPage />);
-
-    await waitFor(() =>
-      expect(
-        screen.getByText("No templates have been created for this team."),
-      ).toBeDefined(),
-    );
-
-    fireEvent.click(screen.getByText("New template"));
-    fireEvent.change(screen.getByPlaceholderText("Bug report"), {
-      target: { value: "Incident" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Template body"), {
-      target: { value: "Incident body" },
-    });
-    fireEvent.click(screen.getByText("Save template"));
-
-    await waitFor(() => expect(screen.getByText("Incident")).toBeDefined());
-
-    fireEvent.click(screen.getByText("Edit"));
-    fireEvent.change(screen.getByDisplayValue("Incident"), {
-      target: { value: "Incident edited" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Template body"), {
-      target: { value: "Edited body" },
-    });
-    fireEvent.click(screen.getByText("Save template"));
-
-    await waitFor(() =>
-      expect(screen.getByText("Incident edited")).toBeDefined(),
-    );
-  });
-
-  it("deletes templates after confirmation", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
-    fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => mockTemplatesData,
       })
       .mockResolvedValueOnce({
         ok: true,
-        status: 200,
         json: async () => ({ success: true }),
       });
 
     render(<TeamTemplatesSettingsPage />);
 
-    await waitFor(() => expect(screen.getByText("Bug Report")).toBeDefined());
-    fireEvent.click(screen.getByText("Delete"));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "New template" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Template name is required.",
+    );
 
-    await waitFor(() => expect(screen.queryByText("Bug Report")).toBeNull());
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Escalation" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Escalate customer issues" },
+    });
+    fireEvent.change(screen.getByLabelText("Issue body"), {
+      target: { value: "Escalation details" },
+    });
+    fireEvent.change(screen.getByLabelText("Priority"), {
+      target: { value: "urgent" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+
+    expect(await screen.findByText("Escalation")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/teams/ENG/templates",
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Escalation edited" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Updated escalation details" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save template" }));
+
+    expect(await screen.findByText("Escalation edited")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/teams/ENG/templates",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Escalation edited")).toBeNull();
+    });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/teams/ENG/templates",
+      expect.objectContaining({ method: "DELETE" }),
+    );
   });
 });

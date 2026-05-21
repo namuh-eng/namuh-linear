@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireApiSessionMock = vi.fn();
 const findAccessibleTeamMock = vi.fn();
-const templatesOrderByMock = vi.fn();
+const selectRowsMock = vi.fn();
 const insertReturningMock = vi.fn();
 const updateReturningMock = vi.fn();
 const deleteReturningMock = vi.fn();
@@ -20,7 +20,8 @@ vi.mock("@/lib/db", () => ({
     select: vi.fn(() => ({
       from: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
-      orderBy: vi.fn().mockResolvedValue(templatesOrderByMock()),
+      orderBy: vi.fn().mockResolvedValue(selectRowsMock()),
+      limit: vi.fn().mockResolvedValue(selectRowsMock()),
     })),
     insert: vi.fn(() => ({
       values: vi.fn().mockReturnValue({
@@ -50,17 +51,15 @@ const teamRecord = {
   key: "ENG",
 };
 
-const persistedTemplate = {
+const baseTemplate = {
   id: "template-1",
   name: "Bug report",
   description: "Steps to reproduce",
-  templateType: "issue",
-  teamId: "team-1",
   workspaceId: "workspace-1",
   createdById: "user-1",
-  settings: { body: "Steps to reproduce", defaultTeamKey: "ENG" },
-  createdAt: new Date("2026-05-20T00:00:00.000Z"),
-  updatedAt: new Date("2026-05-20T00:00:00.000Z"),
+  settings: { defaultTeamId: "team-1", defaultTeamKey: "ENG" },
+  createdAt: new Date("2026-05-18T00:00:00.000Z"),
+  updatedAt: new Date("2026-05-18T00:00:00.000Z"),
 };
 
 describe("team templates route", () => {
@@ -68,93 +67,122 @@ describe("team templates route", () => {
     vi.resetModules();
     vi.clearAllMocks();
     requireApiSessionMock.mockResolvedValue({
-      response: null,
       session: { user: { id: "user-1" } },
     });
     findAccessibleTeamMock.mockResolvedValue(teamRecord);
-    templatesOrderByMock.mockReturnValue([persistedTemplate]);
-    insertReturningMock.mockReturnValue([persistedTemplate]);
+    selectRowsMock.mockReturnValue([baseTemplate]);
+    insertReturningMock.mockReturnValue([
+      { ...baseTemplate, id: "template-2" },
+    ]);
     updateReturningMock.mockReturnValue([
-      { ...persistedTemplate, name: "Bug report edited" },
+      { ...baseTemplate, name: "Bug report edited" },
     ]);
     deleteReturningMock.mockReturnValue([{ id: "template-1" }]);
   });
 
-  it("returns 404 for inaccessible teams instead of template data", async () => {
+  it("returns 404 for a missing or inaccessible team", async () => {
     findAccessibleTeamMock.mockResolvedValue(null);
     const { GET } = await import("@/app/api/teams/[key]/templates/route");
 
-    const response = await GET(
-      new Request("http://localhost/api/teams/ONB/templates"),
-      {
-        params: Promise.resolve({ key: "ONB" }),
-      },
-    );
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "ONB" }),
+    });
+    if (!response) throw new Error("Expected response");
 
     expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({ error: "Team not found" });
+    await expect(response.json()).resolves.toEqual({
+      error: "Team not found",
+    });
   });
 
-  it("lists persisted templates for an accessible team", async () => {
+  it("lists only templates scoped to the requested team", async () => {
+    selectRowsMock.mockReturnValue([
+      baseTemplate,
+      {
+        ...baseTemplate,
+        id: "other-template",
+        settings: { defaultTeamId: "team-2", defaultTeamKey: "OPS" },
+      },
+      {
+        ...baseTemplate,
+        id: "archived-template",
+        settings: {
+          defaultTeamId: "team-1",
+          defaultTeamKey: "ENG",
+          archivedAt: "2026-05-18T00:00:00.000Z",
+        },
+      },
+    ]);
     const { GET } = await import("@/app/api/teams/[key]/templates/route");
 
-    const response = await GET(
-      new Request("http://localhost/api/teams/ENG/templates"),
-      {
-        params: Promise.resolve({ key: "ENG" }),
-      },
-    );
+    const response = await GET(new Request("http://localhost"), {
+      params: Promise.resolve({ key: "ENG" }),
+    });
+    if (!response) throw new Error("Expected response");
 
     expect(response.status).toBe(200);
     const payload = await response.json();
-    expect(payload.team.name).toBe("Engineering");
-    expect(payload.templates[0].name).toBe("Bug report");
-    expect(payload.templates[0].settings.defaultTeamKey).toBe("ENG");
+    expect(payload.team).toEqual({ name: "Engineering", key: "ENG" });
+    expect(payload.templates).toHaveLength(1);
+    expect(payload.templates[0].id).toBe("template-1");
   });
 
-  it("creates, edits, and deletes a team-scoped issue template", async () => {
-    const { POST, PATCH, DELETE } = await import(
-      "@/app/api/teams/[key]/templates/route"
-    );
+  it("creates a team-scoped issue template", async () => {
+    const { POST } = await import("@/app/api/teams/[key]/templates/route");
 
-    const createResponse = await POST(
-      new Request("http://localhost/api/teams/ENG/templates", {
+    const response = await POST(
+      new Request("http://localhost", {
         method: "POST",
         body: JSON.stringify({
-          name: "Bug report",
-          description: "Steps to reproduce",
-          type: "issue",
-          settings: { body: "Steps to reproduce" },
+          name: "Customer bug",
+          description: "Bug details",
+          settings: { defaultPriority: "high" },
         }),
       }),
       { params: Promise.resolve({ key: "ENG" }) },
     );
-    expect(createResponse.status).toBe(201);
+    if (!response) throw new Error("Expected response");
 
-    const editResponse = await PATCH(
-      new Request("http://localhost/api/teams/ENG/templates", {
+    expect(response.status).toBe(201);
+    const payload = await response.json();
+    expect(payload.template.settings.defaultTeamKey).toBe("ENG");
+  });
+
+  it("edits a team-scoped issue template", async () => {
+    const { PATCH } = await import("@/app/api/teams/[key]/templates/route");
+
+    const response = await PATCH(
+      new Request("http://localhost", {
         method: "PATCH",
         body: JSON.stringify({
           id: "template-1",
           name: "Bug report edited",
-          description: "Steps to reproduce",
-          type: "issue",
-          settings: { body: "Steps to reproduce" },
+          description: "Updated body",
+          settings: { defaultPriority: "medium" },
         }),
       }),
       { params: Promise.resolve({ key: "ENG" }) },
     );
-    expect(editResponse.status).toBe(200);
-    expect((await editResponse.json()).template.name).toBe("Bug report edited");
+    if (!response) throw new Error("Expected response");
 
-    const deleteResponse = await DELETE(
-      new Request("http://localhost/api/teams/ENG/templates", {
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.template.name).toBe("Bug report edited");
+  });
+
+  it("deletes a team-scoped issue template", async () => {
+    const { DELETE } = await import("@/app/api/teams/[key]/templates/route");
+
+    const response = await DELETE(
+      new Request("http://localhost", {
         method: "DELETE",
         body: JSON.stringify({ id: "template-1" }),
       }),
       { params: Promise.resolve({ key: "ENG" }) },
     );
-    expect(deleteResponse.status).toBe(200);
-    expect(await deleteResponse.json()).toEqual({ success: true });
+    if (!response) throw new Error("Expected response");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true });
   });
 });

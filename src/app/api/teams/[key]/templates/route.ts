@@ -9,122 +9,129 @@ import { findAccessibleTeam } from "@/lib/teams";
 import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-const TEMPLATE_TYPES = new Set(["issue", "document", "project"]);
+type TemplatePayload = typeof issueTemplate.$inferSelect;
 
-type TemplateType = "issue" | "document" | "project";
-
-function normalizeTemplateType(value: unknown): TemplateType {
-  if (typeof value !== "string") return "issue";
-  const templateType = value.trim().toLowerCase();
-  return TEMPLATE_TYPES.has(templateType)
-    ? (templateType as TemplateType)
-    : "issue";
-}
-
-function serializeTemplate(template: typeof issueTemplate.$inferSelect) {
+function serialize(template: TemplatePayload) {
   return {
     id: template.id,
     name: template.name,
     description: template.description ?? "",
-    type: normalizeTemplateType(template.templateType),
     settings: normalizeIssueTemplateSettings(template.settings),
     createdAt: template.createdAt,
     updatedAt: template.updatedAt,
   };
 }
 
-async function resolveTeam(request: Request, key: string, userId: string) {
-  return findAccessibleTeam(key, userId, { request });
+function belongsToTeam(
+  template: TemplatePayload,
+  teamId: string,
+  teamKey: string,
+) {
+  const settings = normalizeIssueTemplateSettings(template.settings);
+  return (
+    settings.defaultTeamId === teamId ||
+    settings.defaultTeamKey?.toUpperCase() === teamKey.toUpperCase()
+  );
 }
 
-async function readBody(request: Request) {
-  try {
-    return (await request.json()) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
+async function requireTeam(request: Request, params: Promise<{ key: string }>) {
+  const { response: authResponse, session } = await requireApiSession();
+  if (authResponse) return { response: authResponse } as const;
 
-function normalizeTemplateInput(body: Record<string, unknown>) {
-  const name = typeof body.name === "string" ? body.name.trim() : "";
-  const description =
-    typeof body.description === "string" ? body.description.trim() : "";
-  const type = normalizeTemplateType(body.type);
-  const settings = normalizeIssueTemplateSettings(body.settings ?? {});
-
-  if (!name) throw new Error("Template name is required");
-  if (type === "issue" && !description && !settings.body) {
-    throw new Error("Issue description is required");
+  const { key } = await params;
+  const teamRecord = await findAccessibleTeam(key, session.user.id, {
+    request,
+  });
+  if (!teamRecord) {
+    return {
+      response: NextResponse.json({ error: "Team not found" }, { status: 404 }),
+    } as const;
   }
 
-  return {
-    name,
-    description: description || settings.body || "",
-    type,
-    settings,
-  };
+  return { session, teamRecord } as const;
 }
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ key: string }> },
 ) {
-  const { response: authResponse, session } = await requireApiSession();
-  if (authResponse) return authResponse;
-
-  const { key } = await params;
-  const teamRecord = await resolveTeam(request, key, session.user.id);
-  if (!teamRecord) {
-    return NextResponse.json({ error: "Team not found" }, { status: 404 });
-  }
+  const result = await requireTeam(request, params);
+  if ("response" in result) return result.response;
+  const { teamRecord } = result;
 
   const templates = await db
     .select()
     .from(issueTemplate)
-    .where(
-      and(
-        eq(issueTemplate.workspaceId, teamRecord.workspaceId),
-        eq(issueTemplate.teamId, teamRecord.id),
-      ),
-    )
+    .where(eq(issueTemplate.workspaceId, teamRecord.workspaceId))
     .orderBy(desc(issueTemplate.createdAt));
 
   return NextResponse.json({
-    team: { id: teamRecord.id, name: teamRecord.name, key: teamRecord.key },
+    team: { name: teamRecord.name, key: teamRecord.key },
     templates: templates
-      .map(serializeTemplate)
+      .filter((template) =>
+        belongsToTeam(template, teamRecord.id, teamRecord.key),
+      )
+      .map(serialize)
       .filter((template) => !template.settings.archivedAt),
   });
+}
+
+async function readBody(request: Request) {
+  try {
+    return (await request.json()) as {
+      id?: unknown;
+      name?: unknown;
+      description?: unknown;
+      settings?: unknown;
+    };
+  } catch {
+    return null;
+  }
+}
+
+function normalizeBodySettings(
+  settings: unknown,
+  teamRecord: { id: string; key: string },
+): IssueTemplateSettings {
+  const normalized = normalizeIssueTemplateSettings(settings ?? {});
+  normalized.defaultTeamId = teamRecord.id;
+  normalized.defaultTeamKey = teamRecord.key;
+  return normalized;
 }
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ key: string }> },
 ) {
-  const { response: authResponse, session } = await requireApiSession();
-  if (authResponse) return authResponse;
-
-  const { key } = await params;
-  const teamRecord = await resolveTeam(request, key, session.user.id);
-  if (!teamRecord) {
-    return NextResponse.json({ error: "Team not found" }, { status: 404 });
-  }
-
+  const result = await requireTeam(request, params);
+  if ("response" in result) return result.response;
+  const { session, teamRecord } = result;
   const body = await readBody(request);
   if (!body)
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
 
-  let input: {
-    name: string;
-    description: string;
-    type: TemplateType;
-    settings: IssueTemplateSettings;
-  };
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const description =
+    typeof body.description === "string" ? body.description.trim() : "";
+  let settings: ReturnType<typeof normalizeIssueTemplateSettings>;
   try {
-    input = normalizeTemplateInput(body);
+    settings = normalizeBodySettings(body.settings, teamRecord);
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Invalid template" },
+      { error: error instanceof Error ? error.message : "Invalid settings" },
+      { status: 400 },
+    );
+  }
+
+  if (!name) {
+    return NextResponse.json(
+      { error: "Template name is required" },
+      { status: 400 },
+    );
+  }
+  if (!description && !settings.body) {
+    return NextResponse.json(
+      { error: "Issue description is required" },
       { status: 400 },
     );
   }
@@ -132,144 +139,130 @@ export async function POST(
   const [template] = await db
     .insert(issueTemplate)
     .values({
-      name: input.name,
-      description: input.description,
-      templateType: input.type,
+      name,
+      description: description || settings.body || "",
       workspaceId: teamRecord.workspaceId,
-      teamId: teamRecord.id,
       createdById: session.user.id,
-      settings: {
-        ...input.settings,
-        defaultTeamId: teamRecord.id,
-        defaultTeamKey: teamRecord.key,
-      },
+      settings,
     })
     .returning();
 
-  return NextResponse.json(
-    { template: serializeTemplate(template) },
-    { status: 201 },
-  );
+  return NextResponse.json({ template: serialize(template) }, { status: 201 });
 }
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ key: string }> },
 ) {
-  const { response: authResponse, session } = await requireApiSession();
-  if (authResponse) return authResponse;
-
-  const { key } = await params;
-  const teamRecord = await resolveTeam(request, key, session.user.id);
-  if (!teamRecord) {
-    return NextResponse.json({ error: "Team not found" }, { status: 404 });
-  }
-
+  const result = await requireTeam(request, params);
+  if ("response" in result) return result.response;
+  const { teamRecord } = result;
   const body = await readBody(request);
   if (!body)
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  const id = typeof body.id === "string" ? body.id : "";
+  if (!id)
+    return NextResponse.json({ error: "Template not found" }, { status: 404 });
 
-  const templateId =
-    typeof body.id === "string"
-      ? body.id
-      : typeof body.templateId === "string"
-        ? body.templateId
-        : "";
-  if (!templateId) {
-    return NextResponse.json(
-      { error: "Template id is required" },
-      { status: 400 },
-    );
+  const currentRows = await db
+    .select()
+    .from(issueTemplate)
+    .where(
+      and(
+        eq(issueTemplate.id, id),
+        eq(issueTemplate.workspaceId, teamRecord.workspaceId),
+      ),
+    )
+    .limit(1);
+  const current = currentRows[0];
+  if (!current || !belongsToTeam(current, teamRecord.id, teamRecord.key)) {
+    return NextResponse.json({ error: "Template not found" }, { status: 404 });
   }
 
-  let input: {
-    name: string;
-    description: string;
-    type: TemplateType;
-    settings: IssueTemplateSettings;
-  };
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const description =
+    typeof body.description === "string" ? body.description.trim() : "";
+  let settings: ReturnType<typeof normalizeIssueTemplateSettings>;
   try {
-    input = normalizeTemplateInput(body);
+    settings = normalizeBodySettings(body.settings, teamRecord);
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Invalid template" },
+      { error: error instanceof Error ? error.message : "Invalid settings" },
+      { status: 400 },
+    );
+  }
+  if (!name) {
+    return NextResponse.json(
+      { error: "Template name is required" },
+      { status: 400 },
+    );
+  }
+  if (!description && !settings.body) {
+    return NextResponse.json(
+      { error: "Issue description is required" },
       { status: 400 },
     );
   }
 
-  const [updated] = await db
+  const [template] = await db
     .update(issueTemplate)
     .set({
-      name: input.name,
-      description: input.description,
-      templateType: input.type,
-      settings: {
-        ...input.settings,
-        defaultTeamId: teamRecord.id,
-        defaultTeamKey: teamRecord.key,
-      },
+      name,
+      description: description || settings.body || "",
+      settings,
       updatedAt: new Date(),
     })
     .where(
       and(
-        eq(issueTemplate.id, templateId),
+        eq(issueTemplate.id, id),
         eq(issueTemplate.workspaceId, teamRecord.workspaceId),
-        eq(issueTemplate.teamId, teamRecord.id),
       ),
     )
     .returning();
 
-  if (!updated) {
-    return NextResponse.json({ error: "Template not found" }, { status: 404 });
-  }
-
-  return NextResponse.json({ template: serializeTemplate(updated) });
+  return NextResponse.json({ template: serialize(template) });
 }
 
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ key: string }> },
 ) {
-  const { response: authResponse, session } = await requireApiSession();
-  if (authResponse) return authResponse;
-
-  const { key } = await params;
-  const teamRecord = await resolveTeam(request, key, session.user.id);
-  if (!teamRecord) {
-    return NextResponse.json({ error: "Team not found" }, { status: 404 });
-  }
-
+  const result = await requireTeam(request, params);
+  if ("response" in result) return result.response;
+  const { teamRecord } = result;
   const body = await readBody(request);
   if (!body)
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  const id = typeof body.id === "string" ? body.id : "";
+  if (!id)
+    return NextResponse.json({ error: "Template not found" }, { status: 404 });
 
-  const templateId =
-    typeof body.id === "string"
-      ? body.id
-      : typeof body.templateId === "string"
-        ? body.templateId
-        : "";
-  if (!templateId) {
-    return NextResponse.json(
-      { error: "Template id is required" },
-      { status: 400 },
-    );
+  const currentRows = await db
+    .select()
+    .from(issueTemplate)
+    .where(
+      and(
+        eq(issueTemplate.id, id),
+        eq(issueTemplate.workspaceId, teamRecord.workspaceId),
+      ),
+    )
+    .limit(1);
+  const current = currentRows[0];
+  if (!current || !belongsToTeam(current, teamRecord.id, teamRecord.key)) {
+    return NextResponse.json({ error: "Template not found" }, { status: 404 });
   }
 
   const [deleted] = await db
     .delete(issueTemplate)
     .where(
       and(
-        eq(issueTemplate.id, templateId),
+        eq(issueTemplate.id, id),
         eq(issueTemplate.workspaceId, teamRecord.workspaceId),
-        eq(issueTemplate.teamId, teamRecord.id),
       ),
     )
     .returning();
-
   if (!deleted) {
     return NextResponse.json({ error: "Template not found" }, { status: 404 });
   }
-
   return NextResponse.json({ success: true });
 }
