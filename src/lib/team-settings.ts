@@ -30,6 +30,13 @@ export type TeamSettingsFlags = {
   detailedHistory: boolean;
   agentGuidance: string;
   autoAssignment: boolean;
+  autoAssignMode: "creator" | "team_lead" | "round_robin" | "none";
+  defaultAssigneeId: string | null;
+  gitBranchFormat: string;
+  gitPrAutomationEnabled: boolean;
+  gitPrMergeTargetStatusId: string | null;
+  gitBranchCreateTargetStatusId: string | null;
+  statusTransitionRules: StatusTransitionRule[];
   discussionSummariesEnabled: boolean;
   discussionSummaryMinComments: number;
   discussionSummaryRefreshMode: "manual" | "automatic";
@@ -37,6 +44,73 @@ export type TeamSettingsFlags = {
   triageDeclineDestinationStateId: string | null;
   workflowAutomation: TeamWorkflowAutomationSettings;
 };
+
+export type StatusTransitionRule = {
+  id: string;
+  name: string;
+  trigger:
+    | "branch_created"
+    | "pr_opened"
+    | "pr_merged"
+    | "issue_assigned"
+    | "issue_unassigned";
+  sourceCategory: "any" | "backlog" | "unstarted" | "started" | "completed";
+  targetStatusId: string;
+  enabled: boolean;
+};
+
+const transitionTriggers = new Set([
+  "branch_created",
+  "pr_opened",
+  "pr_merged",
+  "issue_assigned",
+  "issue_unassigned",
+]);
+const transitionSources = new Set([
+  "any",
+  "backlog",
+  "unstarted",
+  "started",
+  "completed",
+]);
+
+function readStatusTransitionRules(value: unknown): StatusTransitionRule[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry, index): StatusTransitionRule | null => {
+      if (!entry || typeof entry !== "object") return null;
+      const row = entry as Record<string, unknown>;
+      const trigger = typeof row.trigger === "string" ? row.trigger : "";
+      const sourceCategory =
+        typeof row.sourceCategory === "string" ? row.sourceCategory : "any";
+      const targetStatusId =
+        typeof row.targetStatusId === "string" ? row.targetStatusId : "";
+      if (
+        !transitionTriggers.has(trigger) ||
+        !transitionSources.has(sourceCategory) ||
+        !targetStatusId
+      ) {
+        return null;
+      }
+      return {
+        id:
+          typeof row.id === "string" && row.id.trim()
+            ? row.id.trim()
+            : `rule-${index + 1}`,
+        name:
+          typeof row.name === "string" && row.name.trim()
+            ? row.name.trim()
+            : "Status transition rule",
+        trigger: trigger as StatusTransitionRule["trigger"],
+        sourceCategory:
+          sourceCategory as StatusTransitionRule["sourceCategory"],
+        targetStatusId,
+        enabled: row.enabled !== false,
+      };
+    })
+    .filter((rule): rule is StatusTransitionRule => Boolean(rule));
+}
 
 const DEFAULT_WORKFLOW_AUTOMATION: TeamWorkflowAutomationSettings = {
   gitBranchFormat: "{teamKey}-{issueNumber}-{issueTitle}",
@@ -50,62 +124,7 @@ const DEFAULT_WORKFLOW_AUTOMATION: TeamWorkflowAutomationSettings = {
   statusTransitionRules: [],
 };
 
-export function readWorkflowAutomationSettings(
-  settings: unknown,
-): TeamWorkflowAutomationSettings {
-  const parsed =
-    settings && typeof settings === "object"
-      ? (settings as Record<string, unknown>)
-      : {};
-  const nested =
-    parsed.workflowAutomation && typeof parsed.workflowAutomation === "object"
-      ? (parsed.workflowAutomation as Record<string, unknown>)
-      : parsed;
-
-  const autoAssignMode =
-    nested.autoAssignMode === "creator" ||
-    nested.autoAssignMode === "team_lead" ||
-    nested.autoAssignMode === "round_robin" ||
-    nested.autoAssignMode === "none"
-      ? nested.autoAssignMode
-      : DEFAULT_WORKFLOW_AUTOMATION.autoAssignMode;
-
-  const statusTransitionRules = Array.isArray(nested.statusTransitionRules)
-    ? nested.statusTransitionRules
-        .map((rule, index) => normalizeTransitionRule(rule, index))
-        .filter((rule): rule is WorkflowAutomationTransitionRule =>
-          Boolean(rule),
-        )
-    : [];
-
-  return {
-    gitBranchFormat:
-      typeof nested.gitBranchFormat === "string" &&
-      nested.gitBranchFormat.trim()
-        ? nested.gitBranchFormat
-        : DEFAULT_WORKFLOW_AUTOMATION.gitBranchFormat,
-    gitBranchAutomationEnabled: nested.gitBranchAutomationEnabled === true,
-    gitPrAutomationEnabled: nested.gitPrAutomationEnabled === true,
-    gitBranchCreateTargetStatusId:
-      typeof nested.gitBranchCreateTargetStatusId === "string"
-        ? nested.gitBranchCreateTargetStatusId
-        : null,
-    gitPrMergeTargetStatusId:
-      typeof nested.gitPrMergeTargetStatusId === "string"
-        ? nested.gitPrMergeTargetStatusId
-        : null,
-    autoAssignEnabled:
-      nested.autoAssignEnabled === true || parsed.autoAssignment === true,
-    autoAssignMode,
-    defaultAssigneeId:
-      typeof nested.defaultAssigneeId === "string"
-        ? nested.defaultAssigneeId
-        : null,
-    statusTransitionRules,
-  };
-}
-
-function normalizeTransitionRule(rule: unknown, index: number) {
+function normalizeWorkflowTransitionRule(rule: unknown, index: number) {
   if (!rule || typeof rule !== "object") {
     return null;
   }
@@ -140,6 +159,61 @@ function normalizeTransitionRule(rule: unknown, index: number) {
   };
 }
 
+export function readWorkflowAutomationSettings(
+  settings: unknown,
+): TeamWorkflowAutomationSettings {
+  const parsed =
+    settings && typeof settings === "object"
+      ? (settings as Record<string, unknown>)
+      : {};
+  const nested =
+    parsed.workflowAutomation && typeof parsed.workflowAutomation === "object"
+      ? (parsed.workflowAutomation as Record<string, unknown>)
+      : parsed;
+
+  const autoAssignMode =
+    nested.autoAssignMode === "creator" ||
+    nested.autoAssignMode === "team_lead" ||
+    nested.autoAssignMode === "round_robin" ||
+    nested.autoAssignMode === "none"
+      ? nested.autoAssignMode
+      : DEFAULT_WORKFLOW_AUTOMATION.autoAssignMode;
+
+  const statusTransitionRules = Array.isArray(nested.statusTransitionRules)
+    ? nested.statusTransitionRules
+        .map((rule, index) => normalizeWorkflowTransitionRule(rule, index))
+        .filter((rule): rule is WorkflowAutomationTransitionRule =>
+          Boolean(rule),
+        )
+    : [];
+
+  return {
+    gitBranchFormat:
+      typeof nested.gitBranchFormat === "string" &&
+      nested.gitBranchFormat.trim()
+        ? nested.gitBranchFormat
+        : DEFAULT_WORKFLOW_AUTOMATION.gitBranchFormat,
+    gitBranchAutomationEnabled: nested.gitBranchAutomationEnabled === true,
+    gitPrAutomationEnabled: nested.gitPrAutomationEnabled === true,
+    gitBranchCreateTargetStatusId:
+      typeof nested.gitBranchCreateTargetStatusId === "string"
+        ? nested.gitBranchCreateTargetStatusId
+        : null,
+    gitPrMergeTargetStatusId:
+      typeof nested.gitPrMergeTargetStatusId === "string"
+        ? nested.gitPrMergeTargetStatusId
+        : null,
+    autoAssignEnabled:
+      nested.autoAssignEnabled === true || parsed.autoAssignment === true,
+    autoAssignMode,
+    defaultAssigneeId:
+      typeof nested.defaultAssigneeId === "string"
+        ? nested.defaultAssigneeId
+        : null,
+    statusTransitionRules,
+  };
+}
+
 export function readTeamSettings(settings: unknown): TeamSettingsFlags {
   const parsed =
     settings && typeof settings === "object"
@@ -152,6 +226,35 @@ export function readTeamSettings(settings: unknown): TeamSettingsFlags {
     agentGuidance:
       typeof parsed.agentGuidance === "string" ? parsed.agentGuidance : "",
     autoAssignment: parsed.autoAssignment === true,
+    autoAssignMode:
+      parsed.autoAssignMode === "creator" ||
+      parsed.autoAssignMode === "team_lead" ||
+      parsed.autoAssignMode === "round_robin" ||
+      parsed.autoAssignMode === "none"
+        ? parsed.autoAssignMode
+        : parsed.autoAssignment === true
+          ? "round_robin"
+          : "none",
+    defaultAssigneeId:
+      typeof parsed.defaultAssigneeId === "string"
+        ? parsed.defaultAssigneeId
+        : null,
+    gitBranchFormat:
+      typeof parsed.gitBranchFormat === "string" && parsed.gitBranchFormat
+        ? parsed.gitBranchFormat
+        : "{team}-{number}-{title}",
+    gitPrAutomationEnabled: parsed.gitPrAutomationEnabled === true,
+    gitPrMergeTargetStatusId:
+      typeof parsed.gitPrMergeTargetStatusId === "string"
+        ? parsed.gitPrMergeTargetStatusId
+        : null,
+    gitBranchCreateTargetStatusId:
+      typeof parsed.gitBranchCreateTargetStatusId === "string"
+        ? parsed.gitBranchCreateTargetStatusId
+        : null,
+    statusTransitionRules: readStatusTransitionRules(
+      parsed.statusTransitionRules,
+    ),
     discussionSummariesEnabled: parsed.discussionSummariesEnabled === true,
     discussionSummaryMinComments:
       typeof parsed.discussionSummaryMinComments === "number" &&
