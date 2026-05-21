@@ -8,19 +8,6 @@ const workspaceDeepLinks = [
   "/foreverbrowsing/roadmap?view=list",
 ];
 
-const publicMarketingRoutes = [
-  {
-    path: "/homepage",
-    text: "The product development system for teams and agents",
-  },
-  { path: "/pricing", text: "Free" },
-  {
-    path: "/customers",
-    text: "Why OpenAI chose Linear and scaled to 3,000 users",
-  },
-  { path: "/changelog", text: "Code Intelligence" },
-];
-
 test.describe("Unauthenticated workspace deep links", () => {
   for (const deepLink of workspaceDeepLinks) {
     test(`renders login in place for ${deepLink}`, async ({ page }) => {
