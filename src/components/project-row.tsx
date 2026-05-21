@@ -7,12 +7,7 @@ import { LabelChip } from "@/components/label-chip";
 import { withWorkspaceSlug } from "@/lib/workspace-paths";
 import Link from "next/link";
 
-type ProjectStatus =
-  | "planned"
-  | "started"
-  | "paused"
-  | "completed"
-  | "canceled";
+type ProjectStatus = string;
 type ProjectPriority = "none" | "urgent" | "high" | "medium" | "low";
 
 const priorityMap: Record<string, 0 | 1 | 2 | 3 | 4> = {

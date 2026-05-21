@@ -9,6 +9,7 @@ const teamLinksInnerJoinMock = vi.fn();
 const memberLinksInnerJoinMock = vi.fn();
 const projectIssuesWhereMock = vi.fn();
 const updateSetMock = vi.fn();
+const workspaceSettingsLimitMock = vi.fn();
 const resolveWorkspaceIdBySlugMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
@@ -24,6 +25,9 @@ vi.mock("@/lib/project-detail", () => ({
     resources: (settings as { resources?: unknown[] })?.resources ?? [],
     activity: (settings as { activity?: unknown[] })?.activity ?? [],
     labelIds: (settings as { labelIds?: string[] })?.labelIds ?? [],
+    projectStatusKey:
+      (settings as { projectStatusKey?: string | null })?.projectStatusKey ??
+      null,
   })),
   buildMilestoneData: vi.fn(() => ({})),
   haveSameIds: vi.fn(
@@ -59,6 +63,19 @@ vi.mock("@/lib/db", () => ({
               limit: projectsWhereMock,
             }),
           }),
+        };
+      }
+
+      // workspace project status settings lookup
+      if (
+        selection &&
+        "settings" in selection &&
+        Object.keys(selection).length === 1
+      ) {
+        return {
+          from: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnThis(),
+          limit: workspaceSettingsLimitMock,
         };
       }
 
@@ -186,10 +203,13 @@ vi.mock("@/lib/db", () => ({
             .fn()
             .mockReturnValue({ values: vi.fn().mockResolvedValue([]) }),
           update: vi.fn().mockReturnValue({
-            set: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                returning: vi.fn().mockResolvedValue([{ id: "proj-1" }]),
-              }),
+            set: vi.fn((values) => {
+              updateSetMock(values);
+              return {
+                where: vi.fn().mockReturnValue({
+                  returning: vi.fn().mockResolvedValue([{ id: "proj-1" }]),
+                }),
+              };
             }),
           }),
           delete: vi.fn().mockReturnValue({
@@ -218,11 +238,14 @@ describe("project detail route", () => {
         id: "proj-1",
         name: "Ever",
         slug: "ever",
+        status: "started",
+        priority: "high",
         workspaceId: "workspace-1",
         settings: { updates: [], resources: [], activity: [], labelIds: [] },
         createdAt: new Date("2026-04-01T00:00:00.000Z"),
       },
     ]);
+    workspaceSettingsLimitMock.mockResolvedValue([{ settings: {} }]);
     leadDataLimitMock.mockResolvedValue([
       { id: "user-1", name: "Ashley", image: null },
     ]);
@@ -293,6 +316,75 @@ describe("project detail route", () => {
     expect(response.status).toBe(200);
     const payload = await response.json();
     expect(payload.project.id).toBe("proj-1");
+  });
+
+  it("persists custom project statuses in project settings", async () => {
+    projectsWhereMock
+      .mockResolvedValueOnce([
+        {
+          id: "proj-1",
+          name: "Ever",
+          slug: "ever",
+          status: "started",
+          priority: "high",
+          workspaceId: "workspace-1",
+          settings: { resources: [], activity: [], labelIds: [] },
+          createdAt: new Date("2026-04-01T00:00:00.000Z"),
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "proj-1",
+          name: "Ever",
+          slug: "ever",
+          status: "started",
+          priority: "high",
+          workspaceId: "workspace-1",
+          settings: {
+            resources: [],
+            activity: [],
+            labelIds: [],
+            projectStatusKey: "blocked",
+          },
+          createdAt: new Date("2026-04-01T00:00:00.000Z"),
+        },
+      ]);
+    workspaceSettingsLimitMock.mockResolvedValue([
+      {
+        settings: {
+          projectStatuses: [
+            {
+              id: "blocked",
+              key: "blocked",
+              name: "Blocked",
+              description: "Waiting on dependency",
+              color: "#654321",
+              icon: "!",
+              position: 5,
+            },
+          ],
+        },
+      },
+    ]);
+    const { PATCH } = await import("@/app/api/projects/[slug]/route");
+
+    const response = await PATCH(
+      new Request("http://localhost", {
+        method: "PATCH",
+        body: JSON.stringify({ status: "blocked" }),
+      }),
+      { params: Promise.resolve({ slug: "ever" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        settings: expect.objectContaining({ projectStatusKey: "blocked" }),
+      }),
+    );
+    const payload = await response.json();
+    expect(payload.project.status).toBe("blocked");
+    expect(payload.project.statusLabel).toBe("Blocked");
   });
 
   it("deletes a project", async () => {

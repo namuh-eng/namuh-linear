@@ -23,7 +23,7 @@ interface ProjectData {
   name: string;
   icon: string | null;
   slug: string;
-  status: "planned" | "started" | "paused" | "completed" | "canceled";
+  status: string;
   priority: "none" | "urgent" | "high" | "medium" | "low";
   health: string;
   lead: { name: string; image?: string | null } | null;
@@ -35,7 +35,13 @@ interface ProjectData {
 }
 
 type ProjectStatus = ProjectData["status"];
-type StatusFilter = "all" | ProjectStatus;
+type StatusFilter =
+  | "all"
+  | "planned"
+  | "started"
+  | "paused"
+  | "completed"
+  | "canceled";
 type SortOption =
   | "created-desc"
   | "created-asc"

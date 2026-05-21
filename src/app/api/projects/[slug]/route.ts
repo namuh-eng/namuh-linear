@@ -14,6 +14,7 @@ import {
   team,
   user,
   workflowState,
+  workspace,
 } from "@/lib/db/schema";
 import {
   type ProjectActivityEntry,
@@ -22,17 +23,17 @@ import {
   haveSameIds,
   readProjectSettings,
 } from "@/lib/project-detail";
+import {
+  DEFAULT_PROJECT_STATUSES,
+  readProjectStatusSettings,
+} from "@/lib/project-status-settings";
 import { getWorkspaceSlugFromPath } from "@/lib/workspace-paths";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-const PROJECT_STATUSES = new Set([
-  "planned",
-  "started",
-  "paused",
-  "completed",
-  "canceled",
-]);
+const DEFAULT_PROJECT_STATUS_KEYS = new Set(
+  DEFAULT_PROJECT_STATUSES.map((status) => status.key),
+);
 
 const PROJECT_PRIORITIES = new Set(["none", "urgent", "high", "medium", "low"]);
 
@@ -102,6 +103,28 @@ async function resolveProjectWorkspaceId(userId: string, request: Request) {
   return findDefaultWorkspaceId(userId);
 }
 
+async function getWorkspaceProjectStatuses(workspaceId: string) {
+  const [workspaceRecord] = await db
+    .select({ settings: workspace.settings })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+    .limit(1);
+
+  return readProjectStatusSettings(workspaceRecord?.settings);
+}
+
+function resolveProjectStatusKey(
+  dbStatus: string,
+  settingsStatusKey: string | null,
+  availableStatusKeys: Set<string>,
+) {
+  if (settingsStatusKey && availableStatusKeys.has(settingsStatusKey)) {
+    return settingsStatusKey;
+  }
+
+  return dbStatus;
+}
+
 async function findProjectInWorkspace(workspaceId: string, slug: string) {
   const projects = await db
     .select()
@@ -127,6 +150,15 @@ async function buildProjectResponse(
   }
 
   const settings = readProjectSettings(proj.settings);
+  const projectStatuses = await getWorkspaceProjectStatuses(workspaceId);
+  const projectStatusKeys = new Set(
+    projectStatuses.map((status) => status.key),
+  );
+  const effectiveProjectStatus = resolveProjectStatusKey(
+    proj.status,
+    settings.projectStatusKey,
+    projectStatusKeys,
+  );
 
   const [
     leadData,
@@ -329,7 +361,11 @@ async function buildProjectResponse(
         description: proj.description,
         icon: proj.icon,
         slug: proj.slug,
-        status: proj.status,
+        status: effectiveProjectStatus,
+        statusLabel:
+          projectStatuses.find(
+            (status) => status.key === effectiveProjectStatus,
+          )?.name ?? effectiveProjectStatus,
         priority: proj.priority,
         startDate: proj.startDate,
         targetDate: proj.targetDate,
@@ -345,6 +381,7 @@ async function buildProjectResponse(
       availableTeams: workspaceTeams,
       availableLabels: workspaceLabels,
       slackChannel: settings.slackChannel,
+      projectStatuses,
       resources: settings.resources
         .slice()
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
@@ -476,9 +513,32 @@ export async function PATCH(
   let replaceTeamIds: string[] | null = null;
   let propertiesTouched = false;
 
-  if (typeof body.status === "string" && PROJECT_STATUSES.has(body.status)) {
-    if (body.status !== proj.status) {
-      nextProjectValues.status = body.status as typeof proj.status;
+  if (typeof body.status === "string") {
+    const projectStatuses = await getWorkspaceProjectStatuses(workspaceId);
+    const projectStatusKeys = new Set(
+      projectStatuses.map((status) => status.key),
+    );
+
+    if (!projectStatusKeys.has(body.status)) {
+      return NextResponse.json(
+        { error: "Project status is not available in this workspace" },
+        { status: 400 },
+      );
+    }
+
+    const currentEffectiveStatus = resolveProjectStatusKey(
+      proj.status,
+      currentSettings.projectStatusKey,
+      projectStatusKeys,
+    );
+
+    if (body.status !== currentEffectiveStatus) {
+      if (DEFAULT_PROJECT_STATUS_KEYS.has(body.status)) {
+        nextProjectValues.status = body.status as typeof proj.status;
+        nextSettings.projectStatusKey = null;
+      } else {
+        nextSettings.projectStatusKey = body.status;
+      }
       propertiesTouched = true;
     }
   }
@@ -674,6 +734,7 @@ export async function PATCH(
     activityEntries.length > 0 ||
     nextSettings.slackChannel !== currentSettings.slackChannel ||
     nextSettings.labelIds.join(",") !== currentSettings.labelIds.join(",") ||
+    nextSettings.projectStatusKey !== currentSettings.projectStatusKey ||
     nextSettings.resources.length !== currentSettings.resources.length;
 
   if (!shouldUpdateProject) {

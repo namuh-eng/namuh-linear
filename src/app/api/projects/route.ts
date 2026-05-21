@@ -174,7 +174,7 @@ export async function GET(request?: Request) {
       description: p.description,
       icon: p.icon,
       slug: p.slug,
-      status: p.status,
+      status: readProjectSettings(p.settings).projectStatusKey ?? p.status,
       priority: p.priority,
       health: "No updates",
       lead: p.leadName ? { name: p.leadName, image: p.leadImage } : null,

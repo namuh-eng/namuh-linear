@@ -19,6 +19,7 @@ export interface ProjectActivityEntry {
 export interface ProjectSettingsShape {
   slackChannel: string | null;
   labelIds: string[];
+  projectStatusKey: string | null;
   resources: ProjectResource[];
   activity: ProjectActivityEntry[];
 }
@@ -69,6 +70,7 @@ export function readProjectSettings(settings: unknown): ProjectSettingsShape {
     return {
       slackChannel: null,
       labelIds: [],
+      projectStatusKey: null,
       resources: [],
       activity: [],
     };
@@ -84,6 +86,11 @@ export function readProjectSettings(settings: unknown): ProjectSettingsShape {
           (value): value is string => typeof value === "string",
         )
       : [],
+    projectStatusKey:
+      typeof settings.projectStatusKey === "string" &&
+      settings.projectStatusKey.trim()
+        ? settings.projectStatusKey.trim()
+        : null,
     resources: Array.isArray(settings.resources)
       ? settings.resources.filter(isResource)
       : [],

@@ -40,6 +40,11 @@ describe("ProjectDetailPage interactions", () => {
     availableTeams: [{ id: "t-1", name: "Engineering", key: "ENG" }],
     availableLabels: [],
     slackChannel: null,
+    projectStatuses: [
+      { key: "planned", name: "Planned" },
+      { key: "started", name: "In Progress" },
+      { key: "blocked", name: "Blocked" },
+    ],
     resources: [],
     activity: [],
     milestones: [],
@@ -106,6 +111,56 @@ describe("ProjectDetailPage interactions", () => {
     // Check if the UI updated (Summary status should be 'Started' or 'In Progress' depending on display)
     // Summary items uses capitalize: project.status.replace(/^./, (char) => char.toUpperCase())
     expect(screen.getByText("Started")).toBeInTheDocument();
+  });
+
+  it("applies a custom project status via the properties modal", async () => {
+    vi.mocked(useParams).mockReturnValue({ slug: "mobile-app" });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockProjectData),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ...mockProjectData,
+            project: {
+              ...mockProjectData.project,
+              status: "blocked",
+              statusLabel: "Blocked",
+            },
+          }),
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ProjectDetailPage />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Mobile App")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: /edit/i })[1]);
+
+    const statusSelect = screen.getByLabelText(/status/i);
+    expect(statusSelect).toHaveTextContent("Blocked");
+    fireEvent.change(statusSelect, { target: { value: "blocked" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/projects/mobile-app",
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.stringContaining('"status":"blocked"'),
+        }),
+      );
+    });
+
+    expect(screen.getAllByText("Blocked").length).toBeGreaterThan(0);
   });
 
   it("adds a new link resource to the project", async () => {
