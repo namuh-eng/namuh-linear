@@ -22,9 +22,10 @@ describe("SearchPage component", () => {
       identifier: "ENG-1",
       title: "Fix search layout",
       priority: "high",
+      stateName: "In Progress",
       stateCategory: "started",
       stateColor: "#000000",
-      teamKey: "ENG",
+      assigneeName: "Test User",
       createdAt: new Date().toISOString(),
     },
   ];
@@ -58,6 +59,11 @@ describe("SearchPage component", () => {
         "/foreverbrowsing/team/ENG/issue/ENG-1",
       );
     });
+
+    expect(screen.getByTestId("issue-row")).toHaveAttribute(
+      "href",
+      "/issue/ENG-1",
+    );
   });
 
   it("shows empty state when no results are found", async () => {
@@ -82,6 +88,58 @@ describe("SearchPage component", () => {
       expect(
         screen.getByText(/No issues found matching your search/),
       ).toBeInTheDocument();
+    });
+  });
+
+  it("shows an error instead of rendering rows with missing metadata", async () => {
+    vi.mocked(useSearchParams).mockReturnValue(
+      new URLSearchParams("q=broken") as unknown as ReturnType<
+        typeof useSearchParams
+      >,
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve([
+            { id: "i-1", identifier: "ENG-1", title: "Incomplete row" },
+          ]),
+      }),
+    );
+
+    render(<SearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /Search results could not be loaded/,
+      );
+    });
+    expect(screen.queryByTestId("issue-row")).not.toBeInTheDocument();
+  });
+
+  it("shows an error when the search API fails", async () => {
+    vi.mocked(useSearchParams).mockReturnValue(
+      new URLSearchParams("q=Fix") as unknown as ReturnType<
+        typeof useSearchParams
+      >,
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: () => Promise.resolve({ error: "boom" }),
+      }),
+    );
+
+    render(<SearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /Search results could not be loaded/,
+      );
     });
   });
 });

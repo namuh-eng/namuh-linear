@@ -294,6 +294,19 @@ function getWorkspaceRootRedirect(pathname: string) {
   return null;
 }
 
+function getWorkspacePrefixedSearchRedirect(
+  pathname: string,
+  workspaceSlug?: string,
+) {
+  const segments = getPathSegments(pathname);
+
+  if (segments.length === 1 && segments[0] === "search") {
+    return `/${encodeURIComponent(workspaceSlug || CANONICAL_WORKSPACE_SLUG)}/search`;
+  }
+
+  return null;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
@@ -360,6 +373,16 @@ export async function proxy(request: NextRequest) {
     const workspaceCyclesUrl = request.nextUrl.clone();
     workspaceCyclesUrl.pathname = workspaceCyclesRedirect;
     return NextResponse.redirect(workspaceCyclesUrl);
+  }
+
+  const workspacePrefixedSearchRedirect = getWorkspacePrefixedSearchRedirect(
+    pathname,
+    request.cookies.get("activeWorkspaceSlug")?.value,
+  );
+  if (workspacePrefixedSearchRedirect) {
+    const workspacePrefixedSearchUrl = request.nextUrl.clone();
+    workspacePrefixedSearchUrl.pathname = workspacePrefixedSearchRedirect;
+    return NextResponse.redirect(workspacePrefixedSearchUrl);
   }
 
   const requestHeaders = new Headers(request.headers);
