@@ -185,4 +185,48 @@ test.describe("Command Palette", () => {
     // Should navigate to inbox
     await page.waitForURL("**/inbox");
   });
+
+  test("opens issue quick result with Enter on canonical workspace route", async ({
+    page,
+  }) => {
+    await page.goto("/foreverbrowsing/team/ENG/all");
+    await page.getByLabel("Search").click();
+
+    const input = searchInput(page);
+    await expect(input).toBeVisible();
+    await input.fill("issue added");
+
+    await expect(
+      page.getByRole("button", {
+        name: /ENG-179 Issue added to FOREVER-AGENT/i,
+      }),
+    ).toBeVisible();
+
+    await page.keyboard.press("Enter");
+
+    await expect(page).toHaveURL(
+      /\/foreverbrowsing\/team\/ENG\/issue\/ENG-179$/,
+    );
+    await expect(page.getByText("Issue added to FOREVER-AGENT")).toBeVisible();
+  });
+
+  test("opens clicked issue quick result on canonical workspace route", async ({
+    page,
+  }) => {
+    await page.goto("/foreverbrowsing/team/ENG/all");
+    await page.getByLabel("Search").click();
+
+    const input = searchInput(page);
+    await expect(input).toBeVisible();
+    await input.fill("issue added");
+
+    await page
+      .getByRole("button", { name: /ENG-179 Issue added to FOREVER-AGENT/i })
+      .click();
+
+    await expect(page).toHaveURL(
+      /\/foreverbrowsing\/team\/ENG\/issue\/ENG-179$/,
+    );
+    await expect(page.getByText("Issue added to FOREVER-AGENT")).toBeVisible();
+  });
 });

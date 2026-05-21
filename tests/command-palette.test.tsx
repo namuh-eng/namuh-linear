@@ -399,7 +399,37 @@ describe("CommandPalette", () => {
     );
 
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(pushMock).toHaveBeenCalledWith("/issue/issue-1");
+    expect(pushMock).toHaveBeenCalledWith("/team/ONB/issue/ONB-4");
+  });
+
+  it("opens a clicked issue search result on its canonical workspace route", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          id: "issue-1",
+          identifier: "ENG-179",
+          title: "Issue added to FOREVER-AGENT",
+          priority: "medium",
+          teamKey: "ENG",
+        },
+      ],
+    } as Response);
+
+    render(<CommandPalette teamKey="ENG" workspaceSlug="foreverbrowsing" />);
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+
+    const input = screen.getByPlaceholderText("Type a command or search...");
+    fireEvent.change(input, { target: { value: "issue added" } });
+
+    const resultButton = await screen.findByRole("button", {
+      name: /ENG-179 Issue added to FOREVER-AGENT/i,
+    });
+    fireEvent.click(resultButton);
+
+    expect(pushMock).toHaveBeenCalledWith(
+      "/foreverbrowsing/team/ENG/issue/ENG-179",
+    );
   });
 
   it("ignores stale issue search responses when typing quickly", async () => {

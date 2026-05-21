@@ -28,6 +28,7 @@ interface SearchResult {
   identifier: string;
   title: string;
   priority: string;
+  teamKey?: string;
 }
 
 interface ProjectPickerItem {
@@ -45,6 +46,28 @@ interface CommandItem {
   group: string;
   closeOnSelect?: boolean;
   action: () => void;
+}
+
+function getIssueTeamKey(result: SearchResult) {
+  if (result.teamKey) {
+    return result.teamKey;
+  }
+
+  const identifierTeamKey = result.identifier.match(
+    /^([A-Za-z][A-Za-z0-9]*)-/,
+  )?.[1];
+  return identifierTeamKey ?? null;
+}
+
+function getIssuePath(result: SearchResult) {
+  const issueTeamKey = getIssueTeamKey(result);
+  if (!issueTeamKey) {
+    return `/issue/${result.id}`;
+  }
+
+  return `/team/${encodeURIComponent(issueTeamKey)}/issue/${encodeURIComponent(
+    result.identifier,
+  )}`;
 }
 
 export function CommandPalette({
@@ -524,7 +547,7 @@ export function CommandPalette({
           // Navigate to issue
           const result = results[selectedIndex];
           close();
-          goTo(`/issue/${result.id}`);
+          goTo(getIssuePath(result));
         } else {
           const cmdIndex = selectedIndex - results.length;
           if (cmdIndex < filteredCommands.length) {
@@ -660,7 +683,7 @@ export function CommandPalette({
                       }`}
                       onClick={() => {
                         close();
-                        goTo(`/issue/${result.id}`);
+                        goTo(getIssuePath(result));
                       }}
                       onMouseEnter={() => setSelectedIndex(idx)}
                     >
