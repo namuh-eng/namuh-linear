@@ -12,7 +12,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-function mockLoad(overrides = {}) {
+function mockLoad({
+  canManage = true,
+  overrides = {},
+}: {
+  canManage?: boolean;
+  overrides?: Record<string, unknown>;
+} = {}) {
   mockFetch.mockResolvedValueOnce({
     ok: true,
     json: async () => ({
@@ -22,12 +28,15 @@ function mockLoad(overrides = {}) {
         customerRequests: {
           enabled: false,
           intakeEmail: "",
-          defaultTeamKey: "",
-          linkMode: "suggested",
-          autoCreateIssues: true,
+          defaultPriority: "medium",
+          autoLinkIssues: true,
+          requireCompany: false,
+          confirmationMessage:
+            "Thanks for the feedback — our product team will review it.",
           ...overrides,
         },
       },
+      permissions: { canManage, role: canManage ? "admin" : "member" },
     }),
   });
 }
@@ -36,13 +45,17 @@ describe("CustomerRequestsSettingsPage component", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
 
-  it("renders persisted customer request controls instead of a static placeholder", async () => {
+  it("renders persisted customer request controls instead of a placeholder", async () => {
     mockLoad({
-      enabled: true,
-      intakeEmail: "feedback@example.com",
-      defaultTeamKey: "SUP",
-      linkMode: "automatic",
+      overrides: {
+        enabled: true,
+        intakeEmail: "feedback@example.com",
+        defaultPriority: "high",
+        requireCompany: true,
+        confirmationMessage: "We will follow up soon.",
+      },
     });
+
     render(<CustomerRequestsSettingsPage />);
 
     expect(
@@ -60,29 +73,34 @@ describe("CustomerRequestsSettingsPage component", () => {
     expect(
       screen.getByDisplayValue("feedback@example.com"),
     ).toBeInTheDocument();
-    expect(screen.getByDisplayValue("SUP")).toBeInTheDocument();
     expect(
-      screen.getByRole("combobox", { name: "Issue linking behavior" }),
-    ).toHaveValue("automatic");
+      screen.getByRole("combobox", { name: "Default issue priority" }),
+    ).toHaveValue("high");
+    expect(screen.getByText("Feedback form enabled")).toBeInTheDocument();
     expect(
       screen.queryByText("No requests configured"),
     ).not.toBeInTheDocument();
   });
 
-  it("persists customer request changes", async () => {
+  it("persists customer request setting changes", async () => {
     mockLoad();
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         collaboration: {
+          asks: {},
+          pulse: {},
           customerRequests: {
             enabled: true,
             intakeEmail: "",
-            defaultTeamKey: "",
-            linkMode: "suggested",
-            autoCreateIssues: true,
+            defaultPriority: "medium",
+            autoLinkIssues: true,
+            requireCompany: false,
+            confirmationMessage:
+              "Thanks for the feedback — our product team will review it.",
           },
         },
+        permissions: { canManage: true, role: "admin" },
       }),
     });
 
@@ -107,6 +125,21 @@ describe("CustomerRequestsSettingsPage component", () => {
     });
     expect(
       await screen.findByText("Customer request settings saved."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows read-only admin gating for non-admin members", async () => {
+    mockLoad({ canManage: false, overrides: { enabled: true } });
+
+    render(<CustomerRequestsSettingsPage />);
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("checkbox", { name: "Enable customer requests" }),
+      ).toBeDisabled(),
+    );
+    expect(
+      screen.getByText(/only workspace admins and owners can edit/i),
     ).toBeInTheDocument();
   });
 });

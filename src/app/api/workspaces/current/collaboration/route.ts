@@ -48,6 +48,11 @@ export async function GET() {
 
   return NextResponse.json({
     collaboration: readCollaborationSettings(currentWorkspace.settings),
+    permissions: {
+      canManage:
+        currentWorkspace.role === "owner" || currentWorkspace.role === "admin",
+      role: currentWorkspace.role,
+    },
   });
 }
 
@@ -80,5 +85,6 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({
     collaboration: readCollaborationSettings(settings),
+    permissions: { canManage: true, role: currentWorkspace.role },
   });
 }

@@ -50,8 +50,7 @@ describe("workspace collaboration settings route", () => {
             customerRequests: {
               enabled: true,
               intakeEmail: "feedback@example.com",
-              defaultTeamKey: "SUP",
-              linkMode: "automatic",
+              defaultPriority: "high",
             },
           },
         },
@@ -84,11 +83,14 @@ describe("workspace collaboration settings route", () => {
         customerRequests: {
           enabled: true,
           intakeEmail: "feedback@example.com",
-          defaultTeamKey: "SUP",
-          linkMode: "automatic",
-          autoCreateIssues: true,
+          defaultPriority: "high",
+          autoLinkIssues: true,
+          requireCompany: false,
+          confirmationMessage:
+            "Thanks for the feedback — our product team will review it.",
         },
       },
+      permissions: { canManage: true, role: "owner" },
     });
   });
 
@@ -104,9 +106,9 @@ describe("workspace collaboration settings route", () => {
           asks: { enabled: false, defaultPriority: "urgent" },
           pulse: { velocityTarget: 55 },
           customerRequests: {
-            defaultTeamKey: " eng! ",
-            linkMode: "manual",
-            autoCreateIssues: false,
+            enabled: false,
+            intakeEmail: "customers@example.com",
+            requireCompany: true,
           },
         }),
       }),
@@ -130,11 +132,13 @@ describe("workspace collaboration settings route", () => {
               velocityTarget: 55,
             },
             customerRequests: {
-              enabled: true,
-              intakeEmail: "feedback@example.com",
-              defaultTeamKey: "ENG",
-              linkMode: "manual",
-              autoCreateIssues: false,
+              enabled: false,
+              intakeEmail: "customers@example.com",
+              defaultPriority: "high",
+              autoLinkIssues: true,
+              requireCompany: true,
+              confirmationMessage:
+                "Thanks for the feedback — our product team will review it.",
             },
           },
         }),

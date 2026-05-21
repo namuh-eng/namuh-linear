@@ -12,27 +12,25 @@ export type PulseSettings = {
   velocityTarget: number;
 };
 
-export type CustomerRequestsSettings = {
+export type CustomerRequestSettings = {
   enabled: boolean;
   intakeEmail: string;
-  defaultTeamKey: string;
-  linkMode: "manual" | "suggested" | "automatic";
-  autoCreateIssues: boolean;
+  defaultPriority: "low" | "medium" | "high" | "urgent";
+  autoLinkIssues: boolean;
+  requireCompany: boolean;
+  confirmationMessage: string;
 };
 
 export type CollaborationSettings = {
   asks: AsksSettings;
   pulse: PulseSettings;
-  customerRequests: CustomerRequestsSettings;
+  customerRequests: CustomerRequestSettings;
 };
 
 const PRIORITIES = new Set(["low", "medium", "high", "urgent"]);
 const DIGEST_FREQUENCIES = new Set(["daily", "weekly", "off"]);
-const CUSTOMER_REQUEST_LINK_MODES = new Set([
-  "manual",
-  "suggested",
-  "automatic",
-]);
+const DEFAULT_CONFIRMATION_MESSAGE =
+  "Thanks for the feedback — our product team will review it.";
 
 export function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -50,13 +48,6 @@ function readPositiveInteger(value: unknown, fallback: number) {
     : fallback;
 }
 
-function sanitizeTeamKey(value: string) {
-  return value
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9-]/g, "")
-    .slice(0, 12);
-}
 
 export function readCollaborationSettings(
   settings: unknown,
@@ -94,16 +85,18 @@ export function readCollaborationSettings(
         typeof customerRequests.intakeEmail === "string"
           ? customerRequests.intakeEmail
           : "",
-      defaultTeamKey:
-        typeof customerRequests.defaultTeamKey === "string"
-          ? sanitizeTeamKey(customerRequests.defaultTeamKey)
-          : "",
-      linkMode:
-        typeof customerRequests.linkMode === "string" &&
-        CUSTOMER_REQUEST_LINK_MODES.has(customerRequests.linkMode)
-          ? (customerRequests.linkMode as CustomerRequestsSettings["linkMode"])
-          : "suggested",
-      autoCreateIssues: readBoolean(customerRequests.autoCreateIssues, true),
+      defaultPriority:
+        typeof customerRequests.defaultPriority === "string" &&
+        PRIORITIES.has(customerRequests.defaultPriority)
+          ? (customerRequests.defaultPriority as CustomerRequestSettings["defaultPriority"])
+          : "medium",
+      autoLinkIssues: readBoolean(customerRequests.autoLinkIssues, true),
+      requireCompany: readBoolean(customerRequests.requireCompany, false),
+      confirmationMessage:
+        typeof customerRequests.confirmationMessage === "string" &&
+        customerRequests.confirmationMessage.trim()
+          ? customerRequests.confirmationMessage
+          : DEFAULT_CONFIRMATION_MESSAGE,
     },
   };
 }
@@ -113,7 +106,7 @@ export function mergeCollaborationSettings(
   updates: Partial<{
     asks: Partial<AsksSettings>;
     pulse: Partial<PulseSettings>;
-    customerRequests: Partial<CustomerRequestsSettings>;
+    customerRequests: Partial<CustomerRequestSettings>;
   }>,
 ) {
   const root = asRecord(existingSettings);
@@ -144,7 +137,7 @@ export function parseCollaborationUpdate(body: unknown) {
   const updates: Partial<{
     asks: Partial<AsksSettings>;
     pulse: Partial<PulseSettings>;
-    customerRequests: Partial<CustomerRequestsSettings>;
+    customerRequests: Partial<CustomerRequestSettings>;
   }> = {};
 
   const asks = asRecord(record.asks);
@@ -177,21 +170,22 @@ export function parseCollaborationUpdate(body: unknown) {
         .trim()
         .slice(0, 120);
     }
-    if (typeof customerRequests.defaultTeamKey === "string") {
-      updates.customerRequests.defaultTeamKey = sanitizeTeamKey(
-        customerRequests.defaultTeamKey,
-      );
-    }
     if (
-      typeof customerRequests.linkMode === "string" &&
-      CUSTOMER_REQUEST_LINK_MODES.has(customerRequests.linkMode)
+      typeof customerRequests.defaultPriority === "string" &&
+      PRIORITIES.has(customerRequests.defaultPriority)
     ) {
-      updates.customerRequests.linkMode =
-        customerRequests.linkMode as CustomerRequestsSettings["linkMode"];
+      updates.customerRequests.defaultPriority =
+        customerRequests.defaultPriority as CustomerRequestSettings["defaultPriority"];
     }
-    if (typeof customerRequests.autoCreateIssues === "boolean") {
-      updates.customerRequests.autoCreateIssues =
-        customerRequests.autoCreateIssues;
+    if (typeof customerRequests.autoLinkIssues === "boolean") {
+      updates.customerRequests.autoLinkIssues = customerRequests.autoLinkIssues;
+    }
+    if (typeof customerRequests.requireCompany === "boolean") {
+      updates.customerRequests.requireCompany = customerRequests.requireCompany;
+    }
+    if (typeof customerRequests.confirmationMessage === "string") {
+      updates.customerRequests.confirmationMessage =
+        customerRequests.confirmationMessage.trim().slice(0, 240);
     }
   }
 
