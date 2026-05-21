@@ -388,6 +388,88 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ success: true });
 }
 
+export async function POST(request: Request) {
+  const requestHeaders = await headers();
+  const authSession = await auth.api.getSession({ headers: requestHeaders });
+  if (!authSession) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const access = await getWorkspaceAccess(authSession.user.id);
+  if (!access) {
+    return NextResponse.json(
+      { error: "No active workspace found" },
+      { status: 404 },
+    );
+  }
+
+  if (!isManager(access.membership.role)) {
+    return NextResponse.json(
+      { error: "You do not have permission to manage members" },
+      { status: 403 },
+    );
+  }
+
+  const body = (await request.json().catch(() => null)) as {
+    kind?: "invitation";
+    id?: string;
+    action?: "resend";
+  } | null;
+
+  if (body?.kind !== "invitation" || !body.id || body.action !== "resend") {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  const targetInvitation = await db
+    .select({
+      id: workspaceInvitation.id,
+      email: workspaceInvitation.email,
+      role: workspaceInvitation.role,
+      workspaceName: workspace.name,
+    })
+    .from(workspaceInvitation)
+    .innerJoin(workspace, eq(workspace.id, workspaceInvitation.workspaceId))
+    .where(
+      and(
+        eq(workspaceInvitation.id, body.id),
+        eq(workspaceInvitation.workspaceId, access.workspaceId),
+        eq(workspaceInvitation.status, "pending"),
+      ),
+    )
+    .limit(1);
+
+  if (targetInvitation.length === 0) {
+    return NextResponse.json(
+      { error: "Pending invitation not found" },
+      { status: 404 },
+    );
+  }
+
+  const invitation = targetInvitation[0];
+  const inviteToken = createInviteToken({
+    workspaceId: access.workspaceId,
+    email: invitation.email,
+    role: invitation.role,
+  });
+  const inviteUrl = buildAppUrl(
+    getRequestAppUrl(request),
+    `/accept-invite?token=${encodeURIComponent(inviteToken)}`,
+  );
+
+  await sendInvitationEmail(
+    invitation.email,
+    invitation.workspaceName,
+    authSession.user.name,
+    inviteUrl,
+  );
+  await db
+    .update(workspaceInvitation)
+    .set({ token: inviteToken, updatedAt: new Date() })
+    .where(eq(workspaceInvitation.id, invitation.id));
+
+  return NextResponse.json({ success: true });
+}
+
 export async function DELETE(request: Request) {
   const requestHeaders = await headers();
   const authSession = await auth.api.getSession({ headers: requestHeaders });
@@ -420,7 +502,7 @@ export async function DELETE(request: Request) {
   }
 
   if (body.kind === "invitation") {
-    const [invitation] = await db
+    const targetInvitation = await db
       .select({ id: workspaceInvitation.id })
       .from(workspaceInvitation)
       .where(
@@ -432,7 +514,7 @@ export async function DELETE(request: Request) {
       )
       .limit(1);
 
-    if (!invitation) {
+    if (targetInvitation.length === 0) {
       return NextResponse.json(
         { error: "Pending invitation not found" },
         { status: 404 },
@@ -442,12 +524,12 @@ export async function DELETE(request: Request) {
     await db
       .update(workspaceInvitation)
       .set({ status: "revoked", updatedAt: new Date() })
-      .where(eq(workspaceInvitation.id, invitation.id));
+      .where(eq(workspaceInvitation.id, targetInvitation[0].id));
 
     return NextResponse.json({ success: true });
   }
 
-  const [targetMember] = await db
+  const targetMember = await db
     .select({
       id: member.id,
       userId: member.userId,
@@ -459,32 +541,43 @@ export async function DELETE(request: Request) {
     )
     .limit(1);
 
-  if (!targetMember) {
+  if (targetMember.length === 0) {
     return NextResponse.json({ error: "Member not found" }, { status: 404 });
   }
 
-  if (targetMember.userId === authSession.user.id) {
+  const currentMember = targetMember[0];
+  if (currentMember.userId === authSession.user.id) {
     return NextResponse.json(
       { error: "Use your account settings to leave this workspace" },
       { status: 400 },
     );
   }
 
-  if (access.membership.role !== "owner" && targetMember.role === "owner") {
+  if (access.membership.role !== "owner" && currentMember.role === "owner") {
     return NextResponse.json(
       { error: "Only owners can remove owners" },
       { status: 403 },
     );
   }
 
-  if (
-    targetMember.role === "owner" &&
-    (await countWorkspaceOwners(access.workspaceId)) < 2
-  ) {
-    return NextResponse.json(
-      { error: "Each workspace must keep at least one owner" },
-      { status: 400 },
-    );
+  if (currentMember.role === "owner") {
+    const ownerMemberships = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(
+        and(
+          eq(member.workspaceId, access.workspaceId),
+          eq(member.role, "owner"),
+        ),
+      )
+      .limit(2);
+
+    if (ownerMemberships.length < 2) {
+      return NextResponse.json(
+        { error: "Each workspace must keep at least one owner" },
+        { status: 400 },
+      );
+    }
   }
 
   const workspaceTeams = await db
@@ -492,19 +585,18 @@ export async function DELETE(request: Request) {
     .from(team)
     .where(eq(team.workspaceId, access.workspaceId));
   const teamIds = workspaceTeams.map((entry) => entry.id);
-
   if (teamIds.length > 0) {
     await db
       .delete(teamMember)
       .where(
         and(
-          eq(teamMember.userId, targetMember.userId),
+          eq(teamMember.userId, currentMember.userId),
           inArray(teamMember.teamId, teamIds),
         ),
       );
   }
 
-  await db.delete(member).where(eq(member.id, targetMember.id));
+  await db.delete(member).where(eq(member.id, currentMember.id));
 
   return NextResponse.json({ success: true });
 }

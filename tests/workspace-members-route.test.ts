@@ -9,8 +9,6 @@ const lastSeenRecordsInnerJoinMock = vi.fn();
 const invitationsWhereMock = vi.fn();
 const updateSetMock = vi.fn();
 const deleteWhereMock = vi.fn();
-const createInviteTokenMock = vi.fn();
-const sendInvitationEmailMock = vi.fn();
 const workspaceNameLimitMock = vi.fn();
 const workspaceTeamsWhereMock = vi.fn();
 const targetMemberLimitMock = vi.fn();
@@ -77,6 +75,24 @@ vi.mock("@/lib/db", () => ({
         return chain;
       }
 
+      // POST invitation resend lookup (workspaceName via innerJoin)
+      if (selection && "workspaceName" in selection) {
+        const chain = {
+          from: vi.fn().mockReturnThis(),
+          innerJoin: vi.fn().mockReturnThis(),
+          where: vi.fn().mockReturnThis(),
+          limit: vi.fn().mockResolvedValue([
+            {
+              id: "invite-1",
+              email: "pending@example.com",
+              role: "member",
+              workspaceName: "Test Workspace",
+            },
+          ]),
+        };
+        return chain;
+      }
+
       // selection matches GET teamMemberships list
       if (selection && "teamName" in selection) {
         const chain = {
@@ -109,7 +125,12 @@ vi.mock("@/lib/db", () => ({
       }
 
       // selection matches GET invitations list
-      if (selection && "email" in selection && "createdAt" in selection) {
+      if (
+        selection &&
+        "email" in selection &&
+        "createdAt" in selection &&
+        !("joinedAt" in selection)
+      ) {
         const chain = {
           from: vi.fn().mockReturnThis(),
           where: vi.fn().mockReturnThis(),
@@ -205,6 +226,9 @@ vi.mock("@/lib/db/schema", () => ({
   teamMember: { __name: "teamMember" },
   session: { __name: "session" },
 }));
+
+const createInviteTokenMock = vi.fn();
+const sendInvitationEmailMock = vi.fn();
 
 describe("workspace members route", () => {
   beforeEach(() => {
@@ -305,7 +329,7 @@ describe("workspace members route", () => {
     );
   });
 
-  it("removes active members", async () => {
+  it("removes an active workspace member", async () => {
     const { DELETE } = await import("@/app/api/workspaces/members/route");
 
     const response = await DELETE(
@@ -345,7 +369,7 @@ describe("workspace members route", () => {
     expect(nonManagerResponse.status).toBe(403);
   });
 
-  it("resends pending invitations", async () => {
+  it("resends pending invitations via PATCH", async () => {
     const { PATCH } = await import("@/app/api/workspaces/members/route");
 
     const response = await PATCH(
@@ -376,7 +400,33 @@ describe("workspace members route", () => {
     );
   });
 
-  it("revokes pending invitations", async () => {
+  it("resends a pending workspace invitation via POST", async () => {
+    const { POST } = await import("@/app/api/workspaces/members/route");
+
+    const response = await POST(
+      new Request("http://localhost/api/workspaces/members", {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "invitation",
+          id: "invite-1",
+          action: "resend",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(sendInvitationEmailMock).toHaveBeenCalledWith(
+      "pending@example.com",
+      "Test Workspace",
+      "Ashley",
+      expect.stringContaining("token-456"),
+    );
+    expect(updateSetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ token: "token-456" }),
+    );
+  });
+
+  it("revokes a pending workspace invitation", async () => {
     const { DELETE } = await import("@/app/api/workspaces/members/route");
 
     const response = await DELETE(
