@@ -21,6 +21,13 @@ type DocumentFolder = {
   updatedAt: string;
 };
 
+type DocumentsSettings = {
+  defaultVisibility: "workspace" | "private";
+  autoLinkProjectDocuments: boolean;
+  templates: DocumentTemplate[];
+  folders: DocumentFolder[];
+};
+
 type DialogMode =
   | { type: "template"; item?: DocumentTemplate }
   | { type: "folder"; item?: DocumentFolder }
@@ -36,11 +43,17 @@ const folderColors = [
   "pink",
 ];
 
+const blankSettings: DocumentsSettings = {
+  defaultVisibility: "workspace",
+  autoLinkProjectDocuments: true,
+  templates: [],
+  folders: [],
+};
+
 export default function DocumentsSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
-  const [folders, setFolders] = useState<DocumentFolder[]>([]);
+  const [settings, setSettings] = useState<DocumentsSettings>(blankSettings);
   const [dialog, setDialog] = useState<DialogMode>(null);
   const [form, setForm] = useState({
     name: "",
@@ -60,8 +73,16 @@ export default function DocumentsSettingsPage() {
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "Failed to load");
         if (!cancelled) {
-          setTemplates(payload.documents?.templates ?? []);
-          setFolders(payload.documents?.folders ?? []);
+          setSettings((current) => ({
+            ...current,
+            templates: payload.documents?.templates ?? [],
+            folders: payload.documents?.folders ?? [],
+            defaultVisibility:
+              payload.documents?.defaultVisibility ?? current.defaultVisibility,
+            autoLinkProjectDocuments:
+              payload.documents?.autoLinkProjectDocuments ??
+              current.autoLinkProjectDocuments,
+          }));
         }
       } catch {
         if (!cancelled) setLoadError("Unable to load document settings.");
@@ -74,6 +95,33 @@ export default function DocumentsSettingsPage() {
       cancelled = true;
     };
   }, []);
+
+  async function updateSettings(next: Partial<DocumentsSettings>) {
+    setSaving(true);
+    setError("");
+    setNotice("");
+
+    const response = await fetch("/api/document-settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      documents?: Partial<DocumentsSettings>;
+      error?: string;
+    };
+    setSaving(false);
+
+    if (!response.ok) {
+      setError(payload.error ?? "Unable to save document settings");
+      return;
+    }
+
+    if (payload.documents) {
+      setSettings((current) => ({ ...current, ...payload.documents }));
+    }
+    setNotice("Document settings saved.");
+  }
 
   function openTemplate(item?: DocumentTemplate) {
     setDialog({ type: "template", item });
@@ -151,22 +199,24 @@ export default function DocumentsSettingsPage() {
         );
       }
       if (dialog.type === "template") {
-        setTemplates((current) =>
-          editing
-            ? current.map((item) =>
+        setSettings((current) => ({
+          ...current,
+          templates: editing
+            ? current.templates.map((item) =>
                 item.id === payload.template.id ? payload.template : item,
               )
-            : [payload.template, ...current],
-        );
+            : [payload.template, ...current.templates],
+        }));
         setNotice(editing ? "Template updated." : "Template created.");
       } else {
-        setFolders((current) =>
-          editing
-            ? current.map((item) =>
+        setSettings((current) => ({
+          ...current,
+          folders: editing
+            ? current.folders.map((item) =>
                 item.id === payload.folder.id ? payload.folder : item,
               )
-            : [payload.folder, ...current],
-        );
+            : [payload.folder, ...current.folders],
+        }));
         setNotice(editing ? "Folder updated." : "Folder created.");
       }
       closeDialog();
@@ -186,9 +236,10 @@ export default function DocumentsSettingsPage() {
       method: "DELETE",
     });
     if (response.ok) {
-      setTemplates((current) =>
-        current.filter((item) => item.id !== template.id),
-      );
+      setSettings((current) => ({
+        ...current,
+        templates: current.templates.filter((item) => item.id !== template.id),
+      }));
       setNotice("Template deleted.");
     }
   }
@@ -198,7 +249,10 @@ export default function DocumentsSettingsPage() {
       method: "DELETE",
     });
     if (response.ok) {
-      setFolders((current) => current.filter((item) => item.id !== folder.id));
+      setSettings((current) => ({
+        ...current,
+        folders: current.folders.filter((item) => item.id !== folder.id),
+      }));
       setNotice("Folder deleted.");
     }
   }
@@ -245,6 +299,62 @@ export default function DocumentsSettingsPage() {
       {notice ? (
         <p className="mt-4 text-[13px] text-green-400">{notice}</p>
       ) : null}
+      {error ? (
+        <div
+          className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-500"
+          role="alert"
+        >
+          {error}
+        </div>
+      ) : null}
+
+      <section className="mt-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-5">
+        <h2 className="text-[16px] font-semibold text-[var(--color-text-primary)]">
+          Workspace defaults
+        </h2>
+        <label
+          className="mt-5 block text-[13px] text-[var(--color-text-primary)]"
+          htmlFor="document-visibility"
+        >
+          Default document visibility
+        </label>
+        <select
+          id="document-visibility"
+          value={settings.defaultVisibility}
+          disabled={saving}
+          onChange={(event) =>
+            void updateSettings({
+              defaultVisibility: event.target
+                .value as DocumentsSettings["defaultVisibility"],
+            })
+          }
+          className="mt-2 w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px] text-[var(--color-text-primary)]"
+        >
+          <option value="workspace">Visible to workspace</option>
+          <option value="private">Private by default</option>
+        </select>
+
+        <label className="mt-5 flex items-start gap-3 text-[13px] text-[var(--color-text-primary)]">
+          <input
+            type="checkbox"
+            checked={settings.autoLinkProjectDocuments}
+            disabled={saving}
+            onChange={(event) =>
+              void updateSettings({
+                autoLinkProjectDocuments: event.target.checked,
+              })
+            }
+            className="mt-1"
+          />
+          <span>
+            Auto-link project documents
+            <span className="block text-[12px] text-[var(--color-text-tertiary)]">
+              New project documents appear in the project resources list
+              automatically.
+            </span>
+          </span>
+        </label>
+      </section>
 
       <section className="mt-8" aria-labelledby="document-templates-heading">
         <div className="mb-3 flex items-end justify-between gap-3">
@@ -260,7 +370,7 @@ export default function DocumentsSettingsPage() {
             </p>
           </div>
         </div>
-        {templates.length === 0 ? (
+        {settings.templates.length === 0 ? (
           <EmptyState
             title="No document templates"
             description="Create your first template to standardize workspace documentation."
@@ -268,7 +378,7 @@ export default function DocumentsSettingsPage() {
           />
         ) : (
           <div className="divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
-            {templates.map((template) => (
+            {settings.templates.map((template) => (
               <article key={template.id} className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -317,7 +427,7 @@ export default function DocumentsSettingsPage() {
           Suggested folder categories for keeping shared documents organized.
         </p>
         <div className="mt-3">
-          {folders.length === 0 ? (
+          {settings.folders.length === 0 ? (
             <EmptyState
               title="No common folders"
               description="Add common folders for handbooks, specs, and operating docs."
@@ -325,7 +435,7 @@ export default function DocumentsSettingsPage() {
             />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              {folders.map((folder) => (
+              {settings.folders.map((folder) => (
                 <article
                   key={folder.id}
                   className="rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"

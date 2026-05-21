@@ -16,7 +16,14 @@ describe("DocumentsSettingsPage component", () => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockResolvedValue({
       ok: true,
-      json: async () => ({ documents: { templates: [], folders: [] } }),
+      json: async () => ({
+        documents: {
+          defaultVisibility: "workspace",
+          autoLinkProjectDocuments: true,
+          templates: [],
+          folders: [],
+        },
+      }),
     });
   });
 
@@ -45,11 +52,68 @@ describe("DocumentsSettingsPage component", () => {
     );
   });
 
+  it("renders workspace defaults controls", async () => {
+    render(<DocumentsSettingsPage />);
+
+    expect(await screen.findByText("Documents")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Default document visibility"),
+    ).toHaveValue("workspace");
+    expect(
+      screen.getByLabelText(/Auto-link project documents/),
+    ).toBeChecked();
+  });
+
+  it("persists workspace document defaults", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          documents: {
+            defaultVisibility: "workspace",
+            autoLinkProjectDocuments: true,
+            templates: [],
+            folders: [],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          documents: {
+            defaultVisibility: "private",
+            autoLinkProjectDocuments: true,
+            templates: [],
+            folders: [],
+          },
+        }),
+      });
+
+    render(<DocumentsSettingsPage />);
+    const visibility = await screen.findByLabelText(
+      "Default document visibility",
+    );
+
+    fireEvent.change(visibility, { target: { value: "private" } });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/document-settings",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ defaultVisibility: "private" }),
+        }),
+      );
+    });
+  });
+
   it("loads persisted templates and folders", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         documents: {
+          defaultVisibility: "workspace",
+          autoLinkProjectDocuments: true,
           templates: [
             {
               id: "template-1",
@@ -86,7 +150,14 @@ describe("DocumentsSettingsPage component", () => {
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ documents: { templates: [], folders: [] } }),
+        json: async () => ({
+          documents: {
+            defaultVisibility: "workspace",
+            autoLinkProjectDocuments: true,
+            templates: [],
+            folders: [],
+          },
+        }),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -180,7 +251,14 @@ describe("DocumentsSettingsPage component", () => {
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ documents: { templates: [], folders: [] } }),
+        json: async () => ({
+          documents: {
+            defaultVisibility: "workspace",
+            autoLinkProjectDocuments: true,
+            templates: [],
+            folders: [],
+          },
+        }),
       })
       .mockResolvedValueOnce({
         ok: true,

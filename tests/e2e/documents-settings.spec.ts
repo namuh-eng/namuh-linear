@@ -20,6 +20,14 @@ test.describe("Documents settings", () => {
     ).toBeVisible();
     await expect(page.getByText("No document templates")).toBeVisible();
     await expect(page.getByText("No common folders")).toBeVisible();
+    await expect(page.getByLabel("Default document visibility")).toHaveValue(
+      "workspace",
+    );
+
+    await page
+      .getByLabel("Default document visibility")
+      .selectOption("private");
+    await expect(page.getByText("Document settings saved.")).toBeVisible();
 
     const templateName = `Release notes ${suffix}`;
     await page.getByRole("button", { name: "New template" }).first().click();
@@ -70,6 +78,9 @@ test.describe("Documents settings", () => {
     await page.reload();
     await expect(page.getByText(editedTemplate)).toBeVisible();
     await expect(page.getByText(editedFolder)).toBeVisible();
+    await expect(page.getByLabel("Default document visibility")).toHaveValue(
+      "private",
+    );
 
     const apiResponse = await page.request.get("/api/document-settings", {
       headers: {
