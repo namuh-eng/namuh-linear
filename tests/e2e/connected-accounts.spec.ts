@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Connected accounts", () => {
-  test("Connected accounts renders integration provider rows and configured/unavailable states", async ({
+  test("workspace-prefixed route preserves slug and renders provider rows", async ({
     page,
   }) => {
     const suffix = Date.now().toString(36);
@@ -14,15 +14,13 @@ test.describe("Connected accounts", () => {
     });
     expect(workspaceResponse.status()).toBe(201);
 
-    const apiRedirects: string[] = [];
+    const loginRedirects: string[] = [];
     page.on("response", (response) => {
-      const url = response.url();
-      if (
-        url.includes("/api/account/") &&
-        response.status() >= 300 &&
-        response.status() < 400
-      ) {
-        apiRedirects.push(`${response.status()} ${url}`);
+      const url = new URL(response.url());
+      if (url.pathname === "/login") {
+        loginRedirects.push(
+          `${response.status()} ${url.pathname}${url.search}`,
+        );
       }
     });
 
@@ -34,6 +32,15 @@ test.describe("Connected accounts", () => {
     await expect(
       page.getByRole("heading", { level: 1, name: "Connected accounts" }),
     ).toBeVisible();
+    await expect(page).toHaveURL(
+      new RegExp(`/${workspaceSlug}/settings/account/connections$`),
+    );
+    expect(page.url()).not.toContain("/login");
+    expect(page.url()).not.toContain(
+      "/settings/account/connections?callbackUrl",
+    );
+    expect(loginRedirects).toEqual([]);
+
     await expect(page.getByText("No connected accounts yet.")).toBeVisible();
     await expect(page.getByText("Available providers")).toBeVisible();
     await expect(page.getByText(/^GitHub$/)).toBeVisible();
@@ -87,7 +94,6 @@ test.describe("Connected accounts", () => {
       );
     }
 
-    expect(apiRedirects).toEqual([]);
   });
 
   test("non-prefixed connected accounts route still renders for authenticated users", async ({
@@ -100,5 +106,18 @@ test.describe("Connected accounts", () => {
       page.getByRole("heading", { level: 1, name: "Connected accounts" }),
     ).toBeVisible();
     await expect(page).toHaveURL(/\/settings\/account\/connections$/);
+  });
+
+  test("non-prefixed connected accounts route continues to render", async ({
+    page,
+  }) => {
+    await page.goto("/settings/account/connections");
+
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Connected accounts" }),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\/settings\/account\/connections$/);
+    await expect(page.getByText("Available providers")).toBeVisible();
+    await expect(page.getByText(/^GitHub$/)).toBeVisible();
   });
 });
