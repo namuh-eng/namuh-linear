@@ -64,7 +64,7 @@ export function NotificationRow({
       onClick={() => onClick(id)}
       className={`relative flex w-full min-w-0 items-start gap-3 rounded-md border border-transparent px-3 py-2.5 text-left transition-colors ${
         isSelected
-          ? "border-[var(--color-surface-active-line)] bg-[var(--color-surface-active)] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-[2px] before:rounded-full before:bg-[var(--color-accent)]"
+          ? "bg-[var(--color-surface-active)] shadow-[inset_2px_0_0_var(--color-accent)]"
           : readAt
             ? "hover:bg-[var(--color-surface-hover)]"
             : "bg-[color-mix(in_srgb,var(--color-accent)_10%,var(--color-surface))] hover:bg-[color-mix(in_srgb,var(--color-accent)_16%,var(--color-surface))]"
@@ -101,7 +101,7 @@ export function NotificationRow({
           <span className="shrink-0 text-[var(--color-text-secondary)]">
             {issueIdentifier}
           </span>
-          <span className="truncate text-[var(--color-text-primary)]">
+          <span className="editorial-row-title truncate text-[var(--color-text-primary)]">
             {issueTitle}
           </span>
         </div>
