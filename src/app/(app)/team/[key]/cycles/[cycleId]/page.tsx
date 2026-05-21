@@ -311,7 +311,11 @@ function EditCycleDialog({
 }
 
 export default function CycleDetailPage() {
-  const params = useParams<{ key: string; cycleId: string }>();
+  const params = useParams<{
+    key: string;
+    cycleId: string;
+    workspaceSlug?: string;
+  }>();
   const router = useRouter();
   const workspaceSlug = useAppShellContext()?.workspaceSlug;
   const [data, setData] = useState<CycleDetailResponse | null>(null);
