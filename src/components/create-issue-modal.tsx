@@ -75,16 +75,16 @@ interface CreateIssueOptions {
     name: string;
     icon?: string | null;
   }>;
-  cycles?: Array<{
+  cycles: Array<{
     id: string;
-    name: string | null;
+    name: string;
     number: number;
     startDate?: string | Date;
     endDate?: string | Date;
   }>;
-  estimates?: Array<{ value: number; label: string }>;
+  estimates: Array<{ value: number; label: string }>;
   templates?: IssueTemplateOption[];
-  relationIssues?: Array<{ id: string; identifier: string; title: string }>;
+  relationIssues: Array<{ id: string; identifier: string; title: string }>;
   dueDatePresets?: Array<{ value: string; label: string }>;
 }
 

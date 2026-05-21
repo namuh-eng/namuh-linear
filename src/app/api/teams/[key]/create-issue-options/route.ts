@@ -131,8 +131,7 @@ export async function GET(
       })
       .from(issue)
       .where(and(eq(issue.teamId, teamContext.id), isNull(issue.archivedAt)))
-      .orderBy(desc(issue.createdAt))
-      .limit(100),
+      .orderBy(desc(issue.createdAt)),
   ]);
 
   const fallbackAssignees =
