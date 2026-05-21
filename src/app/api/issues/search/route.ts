@@ -6,6 +6,10 @@ import { activeTeamFilter } from "@/lib/team-lifecycle";
 import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
+function issuePath(teamKey: string, identifier: string) {
+  return `/team/${encodeURIComponent(teamKey)}/issue/${encodeURIComponent(identifier)}`;
+}
+
 export async function GET(request: Request) {
   const { response: authResponse, session } = await requireApiSession();
   if (authResponse) {
@@ -90,5 +94,10 @@ export async function GET(request: Request) {
     .orderBy(desc(issue.createdAt))
     .limit(10);
 
-  return NextResponse.json(results);
+  return NextResponse.json(
+    results.map((result) => ({
+      ...result,
+      path: issuePath(result.teamKey, result.identifier),
+    })),
+  );
 }

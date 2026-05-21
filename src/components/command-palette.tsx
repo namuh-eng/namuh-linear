@@ -29,6 +29,7 @@ interface SearchResult {
   title: string;
   priority: string;
   teamKey?: string;
+  path?: string;
 }
 
 interface ProjectPickerItem {
@@ -99,6 +100,12 @@ export function CommandPalette({
   const goTo = useCallback(
     (path: string) => router.push(withWorkspaceSlug(path, workspaceSlug)),
     [router, workspaceSlug],
+  );
+  const getIssueResultPath = useCallback(
+    (result: SearchResult) =>
+      result.path ??
+      `/team/${encodeURIComponent(result.teamKey ?? teamKey)}/issue/${encodeURIComponent(result.identifier)}`,
+    [teamKey],
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
@@ -547,7 +554,7 @@ export function CommandPalette({
           // Navigate to issue
           const result = results[selectedIndex];
           close();
-          goTo(getIssuePath(result));
+          goTo(getIssueResultPath(result));
         } else {
           const cmdIndex = selectedIndex - results.length;
           if (cmdIndex < filteredCommands.length) {
@@ -561,6 +568,7 @@ export function CommandPalette({
       close,
       executeCommand,
       filteredCommands,
+      getIssueResultPath,
       goTo,
       results,
       selectedIndex,
@@ -683,7 +691,7 @@ export function CommandPalette({
                       }`}
                       onClick={() => {
                         close();
-                        goTo(getIssuePath(result));
+                        goTo(getIssueResultPath(result));
                       }}
                       onMouseEnter={() => setSelectedIndex(idx)}
                     >

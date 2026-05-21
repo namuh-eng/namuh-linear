@@ -92,6 +92,7 @@ describe("CommandPalette component", () => {
             title: "Search Result Issue",
             priority: "high",
             teamKey: "ENG",
+            path: "/team/ENG/issue/ENG-1",
           },
         ]),
     });
