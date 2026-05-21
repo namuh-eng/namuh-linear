@@ -306,6 +306,11 @@ export function ProjectDetailPage() {
   ];
   const createIssueTeam = data.teams[0] ?? data.availableTeams[0] ?? null;
 
+  function openCreateIssue(defaults: CreateIssueDefaults = {}) {
+    setCreateIssueDefaults(defaults);
+    setShowCreateIssue(true);
+  }
+
   async function handleSaveProperties(values: ProjectPropertiesSaveInput) {
     await patchProject(values);
   }
