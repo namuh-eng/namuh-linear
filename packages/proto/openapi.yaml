@@ -1397,6 +1397,35 @@ paths:
                 $ref: '#/components/schemas/CreateWorkspaceResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /workspaces/current/ai-settings:
+    get:
+      operationId: getCurrentWorkspaceAiSettings
+      responses:
+        '200':
+          description: Current workspace AI settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceAiSettingsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      operationId: updateCurrentWorkspaceAiSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceAiSettingsRequest'
+      responses:
+        '200':
+          description: Updated AI settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceAiSettingsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /workspaces/current/initiatives-settings:
     get:
       operationId: getCurrentWorkspaceInitiativeSettings
@@ -2663,6 +2692,42 @@ components:
         preview:
           type: array
           items: { $ref: '#/components/schemas/WorkspaceImportPreviewRow' }
+    WorkspaceAiSettings:
+      type: object
+      required: [aiFeaturesEnabled, askLinearEnabled, issueSuggestionsEnabled, summariesEnabled, autoTriageEnabled, workspaceAgentGuidance, agentUsagePermission]
+      properties:
+        aiFeaturesEnabled: { type: boolean }
+        askLinearEnabled: { type: boolean }
+        issueSuggestionsEnabled: { type: boolean }
+        summariesEnabled: { type: boolean }
+        autoTriageEnabled: { type: boolean }
+        workspaceAgentGuidance: { type: string }
+        agentUsagePermission: { type: string, enum: [admins, members, anyone] }
+    WorkspaceAiCapabilities:
+      type: object
+      required: [canManageAiSettings, canUseAgents]
+      properties:
+        canManageAiSettings: { type: boolean }
+        canUseAgents: { type: boolean }
+    WorkspaceAiLimits:
+      type: object
+      required: [workspaceAgentGuidanceMaxLength]
+      properties:
+        workspaceAgentGuidanceMaxLength: { type: integer }
+    WorkspaceAiSettingsResponse:
+      type: object
+      required: [aiSettings, capabilities, limits]
+      properties:
+        aiSettings: { $ref: '#/components/schemas/WorkspaceAiSettings' }
+        capabilities: { $ref: '#/components/schemas/WorkspaceAiCapabilities' }
+        limits: { $ref: '#/components/schemas/WorkspaceAiLimits' }
+    UpdateWorkspaceAiSettingsRequest:
+      type: object
+      required: [aiSettings]
+      properties:
+        aiSettings:
+          type: object
+          additionalProperties: true
     WorkspaceInitiativeSettings:
       type: object
       required: [enabled, projectRollups, visibility, roadmapMode]

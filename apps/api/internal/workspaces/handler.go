@@ -141,6 +141,8 @@ func (h Handler) Routes() chi.Router {
 	r.Delete("/members", h.RemoveMemberOrInvitation)
 	r.Post("/invite", h.Invite)
 	r.Post("/imports/preview", h.PreviewImport)
+	r.Get("/current/ai-settings", h.GetAISettings)
+	r.Patch("/current/ai-settings", h.UpdateAISettings)
 	r.Get("/current/initiatives-settings", h.GetInitiativeSettings)
 	r.Patch("/current/initiatives-settings", h.UpdateInitiativeSettings)
 	r.Get("/current/collaboration", h.GetCollaboration)
@@ -423,6 +425,93 @@ type initiativeSettingsResponse struct {
 	InitiativesSettings workspaceInitiativeSettings `json:"initiativesSettings"`
 	ViewerRole          string                      `json:"viewerRole"`
 	CanManage           bool                        `json:"canManage"`
+}
+
+const workspaceAgentGuidanceMaxLength = 4000
+
+type workspaceAISettings struct {
+	AIFeaturesEnabled       bool   `json:"aiFeaturesEnabled"`
+	AskLinearEnabled        bool   `json:"askLinearEnabled"`
+	IssueSuggestionsEnabled bool   `json:"issueSuggestionsEnabled"`
+	SummariesEnabled        bool   `json:"summariesEnabled"`
+	AutoTriageEnabled       bool   `json:"autoTriageEnabled"`
+	WorkspaceAgentGuidance  string `json:"workspaceAgentGuidance"`
+	AgentUsagePermission    string `json:"agentUsagePermission"`
+}
+
+type aiCapabilities struct {
+	CanManageAiSettings bool `json:"canManageAiSettings"`
+	CanUseAgents        bool `json:"canUseAgents"`
+}
+
+type aiLimits struct {
+	WorkspaceAgentGuidanceMaxLength int `json:"workspaceAgentGuidanceMaxLength"`
+}
+
+type aiSettingsResponse struct {
+	AISettings   workspaceAISettings `json:"aiSettings"`
+	Capabilities aiCapabilities      `json:"capabilities"`
+	Limits       aiLimits            `json:"limits"`
+}
+
+func (h Handler) GetAISettings(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No active workspace found", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Get AI settings failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, buildAISettingsResponse(settings, p.Role))
+}
+
+func (h Handler) UpdateAISettings(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	if !isManager(p.Role) {
+		problem.Write(w, 403, "You do not have permission to manage workspace AI settings", "")
+		return
+	}
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No active workspace found", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Update AI settings failed", err.Error())
+		return
+	}
+	var body map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		problem.Write(w, 400, "Invalid JSON", err.Error())
+		return
+	}
+	patch, ok := body["aiSettings"].(map[string]any)
+	if !ok || patch == nil {
+		problem.Write(w, 400, "aiSettings is required", "")
+		return
+	}
+	if value, exists := patch["workspaceAgentGuidance"]; exists {
+		text, ok := value.(string)
+		if !ok {
+			problem.Write(w, 400, "Workspace agent guidance must be text", "")
+			return
+		}
+		if len(text) > workspaceAgentGuidanceMaxLength {
+			problem.Write(w, 400, fmt.Sprintf("Workspace agent guidance must be %d characters or fewer", workspaceAgentGuidanceMaxLength), "")
+			return
+		}
+	}
+	next := patchAISettings(readWorkspaceAISettings(settings), patch)
+	settings["ai"] = serializeWorkspaceAISettings(next)
+	raw, _ := json.Marshal(settings)
+	if _, err := h.DB.Exec(r.Context(), `update workspace set settings=$1::jsonb, updated_at=now() where id=$2::uuid`, raw, p.WorkspaceID); err != nil {
+		problem.Write(w, 500, "Update AI settings failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, buildAISettingsResponse(settings, p.Role))
 }
 
 func (h Handler) GetInitiativeSettings(w http.ResponseWriter, r *http.Request) {
@@ -1738,4 +1827,78 @@ func patchInitiativeSettings(current workspaceInitiativeSettings, patch map[stri
 		current.RoadmapMode = s
 	}
 	return current, nil
+}
+
+func buildAISettingsResponse(settings map[string]any, role string) aiSettingsResponse {
+	ai := readWorkspaceAISettings(settings)
+	return aiSettingsResponse{AISettings: ai, Capabilities: aiCapabilities{CanManageAiSettings: isManager(role), CanUseAgents: canUseWorkspaceAgents(role, ai)}, Limits: aiLimits{WorkspaceAgentGuidanceMaxLength: workspaceAgentGuidanceMaxLength}}
+}
+
+func readWorkspaceAISettings(settings map[string]any) workspaceAISettings {
+	rootAI := recordFromAny(settings["ai"])
+	legacyAgents := recordFromAny(settings["agents"])
+	guidance := firstString(rootAI["workspaceAgentGuidance"], rootAI["agentGuidance"], rootAI["guidance"], legacyAgents["agentGuidance"], legacyAgents["guidance"], settings["agentGuidance"])
+	if len(guidance) > workspaceAgentGuidanceMaxLength {
+		guidance = guidance[:workspaceAgentGuidanceMaxLength]
+	}
+	return workspaceAISettings{AIFeaturesEnabled: boolFromAny(firstNonNil(rootAI["aiFeaturesEnabled"], rootAI["enabled"]), true), AskLinearEnabled: boolFromAny(rootAI["askLinearEnabled"], true), IssueSuggestionsEnabled: boolFromAny(rootAI["issueSuggestionsEnabled"], true), SummariesEnabled: boolFromAny(rootAI["summariesEnabled"], true), AutoTriageEnabled: boolFromAny(rootAI["autoTriageEnabled"], false), WorkspaceAgentGuidance: strings.TrimSpace(guidance), AgentUsagePermission: permissionLevel(rootAI["agentUsagePermission"], "members")}
+}
+
+func patchAISettings(current workspaceAISettings, patch map[string]any) workspaceAISettings {
+	if v, ok := patch["aiFeaturesEnabled"].(bool); ok {
+		current.AIFeaturesEnabled = v
+	}
+	if v, ok := patch["askLinearEnabled"].(bool); ok {
+		current.AskLinearEnabled = v
+	}
+	if v, ok := patch["issueSuggestionsEnabled"].(bool); ok {
+		current.IssueSuggestionsEnabled = v
+	}
+	if v, ok := patch["summariesEnabled"].(bool); ok {
+		current.SummariesEnabled = v
+	}
+	if v, ok := patch["autoTriageEnabled"].(bool); ok {
+		current.AutoTriageEnabled = v
+	}
+	if v, ok := patch["workspaceAgentGuidance"].(string); ok {
+		current.WorkspaceAgentGuidance = strings.TrimSpace(v)
+	}
+	if v, ok := patch["agentUsagePermission"].(string); ok {
+		current.AgentUsagePermission = permissionLevel(v, current.AgentUsagePermission)
+	}
+	return current
+}
+
+func serializeWorkspaceAISettings(settings workspaceAISettings) map[string]any {
+	return map[string]any{"aiFeaturesEnabled": settings.AIFeaturesEnabled, "askLinearEnabled": settings.AskLinearEnabled, "issueSuggestionsEnabled": settings.IssueSuggestionsEnabled, "summariesEnabled": settings.SummariesEnabled, "autoTriageEnabled": settings.AutoTriageEnabled, "workspaceAgentGuidance": settings.WorkspaceAgentGuidance, "agentGuidance": settings.WorkspaceAgentGuidance, "agentUsagePermission": settings.AgentUsagePermission}
+}
+
+func permissionLevel(value any, fallback string) string {
+	if s, ok := value.(string); ok && (s == "admins" || s == "members" || s == "anyone") {
+		return s
+	}
+	return fallback
+}
+
+func canUseWorkspaceAgents(role string, settings workspaceAISettings) bool {
+	if !settings.AIFeaturesEnabled {
+		return false
+	}
+	switch settings.AgentUsagePermission {
+	case "admins":
+		return isManager(role)
+	case "members", "anyone":
+		return role == "owner" || role == "admin" || role == "member"
+	default:
+		return false
+	}
+}
+
+func firstString(values ...any) string {
+	for _, value := range values {
+		if s, ok := value.(string); ok {
+			return s
+		}
+	}
+	return ""
 }

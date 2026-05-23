@@ -97,3 +97,15 @@ func TestReadAndPatchInitiativeSettings(t *testing.T) {
 		t.Fatal("invalid visibility should fail")
 	}
 }
+
+func TestReadAndPatchWorkspaceAISettings(t *testing.T) {
+	settings := map[string]any{"ai": map[string]any{"workspaceAgentGuidance": " Existing policy ", "agentUsagePermission": "admins"}}
+	got := readWorkspaceAISettings(settings)
+	if got.WorkspaceAgentGuidance != "Existing policy" || got.AgentUsagePermission != "admins" || !got.AIFeaturesEnabled {
+		t.Fatalf("ai = %#v", got)
+	}
+	patched := patchAISettings(got, map[string]any{"aiFeaturesEnabled": false, "workspaceAgentGuidance": "New", "agentUsagePermission": "members"})
+	if patched.AIFeaturesEnabled || patched.WorkspaceAgentGuidance != "New" || patched.AgentUsagePermission != "members" {
+		t.Fatalf("patched = %#v", patched)
+	}
+}
