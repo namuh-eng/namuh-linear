@@ -9,6 +9,11 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { user, workspace } from "@/lib/db/schema";
+import {
+  createHeadlessAccountProfileClient,
+  headlessAccountProfileEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -82,6 +87,28 @@ export async function GET() {
     return authResponse;
   }
 
+  if (headlessAccountProfileEnabled()) {
+    const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+    if (!workspaceId) {
+      return NextResponse.json(
+        { error: "No workspace found" },
+        { status: 400 },
+      );
+    }
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessAccountProfileClient(token);
+    const { data, error, response } = await client.GET("/account/profile");
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const payload = await buildProfileResponse(session.user.id);
   if (!payload) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -97,6 +124,40 @@ export async function PATCH(request: Request) {
   const { response: authResponse, session } = await requireApiSession();
   if (authResponse) {
     return authResponse;
+  }
+
+  if (headlessAccountProfileEnabled()) {
+    const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+    if (!workspaceId) {
+      return NextResponse.json(
+        { error: "No workspace found" },
+        { status: 400 },
+      );
+    }
+    const body = (await request.json().catch(() => null)) as {
+      name?: unknown;
+      username?: unknown;
+      image?: unknown;
+      pronouns?: unknown;
+      title?: unknown;
+      location?: unknown;
+      timezone?: unknown;
+      showLocalTime?: unknown;
+    } | null;
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessAccountProfileClient(token);
+    const { data, error, response } = await client.PATCH("/account/profile", {
+      body: body as never,
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const payload = await buildProfileResponse(session.user.id);

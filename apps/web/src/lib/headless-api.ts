@@ -15,6 +15,14 @@ export function headlessAccountNotificationsEnabled() {
   return process.env.EXPONENTIAL_HEADLESS_ACCOUNT_NOTIFICATIONS === "true";
 }
 
+export function headlessAccountPreferencesEnabled() {
+  return process.env.EXPONENTIAL_HEADLESS_ACCOUNT_PREFERENCES === "true";
+}
+
+export function headlessAccountProfileEnabled() {
+  return process.env.EXPONENTIAL_HEADLESS_ACCOUNT_PROFILE === "true";
+}
+
 export function headlessViewsEnabled() {
   return process.env.EXPONENTIAL_HEADLESS_VIEWS === "true";
 }
@@ -53,6 +61,14 @@ export function createHeadlessIssueBulkClient(token: string) {
 }
 
 export function createHeadlessAccountNotificationsClient(token: string) {
+  return createHeadlessClient(token);
+}
+
+export function createHeadlessAccountPreferencesClient(token: string) {
+  return createHeadlessClient(token);
+}
+
+export function createHeadlessAccountProfileClient(token: string) {
   return createHeadlessClient(token);
 }
 
