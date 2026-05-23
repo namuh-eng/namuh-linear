@@ -1010,6 +1010,42 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/teams/{key}/context": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    get: operations["getTeamContext"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/teams/{key}/display-options": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    get: operations["getTeamDisplayOptions"];
+    put: operations["updateTeamDisplayOptions"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/teams/{key}/cycles": {
     parameters: {
       query?: never;
@@ -2241,6 +2277,26 @@ export interface components {
       createdAt: string;
       /** Format: date-time */
       retiredAt?: string | null;
+    };
+    TeamContextTeam: {
+      id: string;
+      name: string;
+      key: string;
+      parentTeamId?: string | null;
+      retiredAt?: string | null;
+    };
+    TeamContextResponse: {
+      workspaceName: string;
+      workspaceSlug: string;
+      workspaceId: string;
+      teamId: string;
+      teamName: string;
+      teamKey: string;
+      workspaceInitials: string;
+      teams: components["schemas"]["TeamContextTeam"][];
+    };
+    TeamDisplayOptionsResponse: {
+      displayOptions: unknown;
     };
     TeamListResponse: {
       /** Format: uuid */
@@ -5295,6 +5351,81 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CreateTeamResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  getTeamContext: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Team navigation context */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TeamContextResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  getTeamDisplayOptions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Team display options */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TeamDisplayOptionsResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateTeamDisplayOptions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          displayOptions?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated team display options */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TeamDisplayOptionsResponse"];
         };
       };
       default: components["responses"]["Problem"];

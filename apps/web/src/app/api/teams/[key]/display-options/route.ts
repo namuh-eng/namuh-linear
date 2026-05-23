@@ -1,6 +1,12 @@
+import { resolveRequestWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { team } from "@/lib/db/schema";
+import {
+  createHeadlessTeamsClient,
+  headlessTeamsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { findAccessibleTeam } from "@/lib/teams";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -15,6 +21,30 @@ export async function GET(
   }
 
   const { key } = await params;
+
+  if (headlessTeamsEnabled()) {
+    const workspaceId = await resolveRequestWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessTeamsClient(token);
+      const { data, error, response } = await client.GET(
+        "/teams/{key}/display-options",
+        { params: { path: { key } } },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
 
   const teamRecord = await findAccessibleTeam(key, session.user.id, {
     request,
@@ -37,6 +67,35 @@ export async function PUT(
   }
 
   const { key } = await params;
+
+  if (headlessTeamsEnabled()) {
+    const workspaceId = await resolveRequestWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const body = await request.json().catch(() => null);
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessTeamsClient(token);
+      const { data, error, response } = await client.PUT(
+        "/teams/{key}/display-options",
+        {
+          params: { path: { key } },
+          body: body as never,
+        },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const body = await request.json();
 
   const teamRecord = await findAccessibleTeam(key, session.user.id, {

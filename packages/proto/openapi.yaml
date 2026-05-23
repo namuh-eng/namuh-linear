@@ -1517,6 +1517,59 @@ paths:
                 $ref: '#/components/schemas/CreateTeamResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /teams/{key}/context:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getTeamContext
+      responses:
+        '200':
+          description: Team navigation context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamContextResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /teams/{key}/display-options:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getTeamDisplayOptions
+      responses:
+        '200':
+          description: Team display options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamDisplayOptionsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    put:
+      operationId: updateTeamDisplayOptions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayOptions: {}
+      responses:
+        '200':
+          description: Updated team display options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamDisplayOptionsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /teams/{key}/cycles:
     parameters:
       - name: key
@@ -3253,6 +3306,35 @@ components:
         currentUserIsMember: { type: boolean }
         createdAt: { type: string, format: date-time }
         retiredAt: { type: [string, 'null'], format: date-time }
+    TeamContextTeam:
+      type: object
+      required: [id, name, key]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        key: { type: string }
+        parentTeamId: { type: [string, 'null'] }
+        retiredAt: { type: [string, 'null'] }
+    TeamContextResponse:
+      type: object
+      required: [workspaceName, workspaceSlug, workspaceId, teamId, teamName, teamKey, workspaceInitials, teams]
+      properties:
+        workspaceName: { type: string }
+        workspaceSlug: { type: string }
+        workspaceId: { type: string }
+        teamId: { type: string }
+        teamName: { type: string }
+        teamKey: { type: string }
+        workspaceInitials: { type: string }
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamContextTeam'
+    TeamDisplayOptionsResponse:
+      type: object
+      required: [displayOptions]
+      properties:
+        displayOptions: {}
     TeamListResponse:
       type: object
       required: [workspaceId, viewerRole, canManageTeams, teams]
