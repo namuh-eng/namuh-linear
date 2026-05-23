@@ -1,6 +1,11 @@
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issue, member, team, workflowState } from "@/lib/db/schema";
+import {
+  createHeadlessTeamsClient,
+  headlessTeamsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { findAccessibleTeam } from "@/lib/teams";
 import { and, asc, count, eq, ne } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -134,6 +139,12 @@ async function getTeamOrResponse(
   }
 
   return { response: null, teamRecord };
+}
+
+async function mintTeamToken(key: string, userId: string) {
+  const teamRecord = await findAccessibleTeam(key, userId);
+  if (!teamRecord) return null;
+  return mintInternalApiToken({ userId, workspaceId: teamRecord.workspaceId });
 }
 
 async function requireManageAccess(
@@ -291,6 +302,23 @@ export async function GET(
     return authResponse;
   }
 
+  if (headlessTeamsEnabled()) {
+    const token = await mintTeamToken(key, session.user.id);
+    if (token) {
+      const client = createHeadlessTeamsClient(token);
+      const { data, error, response } = await client.GET(
+        "/teams/{key}/statuses",
+        { params: { path: { key } } },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const result = await getTeamOrResponse(key, session.user.id);
   if (result.response) return result.response;
 
@@ -305,6 +333,27 @@ export async function POST(
   if (authResponse) return authResponse;
 
   const { key } = await params;
+  if (headlessTeamsEnabled()) {
+    const token = await mintTeamToken(key, session.user.id);
+    if (token) {
+      const body = await request.json().catch(() => null);
+      const client = createHeadlessTeamsClient(token);
+      const { data, error, response } = await client.POST(
+        "/teams/{key}/statuses",
+        {
+          params: { path: { key } },
+          body: body as never,
+        },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const result = await requireManageAccess(key, session.user.id);
   if (result.response) return result.response;
 
@@ -398,6 +447,27 @@ export async function PATCH(
   if (authResponse) return authResponse;
 
   const { key } = await params;
+  if (headlessTeamsEnabled()) {
+    const token = await mintTeamToken(key, session.user.id);
+    if (token) {
+      const body = await request.json().catch(() => null);
+      const client = createHeadlessTeamsClient(token);
+      const { data, error, response } = await client.PATCH(
+        "/teams/{key}/statuses",
+        {
+          params: { path: { key } },
+          body: body as never,
+        },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const result = await requireManageAccess(key, session.user.id);
   if (result.response) return result.response;
 
@@ -671,6 +741,27 @@ export async function DELETE(
   if (authResponse) return authResponse;
 
   const { key } = await params;
+  if (headlessTeamsEnabled()) {
+    const token = await mintTeamToken(key, session.user.id);
+    if (token) {
+      const body = await request.json().catch(() => null);
+      const client = createHeadlessTeamsClient(token);
+      const { data, error, response } = await client.DELETE(
+        "/teams/{key}/statuses",
+        {
+          params: { path: { key } },
+          body: body as never,
+        },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const result = await requireManageAccess(key, session.user.id);
   if (result.response) return result.response;
 

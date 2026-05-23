@@ -1651,6 +1651,74 @@ paths:
                 $ref: '#/components/schemas/TeamDisplayOptionsResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /teams/{key}/statuses:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getTeamStatuses
+      responses:
+        '200':
+          description: Team workflow statuses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamStatusesResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createTeamStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamStatusRequest'
+      responses:
+        '200':
+          description: Updated team workflow statuses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamStatusesResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      operationId: updateTeamStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamStatusRequest'
+      responses:
+        '200':
+          description: Updated team workflow statuses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamStatusesResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteTeamStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamStatusDeleteRequest'
+      responses:
+        '200':
+          description: Updated team workflow statuses
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamStatusesResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /teams/{key}/cycles:
     parameters:
       - name: key
@@ -3481,6 +3549,61 @@ components:
       required: [team]
       properties:
         team: { $ref: '#/components/schemas/Team' }
+    TeamStatusBehavior:
+      type: object
+      additionalProperties: true
+      properties:
+        terminalBehavior: { type: string, enum: [standard, completed, canceled] }
+        autoArchiveDays: { type: [integer, 'null'] }
+        slaBehavior: { type: string, enum: [inherit, pause, complete, ignore] }
+    TeamWorkflowStatus:
+      type: object
+      required: [id, name, issueCount, description, color, position, isDefault, behavior]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        issueCount: { type: integer }
+        description: { type: [string, 'null'] }
+        color: { type: string }
+        position: { type: integer }
+        isDefault: { type: [boolean, 'null'] }
+        behavior: { $ref: '#/components/schemas/TeamStatusBehavior' }
+    TeamStatusesResponse:
+      type: object
+      required: [statuses, duplicateStatusId, canManage]
+      properties:
+        statuses:
+          type: object
+          additionalProperties:
+            type: array
+            items: { $ref: '#/components/schemas/TeamWorkflowStatus' }
+        duplicateStatusId: { type: [string, 'null'], format: uuid }
+        canManage: { type: boolean }
+    TeamStatusRequest:
+      type: object
+      additionalProperties: true
+      properties:
+        id: { type: string, format: uuid }
+        category: { type: string, enum: [triage, backlog, unstarted, started, completed, canceled] }
+        name: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: [string, 'null'] }
+        color: { type: string }
+        isDefault: { type: boolean }
+        duplicateStatusId: { type: string, format: uuid }
+        reorder:
+          type: object
+          properties:
+            category: { type: string, enum: [triage, backlog, unstarted, started, completed, canceled] }
+            orderedIds:
+              type: array
+              items: { type: string, format: uuid }
+        behavior: { $ref: '#/components/schemas/TeamStatusBehavior' }
+    TeamStatusDeleteRequest:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string, format: uuid }
+        replacementStatusId: { type: string, format: uuid }
     CreateIssueOptionsTeam:
       type: object
       required: [id, name, key, cyclesEnabled, estimateType]

@@ -1104,6 +1104,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/teams/{key}/statuses": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    get: operations["getTeamStatuses"];
+    put?: never;
+    post: operations["createTeamStatus"];
+    delete: operations["deleteTeamStatus"];
+    options?: never;
+    head?: never;
+    patch: operations["updateTeamStatus"];
+    trace?: never;
+  };
   "/teams/{key}/cycles": {
     parameters: {
       query?: never;
@@ -2402,6 +2420,72 @@ export interface components {
     };
     CreateTeamResponse: {
       team: components["schemas"]["Team"];
+    };
+    TeamStatusBehavior: {
+      /** @enum {string} */
+      terminalBehavior?: "standard" | "completed" | "canceled";
+      autoArchiveDays?: number | null;
+      /** @enum {string} */
+      slaBehavior?: "inherit" | "pause" | "complete" | "ignore";
+    } & {
+      [key: string]: unknown;
+    };
+    TeamWorkflowStatus: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      issueCount: number;
+      description: string | null;
+      color: string;
+      position: number;
+      isDefault: boolean | null;
+      behavior: components["schemas"]["TeamStatusBehavior"];
+    };
+    TeamStatusesResponse: {
+      statuses: {
+        [key: string]: components["schemas"]["TeamWorkflowStatus"][];
+      };
+      /** Format: uuid */
+      duplicateStatusId: string | null;
+      canManage: boolean;
+    };
+    TeamStatusRequest: {
+      /** Format: uuid */
+      id?: string;
+      /** @enum {string} */
+      category?:
+        | "triage"
+        | "backlog"
+        | "unstarted"
+        | "started"
+        | "completed"
+        | "canceled";
+      name?: string;
+      description?: string | null;
+      color?: string;
+      isDefault?: boolean;
+      /** Format: uuid */
+      duplicateStatusId?: string;
+      reorder?: {
+        /** @enum {string} */
+        category?:
+          | "triage"
+          | "backlog"
+          | "unstarted"
+          | "started"
+          | "completed"
+          | "canceled";
+        orderedIds?: string[];
+      };
+      behavior?: components["schemas"]["TeamStatusBehavior"];
+    } & {
+      [key: string]: unknown;
+    };
+    TeamStatusDeleteRequest: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      replacementStatusId?: string;
     };
     CreateIssueOptionsTeam: {
       /** Format: uuid */
@@ -5617,6 +5701,110 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["TeamDisplayOptionsResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  getTeamStatuses: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Team workflow statuses */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TeamStatusesResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createTeamStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TeamStatusRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated team workflow statuses */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TeamStatusesResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteTeamStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TeamStatusDeleteRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated team workflow statuses */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TeamStatusesResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateTeamStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TeamStatusRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated team workflow statuses */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TeamStatusesResponse"];
         };
       };
       default: components["responses"]["Problem"];
