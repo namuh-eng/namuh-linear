@@ -252,6 +252,78 @@ paths:
                 $ref: '#/components/schemas/CreateTeamResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /teams/{key}/cycles:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: listTeamCycles
+      responses:
+        '200':
+          description: Team cycles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamCyclesResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createTeamCycle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCycleRequest'
+      responses:
+        '201':
+          description: Created cycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cycle'
+        default:
+          $ref: '#/components/responses/Problem'
+  /teams/{key}/cycles/{cycle_id}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        schema: { type: string }
+      - name: cycle_id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: updateTeamCycle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCycleRequest'
+      responses:
+        '200':
+          description: Updated cycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cycle'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteTeamCycle
+      responses:
+        '200':
+          description: Deleted cycle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /workspaces:
     get:
       operationId: listWorkspaces
@@ -619,6 +691,55 @@ components:
       required: [team]
       properties:
         team: { $ref: '#/components/schemas/Team' }
+    Cycle:
+      type: object
+      required: [id, number, team_id, start_date, end_date, auto_rollover, issue_count, completed_issue_count, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: [string, 'null'] }
+        number: { type: integer }
+        team_id: { type: string, format: uuid }
+        start_date: { type: string, format: date-time }
+        end_date: { type: string, format: date-time }
+        auto_rollover: { type: boolean }
+        issue_count: { type: integer }
+        completed_issue_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CycleTeam:
+      type: object
+      required: [id, name, key, cyclesEnabled, timezone]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        key: { type: string }
+        cyclesEnabled: { type: boolean }
+        cycleStartDay: { type: [integer, 'null'] }
+        cycleDurationWeeks: { type: [integer, 'null'] }
+        timezone: { type: string }
+    TeamCyclesResponse:
+      type: object
+      required: [team, cycles]
+      properties:
+        team: { $ref: '#/components/schemas/CycleTeam' }
+        cycles:
+          type: array
+          items: { $ref: '#/components/schemas/Cycle' }
+    CreateCycleRequest:
+      type: object
+      required: [start_date, end_date]
+      properties:
+        name: { type: [string, 'null'] }
+        start_date: { type: string }
+        end_date: { type: string }
+        auto_rollover: { type: boolean }
+    UpdateCycleRequest:
+      type: object
+      properties:
+        name: { type: [string, 'null'] }
+        start_date: { type: string }
+        end_date: { type: string }
+        auto_rollover: { type: boolean }
     WorkspaceRole:
       type: string
       enum: [owner, admin, member, guest]

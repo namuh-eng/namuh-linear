@@ -55,6 +55,10 @@ func (h Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.List)
 	r.Post("/", h.Create)
+	r.Get("/{key}/cycles", h.ListCycles)
+	r.Post("/{key}/cycles", h.CreateCycle)
+	r.Patch("/{key}/cycles/{cycleID}", h.UpdateCycle)
+	r.Delete("/{key}/cycles/{cycleID}", h.DeleteCycle)
 	return r
 }
 

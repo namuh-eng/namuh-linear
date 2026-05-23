@@ -31,6 +31,11 @@ async function main() {
     return;
   }
 
+  if (resource === "cycles") {
+    await cycleCommand();
+    return;
+  }
+
   if (resource !== "issues") {
     usage();
   }
@@ -155,6 +160,59 @@ async function workspaceCommand() {
     const { data, error, response } = await client.POST("/workspaces/invite", {
       body: { invites: [{ email, role }] },
     });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  usage();
+}
+
+async function cycleCommand() {
+  const key = requireOption(args, "team-key");
+  if (action === "list") {
+    const { data, error, response } = await client.GET("/teams/{key}/cycles", {
+      params: { path: { key } },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "create") {
+    const { data, error, response } = await client.POST("/teams/{key}/cycles", {
+      params: { path: { key } },
+      body: {
+        name: readOption(args, "name"),
+        start_date: requireOption(args, "start-date"),
+        end_date: requireOption(args, "end-date"),
+      },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "update") {
+    const cycle_id = requireOption(args, "id");
+    const { data, error, response } = await client.PATCH(
+      "/teams/{key}/cycles/{cycle_id}",
+      {
+        params: { path: { key, cycle_id } },
+        body: {
+          name: readOption(args, "name"),
+          start_date: readOption(args, "start-date"),
+          end_date: readOption(args, "end-date"),
+        },
+      },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "delete") {
+    const cycle_id = requireOption(args, "id");
+    const { data, error, response } = await client.DELETE(
+      "/teams/{key}/cycles/{cycle_id}",
+      { params: { path: { key, cycle_id } } },
+    );
     printResult(data, error, response.status);
     return;
   }
@@ -290,7 +348,11 @@ function usage(): never {
   exponential projects get --slug <slug>
   exponential projects create --name <name> [--slug <slug>] [--team-keys ENG,DES]
   exponential projects update --slug <slug> [--name <name>] [--new-slug <slug>]
-  exponential projects delete --slug <slug>`);
+  exponential projects delete --slug <slug>
+  exponential cycles list --team-key <key>
+  exponential cycles create --team-key <key> --start-date YYYY-MM-DD --end-date YYYY-MM-DD
+  exponential cycles update --team-key <key> --id <uuid> [--name <name>]
+  exponential cycles delete --team-key <key> --id <uuid>`);
   process.exit(1);
 }
 

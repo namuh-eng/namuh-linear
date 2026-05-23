@@ -22,3 +22,12 @@ func TestValidateKey(t *testing.T) {
 		t.Fatal("expected character validation failure")
 	}
 }
+
+func TestParseCycleDate(t *testing.T) {
+	if _, ok := parseCycleDate("2026-05-24"); !ok {
+		t.Fatal("expected date-only cycle date")
+	}
+	if _, ok := parseCycleDate("not-a-date"); ok {
+		t.Fatal("expected invalid cycle date")
+	}
+}

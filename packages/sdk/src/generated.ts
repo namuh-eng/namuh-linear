@@ -128,6 +128,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/teams/{key}/cycles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    get: operations["listTeamCycles"];
+    put?: never;
+    post: operations["createTeamCycle"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/teams/{key}/cycles/{cycle_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+        cycle_id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteTeamCycle"];
+    options?: never;
+    head?: never;
+    patch: operations["updateTeamCycle"];
+    trace?: never;
+  };
   "/workspaces": {
     parameters: {
       query?: never;
@@ -351,6 +388,51 @@ export interface components {
     };
     CreateTeamResponse: {
       team: components["schemas"]["Team"];
+    };
+    Cycle: {
+      /** Format: uuid */
+      id: string;
+      name?: string | null;
+      number: number;
+      /** Format: uuid */
+      team_id: string;
+      /** Format: date-time */
+      start_date: string;
+      /** Format: date-time */
+      end_date: string;
+      auto_rollover: boolean;
+      issue_count: number;
+      completed_issue_count: number;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      updated_at: string;
+    };
+    CycleTeam: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      key: string;
+      cyclesEnabled: boolean;
+      cycleStartDay?: number | null;
+      cycleDurationWeeks?: number | null;
+      timezone: string;
+    };
+    TeamCyclesResponse: {
+      team: components["schemas"]["CycleTeam"];
+      cycles: components["schemas"]["Cycle"][];
+    };
+    CreateCycleRequest: {
+      name?: string | null;
+      start_date: string;
+      end_date: string;
+      auto_rollover?: boolean;
+    };
+    UpdateCycleRequest: {
+      name?: string | null;
+      start_date?: string;
+      end_date?: string;
+      auto_rollover?: boolean;
     };
     /** @enum {string} */
     WorkspaceRole: "owner" | "admin" | "member" | "guest";
@@ -936,6 +1018,108 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CreateTeamResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listTeamCycles: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Team cycles */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TeamCyclesResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createTeamCycle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateCycleRequest"];
+      };
+    };
+    responses: {
+      /** @description Created cycle */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Cycle"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteTeamCycle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+        cycle_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted cycle */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuccessResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateTeamCycle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        key: string;
+        cycle_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateCycleRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated cycle */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Cycle"];
         };
       };
       default: components["responses"]["Problem"];
