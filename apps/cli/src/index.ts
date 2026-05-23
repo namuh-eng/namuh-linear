@@ -41,6 +41,11 @@ async function main() {
     return;
   }
 
+  if (resource === "labels") {
+    await labelCommand();
+    return;
+  }
+
   if (resource !== "issues") {
     usage();
   }
@@ -164,6 +169,60 @@ async function workspaceCommand() {
     }
     const { data, error, response } = await client.POST("/workspaces/invite", {
       body: { invites: [{ email, role }] },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  usage();
+}
+
+async function labelCommand() {
+  if (action === "list") {
+    const { data, error, response } = await client.GET("/labels", {
+      params: {
+        query: {
+          scope: readOption(args, "scope") as never,
+          teamId: readOption(args, "team-id"),
+        },
+      },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "create") {
+    const name = requireOption(args, "name");
+    const { data, error, response } = await client.POST("/labels", {
+      body: {
+        name,
+        color: readOption(args, "color"),
+        description: readOption(args, "description"),
+        teamId: readOption(args, "team-id"),
+      },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "update") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.PATCH("/labels/{id}", {
+      params: { path: { id } },
+      body: {
+        name: readOption(args, "name"),
+        color: readOption(args, "color"),
+        description: readOption(args, "description"),
+      },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "delete") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.DELETE("/labels/{id}", {
+      params: { path: { id } },
     });
     printResult(data, error, response.status);
     return;
@@ -407,7 +466,11 @@ function usage(): never {
   exponential comments create --issue-id <id-or-identifier> --body <text>
   exponential comments update --id <uuid> --body <text>
   exponential comments delete --id <uuid>
-  exponential comments react --id <uuid> --emoji <emoji>`);
+  exponential comments react --id <uuid> --emoji <emoji>
+  exponential labels list [--scope workspace|team|all] [--team-id <uuid>]
+  exponential labels create --name <name> [--color #6b6f76] [--team-id <uuid>]
+  exponential labels update --id <uuid> [--name <name>] [--color #6b6f76]
+  exponential labels delete --id <uuid>`);
   process.exit(1);
 }
 

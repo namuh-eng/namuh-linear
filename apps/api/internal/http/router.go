@@ -9,6 +9,7 @@ import (
 	"github.com/namuh-eng/exponential/apps/api/internal/auth"
 	"github.com/namuh-eng/exponential/apps/api/internal/comments"
 	"github.com/namuh-eng/exponential/apps/api/internal/issues"
+	"github.com/namuh-eng/exponential/apps/api/internal/labels"
 	"github.com/namuh-eng/exponential/apps/api/internal/observability"
 	"github.com/namuh-eng/exponential/apps/api/internal/projects"
 	syncapi "github.com/namuh-eng/exponential/apps/api/internal/sync"
@@ -40,6 +41,7 @@ func NewRouter(logger *zap.Logger, db *pgxpool.Pool) stdhttp.Handler {
 
 	authMiddleware := auth.Middleware{DB: db}
 	commentsHandler := comments.Handler{DB: db}
+	labelsHandler := labels.Handler{DB: db}
 	r.Route("/v1", func(v1 chi.Router) {
 		v1.Group(func(protected chi.Router) {
 			protected.Use(authMiddleware.Require)
@@ -50,6 +52,8 @@ func NewRouter(logger *zap.Logger, db *pgxpool.Pool) stdhttp.Handler {
 			protected.Delete("/comments/{id}", commentsHandler.Delete)
 			protected.Post("/comments/{id}/reactions", commentsHandler.ToggleCommentReaction)
 			protected.Mount("/issues", issues.Handler{DB: db}.Routes())
+			protected.Mount("/labels", labelsHandler.Routes())
+			protected.Mount("/project-labels", labelsHandler.ProjectRoutes())
 			protected.Mount("/personal-access-tokens", tokens.Handler{DB: db}.Routes())
 			protected.Mount("/projects", projects.Handler{DB: db}.Routes())
 			protected.Mount("/teams", teams.Handler{DB: db}.Routes())

@@ -112,6 +112,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/labels": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listLabels"];
+    put?: never;
+    post: operations["createLabel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/labels/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteLabel"];
+    options?: never;
+    head?: never;
+    patch: operations["updateLabel"];
+    trace?: never;
+  };
+  "/project-labels": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listProjectLabels"];
+    put?: never;
+    post: operations["createProjectLabel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/project-labels/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteProjectLabel"];
+    options?: never;
+    head?: never;
+    patch: operations["updateProjectLabel"];
+    trace?: never;
+  };
   "/personal-access-tokens": {
     parameters: {
       query?: never;
@@ -367,6 +435,84 @@ export interface components {
     };
     ReactionRequest: {
       emoji: string;
+    };
+    Label: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      color: string;
+      description?: string | null;
+      /** Format: uuid */
+      parentLabelId?: string | null;
+      /** Format: uuid */
+      teamId?: string | null;
+      teamName?: string | null;
+      teamKey?: string | null;
+      /** @enum {string} */
+      scope: "workspace" | "team";
+      /** Format: date-time */
+      archivedAt?: string | null;
+      issueCount: number;
+      /** Format: date-time */
+      lastApplied?: string | null;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    LabelListResponse: {
+      labels: components["schemas"]["Label"][];
+    };
+    LabelResponse: {
+      label: components["schemas"]["Label"];
+    };
+    CreateLabelRequest: {
+      name: string;
+      color?: string;
+      description?: string | null;
+      /** Format: uuid */
+      parentLabelId?: string | null;
+      /** Format: uuid */
+      teamId?: string | null;
+    };
+    UpdateLabelRequest: {
+      name?: string;
+      color?: string;
+      description?: string | null;
+      /** Format: uuid */
+      parentLabelId?: string | null;
+      /** Format: uuid */
+      teamId?: string | null;
+      archived?: boolean;
+      convertToGroup?: boolean;
+    };
+    ProjectLabel: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      color: string;
+      description?: string | null;
+      projectCount: number;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    ProjectLabelListResponse: {
+      labels: components["schemas"]["ProjectLabel"][];
+    };
+    ProjectLabelResponse: {
+      label: components["schemas"]["ProjectLabel"];
+    };
+    CreateProjectLabelRequest: {
+      name: string;
+      color?: string;
+      description?: string | null;
+    };
+    UpdateProjectLabelRequest: {
+      name?: string;
+      color?: string;
+      description?: string | null;
     };
     PersonalAccessToken: {
       /** Format: uuid */
@@ -1051,6 +1197,202 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ReactionSummaryList"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listLabels: {
+    parameters: {
+      query?: {
+        scope?: "workspace" | "team" | "all";
+        teamId?: string;
+        includeArchived?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Labels */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LabelListResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createLabel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateLabelRequest"];
+      };
+    };
+    responses: {
+      /** @description Created label */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LabelResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteLabel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted label */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuccessResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateLabel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateLabelRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated label */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LabelResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listProjectLabels: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Project labels */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectLabelListResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createProjectLabel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateProjectLabelRequest"];
+      };
+    };
+    responses: {
+      /** @description Created project label */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectLabelResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteProjectLabel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted project label */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuccessResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateProjectLabel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateProjectLabelRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated project label */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectLabelResponse"];
         };
       };
       default: components["responses"]["Problem"];

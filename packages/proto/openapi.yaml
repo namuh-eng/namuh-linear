@@ -219,6 +219,142 @@ paths:
                 $ref: '#/components/schemas/ReactionSummaryList'
         default:
           $ref: '#/components/responses/Problem'
+  /labels:
+    get:
+      operationId: listLabels
+      parameters:
+        - name: scope
+          in: query
+          schema: { type: string, enum: [workspace, team, all], default: workspace }
+        - name: teamId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: includeArchived
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Labels
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabelListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createLabel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLabelRequest'
+      responses:
+        '201':
+          description: Created label
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabelResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /labels/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: updateLabel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLabelRequest'
+      responses:
+        '200':
+          description: Updated label
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabelResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteLabel
+      responses:
+        '200':
+          description: Deleted label
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /project-labels:
+    get:
+      operationId: listProjectLabels
+      responses:
+        '200':
+          description: Project labels
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectLabelListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createProjectLabel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectLabelRequest'
+      responses:
+        '201':
+          description: Created project label
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectLabelResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /project-labels/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: updateProjectLabel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectLabelRequest'
+      responses:
+        '200':
+          description: Updated project label
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectLabelResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteProjectLabel
+      responses:
+        '200':
+          description: Deleted project label
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /personal-access-tokens:
     get:
       operationId: listPersonalAccessTokens
@@ -702,6 +838,91 @@ components:
       required: [emoji]
       properties:
         emoji: { type: string, minLength: 1, maxLength: 50 }
+    Label:
+      type: object
+      required: [id, name, color, scope, issueCount, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string }
+        description: { type: [string, 'null'] }
+        parentLabelId: { type: [string, 'null'], format: uuid }
+        teamId: { type: [string, 'null'], format: uuid }
+        teamName: { type: [string, 'null'] }
+        teamKey: { type: [string, 'null'] }
+        scope: { type: string, enum: [workspace, team] }
+        archivedAt: { type: [string, 'null'], format: date-time }
+        issueCount: { type: integer }
+        lastApplied: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    LabelListResponse:
+      type: object
+      required: [labels]
+      properties:
+        labels:
+          type: array
+          items: { $ref: '#/components/schemas/Label' }
+    LabelResponse:
+      type: object
+      required: [label]
+      properties:
+        label: { $ref: '#/components/schemas/Label' }
+    CreateLabelRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        color: { type: string }
+        description: { type: [string, 'null'] }
+        parentLabelId: { type: [string, 'null'], format: uuid }
+        teamId: { type: [string, 'null'], format: uuid }
+    UpdateLabelRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        color: { type: string }
+        description: { type: [string, 'null'] }
+        parentLabelId: { type: [string, 'null'], format: uuid }
+        teamId: { type: [string, 'null'], format: uuid }
+        archived: { type: boolean }
+        convertToGroup: { type: boolean }
+    ProjectLabel:
+      type: object
+      required: [id, name, color, projectCount, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string }
+        description: { type: [string, 'null'] }
+        projectCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProjectLabelListResponse:
+      type: object
+      required: [labels]
+      properties:
+        labels:
+          type: array
+          items: { $ref: '#/components/schemas/ProjectLabel' }
+    ProjectLabelResponse:
+      type: object
+      required: [label]
+      properties:
+        label: { $ref: '#/components/schemas/ProjectLabel' }
+    CreateProjectLabelRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        color: { type: string }
+        description: { type: [string, 'null'] }
+    UpdateProjectLabelRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        color: { type: string }
+        description: { type: [string, 'null'] }
     PersonalAccessToken:
       type: object
       required: [id, name, token_prefix, scopes, created_at]
