@@ -2,6 +2,11 @@ import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { workspaceIntegration } from "@/lib/db/schema";
 import {
+  createHeadlessIntegrationsClient,
+  headlessIntegrationsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
+import {
   INTEGRATION_CATALOG,
   canManageIntegrations,
   getWorkspaceAccess,
@@ -37,6 +42,20 @@ export async function GET(request: Request) {
       { error: "No active workspace found" },
       { status: 404 },
     );
+  }
+
+  if (!("apiKey" in session) && headlessIntegrationsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: access.workspaceId,
+    });
+    const client = createHeadlessIntegrationsClient(token);
+    const { data, error, response } = await client.GET("/integrations");
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const rows = await db
@@ -100,6 +119,23 @@ export async function DELETE(request: Request) {
 
   const url = new URL(request.url);
   const provider = url.searchParams.get("provider");
+
+  if (!("apiKey" in session) && headlessIntegrationsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: access.workspaceId,
+    });
+    const client = createHeadlessIntegrationsClient(token);
+    const { data, error, response } = await client.DELETE("/integrations", {
+      params: { query: { provider } },
+    } as never);
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   if (!provider) {
     return NextResponse.json(
       { error: "Provider is required" },

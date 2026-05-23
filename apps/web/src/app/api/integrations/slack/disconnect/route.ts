@@ -5,6 +5,11 @@ import {
   workspaceIntegration,
 } from "@/lib/db/schema";
 import {
+  createHeadlessIntegrationsClient,
+  headlessIntegrationsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
+import {
   canManageIntegrations,
   getWorkspaceAccess,
 } from "@/lib/workspace-integrations";
@@ -24,6 +29,22 @@ export async function POST(request: Request) {
   }
   if (!canManageIntegrations(access.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!("apiKey" in session) && headlessIntegrationsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: access.workspaceId,
+    });
+    const client = createHeadlessIntegrationsClient(token);
+    const { data, error, response } = await client.POST(
+      "/integrations/slack/disconnect",
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const [integration] = await db
