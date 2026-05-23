@@ -661,6 +661,31 @@ paths:
                 $ref: '#/components/schemas/SuccessResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /inbound:
+    get:
+      operationId: inboundNamespace
+      summary: Inbound webhook namespace; concrete resources are under /inbound/team-email.
+      responses:
+        default:
+          $ref: '#/components/responses/Problem'
+  /inbound/team-email:
+    post:
+      operationId: createInboundTeamEmailIssue
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InboundTeamEmailRequest'
+      responses:
+        '201':
+          description: Created issue from inbound team email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundTeamEmailResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /integrations:
     get:
       operationId: listIntegrations
@@ -2191,6 +2216,23 @@ components:
         name: { type: string }
         description: { type: string }
         content: { type: string }
+    InboundTeamEmailRequest:
+      type: object
+      properties:
+        recipient: { type: string }
+        to: { type: string }
+        from: { type: string }
+        sender: { type: string }
+        subject: { type: string }
+        text: { type: string }
+        html: { type: string }
+    InboundTeamEmailResponse:
+      type: object
+      required: [issue]
+      properties:
+        issue:
+          type: object
+          additionalProperties: true
     IntegrationSetupRequirement:
       type: object
       required: [type, message]

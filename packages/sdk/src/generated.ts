@@ -445,6 +445,39 @@ export interface paths {
     patch: operations["updateDocumentTemplate"];
     trace?: never;
   };
+  "/inbound": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inbound webhook namespace; concrete resources are under /inbound/team-email. */
+    get: operations["inboundNamespace"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/inbound/team-email": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["createInboundTeamEmailIssue"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/integrations": {
     parameters: {
       query?: never;
@@ -1412,6 +1445,20 @@ export interface components {
       name?: string;
       description?: string;
       content?: string;
+    };
+    InboundTeamEmailRequest: {
+      recipient?: string;
+      to?: string;
+      from?: string;
+      sender?: string;
+      subject?: string;
+      text?: string;
+      html?: string;
+    };
+    InboundTeamEmailResponse: {
+      issue: {
+        [key: string]: unknown;
+      };
     };
     IntegrationSetupRequirement: {
       type: string;
@@ -3463,6 +3510,43 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["DocumentTemplateResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  inboundNamespace: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      default: components["responses"]["Problem"];
+    };
+  };
+  createInboundTeamEmailIssue: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["InboundTeamEmailRequest"];
+      };
+    };
+    responses: {
+      /** @description Created issue from inbound team email */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InboundTeamEmailResponse"];
         };
       };
       default: components["responses"]["Problem"];
