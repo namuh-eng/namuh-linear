@@ -16,6 +16,11 @@ const client = createExponentialClient({ token: apiToken, baseUrl });
 const idempotencyKey = readOption(args, "idempotency-key");
 
 async function main() {
+  if (resource === "workspaces") {
+    await workspaceCommand();
+    return;
+  }
+
   if (resource !== "issues") {
     usage();
   }
@@ -102,6 +107,51 @@ async function main() {
   usage();
 }
 
+async function workspaceCommand() {
+  if (action === "list") {
+    const { data, error, response } = await client.GET("/workspaces");
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "create") {
+    const name = requireOption(args, "name");
+    const urlSlug = requireOption(args, "url-slug");
+    const { data, error, response } = await client.POST("/workspaces", {
+      body: { name, urlSlug },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "current") {
+    const { data, error, response } = await client.GET("/workspaces/current");
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "members") {
+    const { data, error, response } = await client.GET("/workspaces/members");
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "invite") {
+    const email = requireOption(args, "email");
+    const role = readOption(args, "role") ?? "member";
+    if (role !== "admin" && role !== "member" && role !== "guest") {
+      throw new Error("--role must be admin, member, or guest");
+    }
+    const { data, error, response } = await client.POST("/workspaces/invite", {
+      body: { invites: [{ email, role }] },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  usage();
+}
+
 function printResult(data: unknown, error: unknown, status: number) {
   if (error) {
     console.error(JSON.stringify({ status, error }, null, 2));
@@ -117,7 +167,12 @@ function usage(): never {
   exponential issues create --title <title> --team-id <uuid> [--idempotency-key <key>]
   exponential issues update --id <id-or-identifier> [--title <title>] [--state-id <uuid>]
   exponential issues delete --id <id-or-identifier> [--idempotency-key <key>]
-  exponential issues watch [--version <n>]`);
+  exponential issues watch [--version <n>]
+  exponential workspaces list
+  exponential workspaces create --name <name> --url-slug <slug>
+  exponential workspaces current
+  exponential workspaces members
+  exponential workspaces invite --email <email> [--role member|admin|guest]`);
   process.exit(1);
 }
 
