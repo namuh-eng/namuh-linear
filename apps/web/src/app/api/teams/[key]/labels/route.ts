@@ -1,6 +1,11 @@
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { label } from "@/lib/db/schema";
+import {
+  createHeadlessLabelsClient,
+  headlessLabelsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { validateScopedParentLabel } from "@/lib/label-parent-validation";
 import { findAccessibleTeam } from "@/lib/teams";
 import { and, eq, isNull } from "drizzle-orm";
@@ -20,6 +25,23 @@ export async function GET(
 
   if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+
+  if (headlessLabelsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: teamRecord.workspaceId,
+    });
+    const client = createHeadlessLabelsClient(token);
+    const { data, error, response } = await client.GET("/labels", {
+      params: { query: { scope: "team", teamId: teamRecord.id } },
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const labels = await db
@@ -52,6 +74,27 @@ export async function POST(
 
   if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+
+  if (headlessLabelsEnabled()) {
+    const body = await request.json().catch(() => null);
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: teamRecord.workspaceId,
+    });
+    const client = createHeadlessLabelsClient(token);
+    const { data, error, response } = await client.POST("/labels", {
+      body: {
+        ...(body as Record<string, unknown> | null),
+        teamId: teamRecord.id,
+      } as never,
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const body = await request.json();

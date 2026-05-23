@@ -1,6 +1,11 @@
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issueLabel, label } from "@/lib/db/schema";
+import {
+  createHeadlessLabelsClient,
+  headlessLabelsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { validateScopedParentLabel } from "@/lib/label-parent-validation";
 import { findAccessibleTeam } from "@/lib/teams";
 import { and, eq } from "drizzle-orm";
@@ -34,6 +39,25 @@ export async function PATCH(
     .limit(1);
   if (!existing) {
     return NextResponse.json({ error: "Label not found" }, { status: 404 });
+  }
+
+  if (headlessLabelsEnabled()) {
+    const body = await request.json().catch(() => null);
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: teamRecord.workspaceId,
+    });
+    const client = createHeadlessLabelsClient(token);
+    const { data, error, response } = await client.PATCH("/labels/{id}", {
+      params: { path: { id } },
+      body: body as never,
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const body = await request.json();
@@ -92,6 +116,37 @@ export async function DELETE(
   });
   if (!teamRecord) {
     return NextResponse.json({ error: "Team not found" }, { status: 404 });
+  }
+
+  if (headlessLabelsEnabled()) {
+    const [existing] = await db
+      .select({ id: label.id })
+      .from(label)
+      .where(
+        and(
+          eq(label.id, id),
+          eq(label.workspaceId, teamRecord.workspaceId),
+          eq(label.teamId, teamRecord.id),
+        ),
+      )
+      .limit(1);
+    if (!existing) {
+      return NextResponse.json({ error: "Label not found" }, { status: 404 });
+    }
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: teamRecord.workspaceId,
+    });
+    const client = createHeadlessLabelsClient(token);
+    const { data, error, response } = await client.DELETE("/labels/{id}", {
+      params: { path: { id } },
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const deleted = await db.transaction(async (tx) => {
