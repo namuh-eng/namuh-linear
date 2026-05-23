@@ -626,6 +626,23 @@ export interface paths {
     patch: operations["updateProjectLabel"];
     trace?: never;
   };
+  "/my-issues": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List issues related to the authenticated user */
+    get: operations["listMyIssues"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/notifications": {
     parameters: {
       query?: never;
@@ -1664,6 +1681,71 @@ export interface components {
       name?: string;
       color?: string;
       description?: string | null;
+    };
+    MyIssuesState: {
+      id: string;
+      name: string;
+      category: string;
+      color: string;
+      position: number;
+    };
+    MyIssuesLabel: {
+      id: string;
+      name: string;
+      color: string;
+    };
+    MyIssuesAssignee: {
+      id?: string;
+      name: string;
+      image?: string | null;
+    };
+    MyIssuesIssue: {
+      /** Format: uuid */
+      id: string;
+      number: number;
+      identifier: string;
+      title: string;
+      priority: string;
+      stateId: string;
+      assigneeId?: string | null;
+      assignee?: components["schemas"]["MyIssuesAssignee"] | null;
+      labels: components["schemas"]["MyIssuesLabel"][];
+      labelIds: string[];
+      /** Format: uuid */
+      projectId?: string | null;
+      projectName?: string | null;
+      /** Format: date-time */
+      dueDate?: string | null;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+      /** Format: date-time */
+      displayAt: string;
+      teamKey: string;
+    };
+    MyIssuesGroup: {
+      state: components["schemas"]["MyIssuesState"];
+      issues: components["schemas"]["MyIssuesIssue"][];
+    };
+    MyIssuesFilterOption: {
+      value?: string;
+      id?: string;
+      label?: string;
+      name?: string;
+      color?: string;
+      image?: string | null;
+    };
+    MyIssuesFilterOptions: {
+      statuses: components["schemas"]["MyIssuesFilterOption"][];
+      assignees: components["schemas"]["MyIssuesFilterOption"][];
+      labels: components["schemas"]["MyIssuesFilterOption"][];
+      priorities: components["schemas"]["MyIssuesFilterOption"][];
+    };
+    MyIssuesResponse: {
+      groups: components["schemas"]["MyIssuesGroup"][];
+      totalCount?: number;
+      filterOptions: components["schemas"]["MyIssuesFilterOptions"];
     };
     Notification: {
       /** Format: uuid */
@@ -4057,6 +4139,29 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ProjectLabelResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listMyIssues: {
+    parameters: {
+      query?: {
+        tab?: "assigned" | "created" | "subscribed" | "activity";
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Grouped my issues */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MyIssuesResponse"];
         };
       };
       default: components["responses"]["Problem"];

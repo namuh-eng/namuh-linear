@@ -916,6 +916,25 @@ paths:
                 $ref: '#/components/schemas/SuccessResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /my-issues:
+    get:
+      operationId: listMyIssues
+      summary: List issues related to the authenticated user
+      parameters:
+        - name: tab
+          in: query
+          schema:
+            type: string
+            enum: [assigned, created, subscribed, activity]
+      responses:
+        '200':
+          description: Grouped my issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyIssuesResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /notifications:
     get:
       operationId: listNotifications
@@ -2497,6 +2516,96 @@ components:
         name: { type: string, minLength: 1, maxLength: 255 }
         color: { type: string }
         description: { type: [string, 'null'] }
+    MyIssuesState:
+      type: object
+      required: [id, name, category, color, position]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        category: { type: string }
+        color: { type: string }
+        position: { type: integer }
+    MyIssuesLabel:
+      type: object
+      required: [id, name, color]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        color: { type: string }
+    MyIssuesAssignee:
+      type: object
+      required: [name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        image: { type: [string, 'null'] }
+    MyIssuesIssue:
+      type: object
+      required: [id, number, identifier, title, priority, stateId, labels, labelIds, createdAt, updatedAt, displayAt, teamKey]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: integer }
+        identifier: { type: string }
+        title: { type: string }
+        priority: { type: string }
+        stateId: { type: string }
+        assigneeId: { type: [string, 'null'] }
+        assignee: { anyOf: [{ $ref: '#/components/schemas/MyIssuesAssignee' }, { type: 'null' }] }
+        labels:
+          type: array
+          items: { $ref: '#/components/schemas/MyIssuesLabel' }
+        labelIds:
+          type: array
+          items: { type: string }
+        projectId: { type: [string, 'null'], format: uuid }
+        projectName: { type: [string, 'null'] }
+        dueDate: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        displayAt: { type: string, format: date-time }
+        teamKey: { type: string }
+    MyIssuesGroup:
+      type: object
+      required: [state, issues]
+      properties:
+        state: { $ref: '#/components/schemas/MyIssuesState' }
+        issues:
+          type: array
+          items: { $ref: '#/components/schemas/MyIssuesIssue' }
+    MyIssuesFilterOption:
+      type: object
+      properties:
+        value: { type: string }
+        id: { type: string }
+        label: { type: string }
+        name: { type: string }
+        color: { type: string }
+        image: { type: [string, 'null'] }
+    MyIssuesFilterOptions:
+      type: object
+      required: [statuses, assignees, labels, priorities]
+      properties:
+        statuses:
+          type: array
+          items: { $ref: '#/components/schemas/MyIssuesFilterOption' }
+        assignees:
+          type: array
+          items: { $ref: '#/components/schemas/MyIssuesFilterOption' }
+        labels:
+          type: array
+          items: { $ref: '#/components/schemas/MyIssuesFilterOption' }
+        priorities:
+          type: array
+          items: { $ref: '#/components/schemas/MyIssuesFilterOption' }
+    MyIssuesResponse:
+      type: object
+      required: [groups, filterOptions]
+      properties:
+        groups:
+          type: array
+          items: { $ref: '#/components/schemas/MyIssuesGroup' }
+        totalCount: { type: integer }
+        filterOptions: { $ref: '#/components/schemas/MyIssuesFilterOptions' }
     Notification:
       type: object
       required: [id, type, actorName, issueIdentifier, issueTitle, issuePriority, createdAt]
