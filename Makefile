@@ -1,4 +1,4 @@
-.PHONY: check test test-e2e typecheck lint format fix all dev build clean cpd api-build
+.PHONY: check test test-e2e typecheck lint format fix all dev build clean cpd api-build openapi-coverage
 .PHONY: check-header test-header check-verbose test-verbose
 .PHONY: dev-services dev-services-down
 
@@ -6,7 +6,7 @@
 all: check test
 
 # Static analysis: typecheck + lint/format
-check: check-header typecheck lint api-build
+check: check-header typecheck lint api-build openapi-coverage
 
 # TypeScript type checking
 typecheck:
@@ -22,6 +22,11 @@ lint:
 api-build:
 	@. ./hack/run_silent.sh && \
 	run_silent "Go API build passed" "pnpm api:build"
+
+# OpenAPI coverage
+openapi-coverage:
+	@. ./hack/run_silent.sh && \
+	run_silent "OpenAPI coverage passed" "node scripts/check-openapi-coverage.mjs"
 
 # Auto-fix lint and format issues
 fix:
