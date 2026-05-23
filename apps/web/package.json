@@ -42,7 +42,8 @@
     "next": "^16.2.1",
     "pg": "^8.16.3",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "@exponential/sdk": "workspace:*"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",

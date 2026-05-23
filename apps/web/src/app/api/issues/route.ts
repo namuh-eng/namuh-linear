@@ -15,6 +15,11 @@ import {
   user,
   workflowState,
 } from "@/lib/db/schema";
+import {
+  createHeadlessIssuesClient,
+  headlessIssuesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { normalizeIssueDescriptionHtml } from "@/lib/issue-description";
 import { insertIssueHistoryEvent } from "@/lib/issue-history";
 import { normalizeApplicableIssueLabelIds } from "@/lib/label-application";
@@ -55,6 +60,47 @@ export async function POST(request: Request) {
 
   const trimmedTitle = typeof title === "string" ? title.trim() : "";
 
+  const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+  if (!workspaceId) {
+    return NextResponse.json({ error: "No workspace found" }, { status: 400 });
+  }
+
+  if (headlessIssuesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssuesClient(token);
+    const { data, error, response } = await client.POST("/issues", {
+      headers: {
+        "Idempotency-Key": request.headers.get("idempotency-key") ?? undefined,
+      },
+      body: {
+        title: trimmedTitle,
+        description,
+        team_id: teamId,
+        state_id: stateId || null,
+        priority: priority || "none",
+        assignee_id: assigneeId || null,
+        project_id: projectId || null,
+        project_milestone_id: projectMilestoneId || null,
+        cycle_id: cycleId || null,
+        parent_issue_id: parentIssueId || null,
+        estimate:
+          estimate === null || estimate === undefined || estimate === ""
+            ? null
+            : Number(estimate),
+        due_date: dueDate || null,
+      },
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   if (!trimmedTitle || !teamId) {
     return NextResponse.json(
       { error: "Title and teamId are required" },
@@ -63,11 +109,6 @@ export async function POST(request: Request) {
   }
 
   // Get team to generate identifier
-  const workspaceId = await resolveActiveWorkspaceId(session.user.id);
-  if (!workspaceId) {
-    return NextResponse.json({ error: "No workspace found" }, { status: 400 });
-  }
-
   const teams = await db
     .select({
       id: team.id,
