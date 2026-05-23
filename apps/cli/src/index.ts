@@ -46,6 +46,11 @@ async function main() {
     return;
   }
 
+  if (resource === "emojis") {
+    await emojiCommand();
+    return;
+  }
+
   if (resource !== "issues") {
     usage();
   }
@@ -170,6 +175,36 @@ async function workspaceCommand() {
     const { data, error, response } = await client.POST("/workspaces/invite", {
       body: { invites: [{ email, role }] },
     });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  usage();
+}
+
+async function emojiCommand() {
+  if (action === "list") {
+    const { data, error, response } = await client.GET("/custom-emojis");
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "create") {
+    const name = requireOption(args, "name");
+    const imageUrl = requireOption(args, "image-url");
+    const { data, error, response } = await client.POST("/custom-emojis", {
+      body: { name, imageUrl },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "delete") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.DELETE(
+      "/custom-emojis/{id}",
+      { params: { path: { id } } },
+    );
     printResult(data, error, response.status);
     return;
   }
@@ -470,7 +505,10 @@ function usage(): never {
   exponential labels list [--scope workspace|team|all] [--team-id <uuid>]
   exponential labels create --name <name> [--color #6b6f76] [--team-id <uuid>]
   exponential labels update --id <uuid> [--name <name>] [--color #6b6f76]
-  exponential labels delete --id <uuid>`);
+  exponential labels delete --id <uuid>
+  exponential emojis list
+  exponential emojis create --name <name> --image-url <url-or-data-url>
+  exponential emojis delete --id <id>`);
   process.exit(1);
 }
 

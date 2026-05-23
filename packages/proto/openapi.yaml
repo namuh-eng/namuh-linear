@@ -219,6 +219,55 @@ paths:
                 $ref: '#/components/schemas/ReactionSummaryList'
         default:
           $ref: '#/components/responses/Problem'
+  /custom-emojis:
+    get:
+      operationId: listCustomEmojis
+      responses:
+        '200':
+          description: Custom emojis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomEmojiListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createCustomEmoji
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCustomEmojiRequest'
+      responses:
+        '201':
+          description: Created custom emoji
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomEmojiResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /custom-emojis/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      operationId: deleteCustomEmoji
+      responses:
+        '200':
+          description: Deleted custom emoji
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        default:
+          $ref: '#/components/responses/Problem'
   /labels:
     get:
       operationId: listLabels
@@ -838,6 +887,32 @@ components:
       required: [emoji]
       properties:
         emoji: { type: string, minLength: 1, maxLength: 50 }
+    CustomEmoji:
+      type: object
+      required: [id, name, imageUrl, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        imageUrl: { type: string }
+        createdAt: { type: string, format: date-time }
+    CustomEmojiListResponse:
+      type: object
+      required: [emojis]
+      properties:
+        emojis:
+          type: array
+          items: { $ref: '#/components/schemas/CustomEmoji' }
+    CustomEmojiResponse:
+      type: object
+      required: [emoji]
+      properties:
+        emoji: { $ref: '#/components/schemas/CustomEmoji' }
+    CreateCustomEmojiRequest:
+      type: object
+      required: [name, imageUrl]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 32 }
+        imageUrl: { type: string }
     Label:
       type: object
       required: [id, name, color, scope, issueCount, createdAt, updatedAt]

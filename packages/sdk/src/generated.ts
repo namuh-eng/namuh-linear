@@ -112,6 +112,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/custom-emojis": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listCustomEmojis"];
+    put?: never;
+    post: operations["createCustomEmoji"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/custom-emojis/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteCustomEmoji"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/labels": {
     parameters: {
       query?: never;
@@ -435,6 +469,23 @@ export interface components {
     };
     ReactionRequest: {
       emoji: string;
+    };
+    CustomEmoji: {
+      id: string;
+      name: string;
+      imageUrl: string;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    CustomEmojiListResponse: {
+      emojis: components["schemas"]["CustomEmoji"][];
+    };
+    CustomEmojiResponse: {
+      emoji: components["schemas"]["CustomEmoji"];
+    };
+    CreateCustomEmojiRequest: {
+      name: string;
+      imageUrl: string;
     };
     Label: {
       /** Format: uuid */
@@ -1197,6 +1248,77 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ReactionSummaryList"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listCustomEmojis: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Custom emojis */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CustomEmojiListResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createCustomEmoji: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateCustomEmojiRequest"];
+      };
+    };
+    responses: {
+      /** @description Created custom emoji */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CustomEmojiResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteCustomEmoji: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted custom emoji */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            ok: boolean;
+          };
         };
       };
       default: components["responses"]["Problem"];

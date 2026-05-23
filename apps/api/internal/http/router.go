@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/namuh-eng/exponential/apps/api/internal/auth"
 	"github.com/namuh-eng/exponential/apps/api/internal/comments"
+	"github.com/namuh-eng/exponential/apps/api/internal/emojis"
 	"github.com/namuh-eng/exponential/apps/api/internal/issues"
 	"github.com/namuh-eng/exponential/apps/api/internal/labels"
 	"github.com/namuh-eng/exponential/apps/api/internal/observability"
@@ -49,6 +50,7 @@ func NewRouter(logger *zap.Logger, db *pgxpool.Pool) stdhttp.Handler {
 			protected.Post("/issues/{id}/reactions", commentsHandler.ToggleIssueReaction)
 			protected.Delete("/issues/{id}/reactions", commentsHandler.DeleteIssueReaction)
 			protected.Patch("/comments/{id}", commentsHandler.Update)
+			protected.Mount("/custom-emojis", emojis.Handler{DB: db}.Routes())
 			protected.Delete("/comments/{id}", commentsHandler.Delete)
 			protected.Post("/comments/{id}/reactions", commentsHandler.ToggleCommentReaction)
 			protected.Mount("/issues", issues.Handler{DB: db}.Routes())
