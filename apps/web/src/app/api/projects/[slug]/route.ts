@@ -17,6 +17,11 @@ import {
   workspace,
 } from "@/lib/db/schema";
 import {
+  createHeadlessProjectsClient,
+  headlessProjectsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
+import {
   type ProjectActivityEntry,
   type ProjectResource,
   buildMilestoneData,
@@ -451,6 +456,29 @@ export async function GET(
   }
 
   const { slug } = await params;
+  if (headlessProjectsEnabled()) {
+    const workspaceId = await resolveProjectWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessProjectsClient(token);
+      const { data, error, response } = await client.GET("/projects/{slug}", {
+        params: { path: { slug } },
+      });
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const workspaceId = await resolveProjectWorkspaceId(session.user.id, request);
   const workspaceSlug = new URL(request.url).searchParams.get("workspaceSlug");
   const result = await buildProjectResponse(workspaceId, slug, workspaceSlug);
@@ -467,6 +495,31 @@ export async function PATCH(
   }
 
   const { slug } = await params;
+  if (headlessProjectsEnabled()) {
+    const workspaceId = await resolveProjectWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const body = await request.json().catch(() => null);
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessProjectsClient(token);
+      const { data, error, response } = await client.PATCH("/projects/{slug}", {
+        params: { path: { slug } },
+        body: body as never,
+      });
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const workspaceId = await resolveProjectWorkspaceId(session.user.id, request);
   const workspaceSlug = new URL(request.url).searchParams.get("workspaceSlug");
   if (!workspaceId) {
@@ -829,6 +882,32 @@ export async function DELETE(
   }
 
   const { slug } = await params;
+  if (headlessProjectsEnabled()) {
+    const workspaceId = await resolveProjectWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessProjectsClient(token);
+      const { data, error, response } = await client.DELETE(
+        "/projects/{slug}",
+        {
+          params: { path: { slug } },
+        },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const workspaceId = await resolveProjectWorkspaceId(session.user.id, request);
   if (!workspaceId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

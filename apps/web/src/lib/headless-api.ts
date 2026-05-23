@@ -109,6 +109,10 @@ export function headlessAuthProvidersEnabled() {
   return process.env.EXPONENTIAL_HEADLESS_AUTH_PROVIDERS === "true";
 }
 
+export function headlessProjectsEnabled() {
+  return process.env.EXPONENTIAL_HEADLESS_PROJECTS === "true";
+}
+
 export function createHeadlessClient(token: string) {
   return createExponentialClient({
     baseUrl: process.env.EXPONENTIAL_API_URL ?? "http://localhost:3016/v1",
@@ -217,6 +221,10 @@ export function createHeadlessCommentsClient(token: string) {
 }
 
 export function createHeadlessAuthProvidersClient(token = "") {
+  return createHeadlessClient(token);
+}
+
+export function createHeadlessProjectsClient(token: string) {
   return createHeadlessClient(token);
 }
 

@@ -15,6 +15,11 @@ import {
   user,
   workspace,
 } from "@/lib/db/schema";
+import {
+  createHeadlessProjectsClient,
+  headlessProjectsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { readProjectSettings } from "@/lib/project-detail";
 import {
   findProjectStatusConfig,
@@ -45,6 +50,27 @@ export async function GET(request?: Request) {
   const { response: authResponse, session } = await requireApiSession();
   if (authResponse) {
     return authResponse;
+  }
+
+  if (headlessProjectsEnabled()) {
+    const workspaceId = await resolveProjectsWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessProjectsClient(token);
+      const { data, error, response } = await client.GET("/projects");
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
   }
 
   const workspaceId = await resolveProjectsWorkspaceId(
@@ -219,6 +245,30 @@ export async function POST(request: Request) {
   const { response: authResponse, session } = await requireApiSession();
   if (authResponse) {
     return authResponse;
+  }
+
+  if (headlessProjectsEnabled()) {
+    const workspaceId = await resolveRequestWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const body = await request.json().catch(() => null);
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessProjectsClient(token);
+      const { data, error, response } = await client.POST("/projects", {
+        body: body as never,
+      });
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
   }
 
   const workspaceId = await resolveRequestWorkspaceId(session.user.id, request);
