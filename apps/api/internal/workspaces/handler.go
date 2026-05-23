@@ -141,6 +141,8 @@ func (h Handler) Routes() chi.Router {
 	r.Delete("/members", h.RemoveMemberOrInvitation)
 	r.Post("/invite", h.Invite)
 	r.Post("/imports/preview", h.PreviewImport)
+	r.Get("/current/initiatives-settings", h.GetInitiativeSettings)
+	r.Patch("/current/initiatives-settings", h.UpdateInitiativeSettings)
 	r.Get("/current/collaboration", h.GetCollaboration)
 	r.Patch("/current/collaboration", h.UpdateCollaboration)
 	r.Get("/current/documents", h.GetDocumentsSettings)
@@ -408,6 +410,69 @@ type collaborationPermissions struct {
 type collaborationResponse struct {
 	Collaboration collaborationSettings    `json:"collaboration"`
 	Permissions   collaborationPermissions `json:"permissions"`
+}
+
+type workspaceInitiativeSettings struct {
+	Enabled        bool   `json:"enabled"`
+	ProjectRollups bool   `json:"projectRollups"`
+	Visibility     string `json:"visibility"`
+	RoadmapMode    string `json:"roadmapMode"`
+}
+
+type initiativeSettingsResponse struct {
+	InitiativesSettings workspaceInitiativeSettings `json:"initiativesSettings"`
+	ViewerRole          string                      `json:"viewerRole"`
+	CanManage           bool                        `json:"canManage"`
+}
+
+func (h Handler) GetInitiativeSettings(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No active workspace found", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Get initiative settings failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, initiativeSettingsResponse{InitiativesSettings: readInitiativeSettings(settings), ViewerRole: p.Role, CanManage: isManager(p.Role)})
+}
+
+func (h Handler) UpdateInitiativeSettings(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	if !isManager(p.Role) {
+		problem.Write(w, 403, "You do not have permission to manage initiative settings", "")
+		return
+	}
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No active workspace found", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Update initiative settings failed", err.Error())
+		return
+	}
+	var body map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		problem.Write(w, 400, "Invalid JSON", err.Error())
+		return
+	}
+	next, err := patchInitiativeSettings(readInitiativeSettings(settings), body)
+	if err != nil {
+		problem.Write(w, 400, err.Error(), "")
+		return
+	}
+	features := recordFromAny(settings["features"])
+	features["initiatives"] = next
+	settings["features"] = features
+	raw, _ := json.Marshal(settings)
+	if _, err := h.DB.Exec(r.Context(), `update workspace set settings=$1::jsonb, updated_at=now() where id=$2::uuid`, raw, p.WorkspaceID); err != nil {
+		problem.Write(w, 500, "Update initiative settings failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, initiativeSettingsResponse{InitiativesSettings: next, ViewerRole: p.Role, CanManage: true})
 }
 
 func (h Handler) GetCollaboration(w http.ResponseWriter, r *http.Request) {
@@ -1627,4 +1692,50 @@ func digestFrequencyValue(value any, fallback string) string {
 }
 func validDigestFrequency(value string) bool {
 	return value == "daily" || value == "weekly" || value == "off"
+}
+
+func readInitiativeSettings(settings map[string]any) workspaceInitiativeSettings {
+	features := recordFromAny(settings["features"])
+	initiatives := recordFromAny(features["initiatives"])
+	visibility := "workspace"
+	if initiatives["visibility"] == "teams" {
+		visibility = "teams"
+	}
+	roadmapMode := "all"
+	if initiatives["roadmapMode"] == "selected" {
+		roadmapMode = "selected"
+	}
+	return workspaceInitiativeSettings{Enabled: boolFromAny(initiatives["enabled"], true), ProjectRollups: boolFromAny(initiatives["projectRollups"], true), Visibility: visibility, RoadmapMode: roadmapMode}
+}
+
+func patchInitiativeSettings(current workspaceInitiativeSettings, patch map[string]any) (workspaceInitiativeSettings, error) {
+	if value, ok := patch["enabled"]; ok {
+		b, ok := value.(bool)
+		if !ok {
+			return current, fmt.Errorf("Initiative availability must be a boolean")
+		}
+		current.Enabled = b
+	}
+	if value, ok := patch["projectRollups"]; ok {
+		b, ok := value.(bool)
+		if !ok {
+			return current, fmt.Errorf("Project rollups must be a boolean")
+		}
+		current.ProjectRollups = b
+	}
+	if value, ok := patch["visibility"]; ok {
+		s, ok := value.(string)
+		if !ok || (s != "workspace" && s != "teams") {
+			return current, fmt.Errorf("Visibility must be workspace or teams")
+		}
+		current.Visibility = s
+	}
+	if value, ok := patch["roadmapMode"]; ok {
+		s, ok := value.(string)
+		if !ok || (s != "all" && s != "selected") {
+			return current, fmt.Errorf("Roadmap mode must be all or selected")
+		}
+		current.RoadmapMode = s
+	}
+	return current, nil
 }

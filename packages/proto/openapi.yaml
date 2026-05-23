@@ -1397,6 +1397,35 @@ paths:
                 $ref: '#/components/schemas/CreateWorkspaceResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /workspaces/current/initiatives-settings:
+    get:
+      operationId: getCurrentWorkspaceInitiativeSettings
+      responses:
+        '200':
+          description: Current workspace initiative settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceInitiativeSettingsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      operationId: updateCurrentWorkspaceInitiativeSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceInitiativeSettingsRequest'
+      responses:
+        '200':
+          description: Updated initiative settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceInitiativeSettingsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /workspaces/current/collaboration:
     get:
       operationId: getCurrentWorkspaceCollaboration
@@ -2634,6 +2663,28 @@ components:
         preview:
           type: array
           items: { $ref: '#/components/schemas/WorkspaceImportPreviewRow' }
+    WorkspaceInitiativeSettings:
+      type: object
+      required: [enabled, projectRollups, visibility, roadmapMode]
+      properties:
+        enabled: { type: boolean }
+        projectRollups: { type: boolean }
+        visibility: { type: string, enum: [workspace, teams] }
+        roadmapMode: { type: string, enum: [all, selected] }
+    WorkspaceInitiativeSettingsResponse:
+      type: object
+      required: [initiativesSettings, viewerRole, canManage]
+      properties:
+        initiativesSettings: { $ref: '#/components/schemas/WorkspaceInitiativeSettings' }
+        viewerRole: { type: string }
+        canManage: { type: boolean }
+    UpdateWorkspaceInitiativeSettingsRequest:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        projectRollups: { type: boolean }
+        visibility: { type: string, enum: [workspace, teams] }
+        roadmapMode: { type: string, enum: [all, selected] }
     CollaborationAsksSettings:
       type: object
       required: [enabled, intakeEmail, defaultPriority, autoAssign]

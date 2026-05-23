@@ -82,3 +82,18 @@ func TestReadAndMergeCollaborationSettings(t *testing.T) {
 		t.Fatalf("merged = %#v", next)
 	}
 }
+
+func TestReadAndPatchInitiativeSettings(t *testing.T) {
+	settings := map[string]any{"features": map[string]any{"initiatives": map[string]any{"enabled": false, "visibility": "teams"}}}
+	got := readInitiativeSettings(settings)
+	if got.Enabled || got.Visibility != "teams" || !got.ProjectRollups || got.RoadmapMode != "all" {
+		t.Fatalf("settings = %#v", got)
+	}
+	patched, err := patchInitiativeSettings(got, map[string]any{"roadmapMode": "selected", "projectRollups": false})
+	if err != nil || patched.RoadmapMode != "selected" || patched.ProjectRollups {
+		t.Fatalf("patched = %#v err=%v", patched, err)
+	}
+	if _, err := patchInitiativeSettings(got, map[string]any{"visibility": "private"}); err == nil {
+		t.Fatal("invalid visibility should fail")
+	}
+}
