@@ -11,6 +11,7 @@ import (
 	"github.com/namuh-eng/exponential/apps/api/internal/comments"
 	"github.com/namuh-eng/exponential/apps/api/internal/emojis"
 	"github.com/namuh-eng/exponential/apps/api/internal/issues"
+	"github.com/namuh-eng/exponential/apps/api/internal/issuetemplates"
 	"github.com/namuh-eng/exponential/apps/api/internal/labels"
 	"github.com/namuh-eng/exponential/apps/api/internal/notifications"
 	"github.com/namuh-eng/exponential/apps/api/internal/observability"
@@ -58,6 +59,7 @@ func NewRouter(logger *zap.Logger, db *pgxpool.Pool) stdhttp.Handler {
 			protected.Mount("/custom-emojis", emojis.Handler{DB: db}.Routes())
 			protected.Delete("/comments/{id}", commentsHandler.Delete)
 			protected.Post("/comments/{id}/reactions", commentsHandler.ToggleCommentReaction)
+			protected.Mount("/issue-templates", issuetemplates.Handler{DB: db}.Routes())
 			protected.Mount("/issues", issues.Handler{DB: db}.Routes())
 			protected.Mount("/labels", labelsHandler.Routes())
 			protected.Mount("/notifications", notifications.Handler{DB: db}.Routes())

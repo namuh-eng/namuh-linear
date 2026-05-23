@@ -162,6 +162,73 @@ paths:
                 $ref: '#/components/schemas/ReactionSummaryList'
         default:
           $ref: '#/components/responses/Problem'
+  /issue-templates:
+    get:
+      operationId: listIssueTemplates
+      parameters:
+        - name: teamKey
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Issue templates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueTemplateListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createIssueTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIssueTemplateRequest'
+      responses:
+        '201':
+          description: Created issue template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueTemplateResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /issue-templates/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: updateIssueTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateIssueTemplateRequest'
+      responses:
+        '200':
+          description: Updated issue template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueTemplateResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteIssueTemplate
+      responses:
+        '200':
+          description: Deleted issue template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /account:
     get:
       operationId: accountNamespace
@@ -1720,6 +1787,57 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Issue' }
         next_cursor: { type: [string, 'null'] }
+    IssueTemplateSettings:
+      type: object
+      properties:
+        title: { type: string }
+        body: { type: string }
+        defaultPriority: { type: string, enum: [urgent, high, medium, low, none] }
+        defaultStatusId: { type: string }
+        defaultStatusName: { type: string }
+        defaultTeamId: { type: string }
+        defaultTeamKey: { type: string }
+        defaultScope: { type: string }
+        defaultProjectId: { type: [string, 'null'] }
+        archivedAt: { type: string }
+    IssueTemplate:
+      type: object
+      required: [id, name, description, type, teamId, settings, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        type: { type: string }
+        teamId: { type: [string, 'null'], format: uuid }
+        settings: { $ref: '#/components/schemas/IssueTemplateSettings' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    IssueTemplateListResponse:
+      type: object
+      required: [templates]
+      properties:
+        templates:
+          type: array
+          items: { $ref: '#/components/schemas/IssueTemplate' }
+    IssueTemplateResponse:
+      type: object
+      required: [template]
+      properties:
+        template: { $ref: '#/components/schemas/IssueTemplate' }
+    CreateIssueTemplateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        settings: { $ref: '#/components/schemas/IssueTemplateSettings' }
+        duplicateFromId: { type: string, format: uuid }
+    UpdateIssueTemplateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        settings: { $ref: '#/components/schemas/IssueTemplateSettings' }
+        archived: { type: boolean }
     CreateIssueRequest:
       type: object
       required: [title, team_id]

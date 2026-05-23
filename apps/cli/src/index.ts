@@ -51,6 +51,11 @@ async function main() {
     return;
   }
 
+  if (resource === "issue-templates") {
+    await issueTemplateCommand();
+    return;
+  }
+
   if (resource === "labels") {
     await labelCommand();
     return;
@@ -366,6 +371,68 @@ async function commentCommand() {
   usage();
 }
 
+async function issueTemplateCommand() {
+  if (action === "list") {
+    const { data, error, response } = await client.GET("/issue-templates", {
+      params: { query: { teamKey: readOption(args, "team-key") } },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "create") {
+    const { data, error, response } = await client.POST("/issue-templates", {
+      body: {
+        name: readOption(args, "name"),
+        description: readOption(args, "description"),
+        settings: readJSONOption(args, "settings-json"),
+        duplicateFromId: readOption(args, "duplicate-from-id"),
+      },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "update") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.PATCH(
+      "/issue-templates/{id}",
+      {
+        params: { path: { id } },
+        body: {
+          name: readOption(args, "name"),
+          description: readOption(args, "description"),
+          settings: readJSONOption(args, "settings-json"),
+        },
+      },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "archive") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.PATCH(
+      "/issue-templates/{id}",
+      { params: { path: { id } }, body: { archived: true } },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "delete") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.DELETE(
+      "/issue-templates/{id}",
+      { params: { path: { id } } },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
+  usage();
+}
+
 async function cycleCommand() {
   const key = requireOption(args, "team-key");
   if (action === "list") {
@@ -635,6 +702,11 @@ function usage(): never {
   exponential comments update --id <uuid> --body <text>
   exponential comments delete --id <uuid>
   exponential comments react --id <uuid> --emoji <emoji>
+  exponential issue-templates list [--team-key <key>]
+  exponential issue-templates create [--name <name>] [--description <text>] [--settings-json '<json>']
+  exponential issue-templates update --id <uuid> [--name <name>] [--settings-json '<json>']
+  exponential issue-templates archive --id <uuid>
+  exponential issue-templates delete --id <uuid>
   exponential labels list [--scope workspace|team|all] [--team-id <uuid>]
   exponential labels create --name <name> [--color #6b6f76] [--team-id <uuid>]
   exponential labels update --id <uuid> [--name <name>] [--color #6b6f76]

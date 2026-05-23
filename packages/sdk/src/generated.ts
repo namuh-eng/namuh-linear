@@ -76,6 +76,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/issue-templates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listIssueTemplates"];
+    put?: never;
+    post: operations["createIssueTemplate"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/issue-templates/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteIssueTemplate"];
+    options?: never;
+    head?: never;
+    patch: operations["updateIssueTemplate"];
+    trace?: never;
+  };
   "/account": {
     parameters: {
       query?: never;
@@ -1166,6 +1200,52 @@ export interface components {
       data: components["schemas"]["Issue"][];
       next_cursor?: string | null;
     };
+    IssueTemplateSettings: {
+      title?: string;
+      body?: string;
+      /** @enum {string} */
+      defaultPriority?: "urgent" | "high" | "medium" | "low" | "none";
+      defaultStatusId?: string;
+      defaultStatusName?: string;
+      defaultTeamId?: string;
+      defaultTeamKey?: string;
+      defaultScope?: string;
+      defaultProjectId?: string | null;
+      archivedAt?: string;
+    };
+    IssueTemplate: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      description: string;
+      type: string;
+      /** Format: uuid */
+      teamId: string | null;
+      settings: components["schemas"]["IssueTemplateSettings"];
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    IssueTemplateListResponse: {
+      templates: components["schemas"]["IssueTemplate"][];
+    };
+    IssueTemplateResponse: {
+      template: components["schemas"]["IssueTemplate"];
+    };
+    CreateIssueTemplateRequest: {
+      name?: string;
+      description?: string;
+      settings?: components["schemas"]["IssueTemplateSettings"];
+      /** Format: uuid */
+      duplicateFromId?: string;
+    };
+    UpdateIssueTemplateRequest: {
+      name?: string;
+      description?: string;
+      settings?: components["schemas"]["IssueTemplateSettings"];
+      archived?: boolean;
+    };
     CreateIssueRequest: {
       title: string;
       description?: string | null;
@@ -1438,6 +1518,104 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ReactionSummaryList"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listIssueTemplates: {
+    parameters: {
+      query?: {
+        teamKey?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Issue templates */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssueTemplateListResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createIssueTemplate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateIssueTemplateRequest"];
+      };
+    };
+    responses: {
+      /** @description Created issue template */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssueTemplateResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteIssueTemplate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted issue template */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuccessResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateIssueTemplate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateIssueTemplateRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated issue template */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssueTemplateResponse"];
         };
       };
       default: components["responses"]["Problem"];
