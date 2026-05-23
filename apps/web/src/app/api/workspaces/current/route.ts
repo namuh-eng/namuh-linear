@@ -3,6 +3,11 @@ import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { member, workspace } from "@/lib/db/schema";
 import {
+  createHeadlessWorkspacesClient,
+  headlessWorkspacesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
+import {
   MAX_WORKSPACE_NAME_LENGTH,
   validateWorkspaceName,
   validateWorkspaceSlug,
@@ -108,6 +113,20 @@ export async function GET() {
     );
   }
 
+  if (headlessWorkspacesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: currentWorkspace.id,
+    });
+    const client = createHeadlessWorkspacesClient(token);
+    const { data, error, response } = await client.GET("/workspaces/current");
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   return NextResponse.json({
     workspace: {
       id: currentWorkspace.id,
@@ -143,6 +162,25 @@ export async function PATCH(request: Request) {
     fiscalMonth?: unknown;
     welcomeMessage?: unknown;
   } | null;
+
+  if (headlessWorkspacesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: currentWorkspace.id,
+    });
+    const client = createHeadlessWorkspacesClient(token);
+    const { data, error, response } = await client.PATCH(
+      "/workspaces/current",
+      {
+        body: body as never,
+      },
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
 
   const name =
     typeof body?.name === "string" ? body.name.trim() : currentWorkspace.name;
@@ -267,6 +305,22 @@ export async function DELETE() {
       { error: "Only workspace admins can delete a workspace" },
       { status: 403 },
     );
+  }
+
+  if (headlessWorkspacesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: currentWorkspace.id,
+    });
+    const client = createHeadlessWorkspacesClient(token);
+    const { data, error, response } = await client.DELETE(
+      "/workspaces/current",
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   await db.delete(workspace).where(eq(workspace.id, currentWorkspace.id));
