@@ -36,6 +36,11 @@ async function main() {
     return;
   }
 
+  if (resource === "project-templates") {
+    await projectTemplateCommand();
+    return;
+  }
+
   if (resource === "cycles") {
     await cycleCommand();
     return;
@@ -497,6 +502,55 @@ async function projectStatusCommand() {
   usage();
 }
 
+async function projectTemplateCommand() {
+  if (action === "list") {
+    const { data, error, response } = await client.GET("/project-templates");
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "create") {
+    const { data, error, response } = await client.POST("/project-templates", {
+      body: {
+        name: requireOption(args, "name"),
+        description: readOption(args, "description"),
+        settings: readJSONOption(args, "settings-json"),
+      },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "update") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.PATCH(
+      "/project-templates/{id}",
+      {
+        params: { path: { id } },
+        body: {
+          name: requireOption(args, "name"),
+          description: readOption(args, "description"),
+          settings: readJSONOption(args, "settings-json"),
+        },
+      },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "delete") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.DELETE(
+      "/project-templates/{id}",
+      { params: { path: { id } } },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
+  usage();
+}
+
 async function tokenCommand() {
   if (action === "list") {
     const { data, error, response } = await client.GET(
@@ -541,6 +595,11 @@ function printResult(data: unknown, error: unknown, status: number) {
   console.log(JSON.stringify(data, null, 2));
 }
 
+function readJSONOption(args: string[], name: string) {
+  const raw = readOption(args, name);
+  return raw ? JSON.parse(raw) : undefined;
+}
+
 function usage(): never {
   console.error(`Usage:
   exponential issues list [--team-id <uuid>] [--cursor <cursor>] [--limit <n>]
@@ -564,6 +623,10 @@ function usage(): never {
   exponential projects delete --slug <slug>
   exponential project-statuses list
   exponential project-statuses update --statuses-json '<json-array>'
+  exponential project-templates list
+  exponential project-templates create --name <name> [--description <text>] [--settings-json '<json>']
+  exponential project-templates update --id <uuid> --name <name> [--settings-json '<json>']
+  exponential project-templates delete --id <uuid>
   exponential cycles list --team-key <key>
   exponential cycles create --team-key <key> --start-date YYYY-MM-DD --end-date YYYY-MM-DD
   exponential cycles update --team-key <key> --id <uuid> [--name <name>]

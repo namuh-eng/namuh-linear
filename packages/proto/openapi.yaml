@@ -539,6 +539,71 @@ paths:
                 $ref: '#/components/schemas/SuccessResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /project-templates:
+    get:
+      operationId: listProjectTemplates
+      summary: List project templates in the authenticated workspace
+      responses:
+        '200':
+          description: Project templates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectTemplateListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createProjectTemplate
+      summary: Create a project template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectTemplateRequest'
+      responses:
+        '201':
+          description: Created project template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectTemplateResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /project-templates/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: updateProjectTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectTemplateRequest'
+      responses:
+        '200':
+          description: Updated project template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectTemplateResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteProjectTemplate
+      responses:
+        '200':
+          description: Deleted project template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /project-statuses:
     get:
       operationId: listProjectStatuses
@@ -1233,6 +1298,47 @@ components:
       properties:
         token: { $ref: '#/components/schemas/PersonalAccessToken' }
         value: { type: string }
+    ProjectTemplateSettings:
+      type: object
+      required: [status, priority, labelIds, milestones]
+      properties:
+        status: { type: [string, 'null'], enum: [planned, started, paused, completed, canceled, null] }
+        priority: { type: [string, 'null'], enum: [none, urgent, high, medium, low, null] }
+        labelIds:
+          type: array
+          items: { type: string }
+        milestones:
+          type: array
+          items: { type: string }
+    ProjectTemplate:
+      type: object
+      required: [id, name, description, settings, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        settings: { $ref: '#/components/schemas/ProjectTemplateSettings' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProjectTemplateListResponse:
+      type: object
+      required: [templates]
+      properties:
+        templates:
+          type: array
+          items: { $ref: '#/components/schemas/ProjectTemplate' }
+    ProjectTemplateResponse:
+      type: object
+      required: [template]
+      properties:
+        template: { $ref: '#/components/schemas/ProjectTemplate' }
+    ProjectTemplateRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: [string, 'null'] }
+        settings: { $ref: '#/components/schemas/ProjectTemplateSettings' }
     ProjectStatusConfig:
       type: object
       required: [id, key, name, description, color, icon, position, isDefault, projectCount]

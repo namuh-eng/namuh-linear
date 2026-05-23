@@ -16,6 +16,7 @@ import (
 	"github.com/namuh-eng/exponential/apps/api/internal/observability"
 	"github.com/namuh-eng/exponential/apps/api/internal/projects"
 	"github.com/namuh-eng/exponential/apps/api/internal/projectstatuses"
+	"github.com/namuh-eng/exponential/apps/api/internal/projecttemplates"
 	syncapi "github.com/namuh-eng/exponential/apps/api/internal/sync"
 	"github.com/namuh-eng/exponential/apps/api/internal/teams"
 	"github.com/namuh-eng/exponential/apps/api/internal/tokens"
@@ -62,6 +63,7 @@ func NewRouter(logger *zap.Logger, db *pgxpool.Pool) stdhttp.Handler {
 			protected.Mount("/notifications", notifications.Handler{DB: db}.Routes())
 			protected.Mount("/project-labels", labelsHandler.ProjectRoutes())
 			protected.Mount("/project-statuses", projectstatuses.Handler{DB: db}.Routes())
+			protected.Mount("/project-templates", projecttemplates.Handler{DB: db}.Routes())
 			protected.Mount("/personal-access-tokens", tokens.Handler{DB: db}.Routes())
 			protected.Mount("/projects", projects.Handler{DB: db}.Routes())
 			protected.Mount("/teams", teams.Handler{DB: db}.Routes())

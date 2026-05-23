@@ -329,6 +329,42 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/project-templates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List project templates in the authenticated workspace */
+    get: operations["listProjectTemplates"];
+    put?: never;
+    /** Create a project template */
+    post: operations["createProjectTemplate"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/project-templates/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteProjectTemplate"];
+    options?: never;
+    head?: never;
+    patch: operations["updateProjectTemplate"];
+    trace?: never;
+  };
   "/project-statuses": {
     parameters: {
       query?: never;
@@ -762,6 +798,42 @@ export interface components {
     CreatePersonalAccessTokenResponse: {
       token: components["schemas"]["PersonalAccessToken"];
       value: string;
+    };
+    ProjectTemplateSettings: {
+      /** @enum {string|null} */
+      status:
+        | "planned"
+        | "started"
+        | "paused"
+        | "completed"
+        | "canceled"
+        | null;
+      /** @enum {string|null} */
+      priority: "none" | "urgent" | "high" | "medium" | "low" | null;
+      labelIds: string[];
+      milestones: string[];
+    };
+    ProjectTemplate: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      description: string;
+      settings: components["schemas"]["ProjectTemplateSettings"];
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    ProjectTemplateListResponse: {
+      templates: components["schemas"]["ProjectTemplate"][];
+    };
+    ProjectTemplateResponse: {
+      template: components["schemas"]["ProjectTemplate"];
+    };
+    ProjectTemplateRequest: {
+      name: string;
+      description?: string | null;
+      settings?: components["schemas"]["ProjectTemplateSettings"];
     };
     ProjectStatusConfig: {
       id: string;
@@ -1925,6 +1997,102 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SuccessResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listProjectTemplates: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Project templates */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectTemplateListResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createProjectTemplate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectTemplateRequest"];
+      };
+    };
+    responses: {
+      /** @description Created project template */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectTemplateResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteProjectTemplate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted project template */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuccessResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateProjectTemplate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectTemplateRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated project template */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectTemplateResponse"];
         };
       };
       default: components["responses"]["Problem"];
