@@ -45,3 +45,12 @@ func TestEscapeLike(t *testing.T) {
 		t.Fatalf("escaped pattern = %q", got)
 	}
 }
+
+func TestIsUUIDLike(t *testing.T) {
+	if !isUUIDLike("00000000-0000-4000-8000-000000000001") {
+		t.Fatal("valid uuid rejected")
+	}
+	if isUUIDLike("ENG-123") || isUUIDLike("00000000000040008000000000000001") {
+		t.Fatal("invalid uuid accepted")
+	}
+}

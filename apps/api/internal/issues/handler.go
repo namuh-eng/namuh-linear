@@ -96,11 +96,19 @@ type SearchResult struct {
 	CreatedAt     string  `json:"createdAt"`
 }
 
+type subscriptionSummary struct {
+	Subscribed   bool  `json:"subscribed"`
+	WatcherCount int32 `json:"watcherCount"`
+}
+
 func (h Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.List)
 	r.Post("/", h.Create)
 	r.Get("/search", h.Search)
+	r.Get("/{id}/subscription", h.GetSubscription)
+	r.Post("/{id}/subscription", h.Subscribe)
+	r.Delete("/{id}/subscription", h.Unsubscribe)
 	r.Get("/{id}", h.Get)
 	r.Patch("/{id}", h.Update)
 	r.Delete("/{id}", h.Delete)
@@ -220,6 +228,50 @@ func (h Handler) Get(w http.ResponseWriter, r *http.Request) {
 	problem.JSON(w, http.StatusOK, issue)
 }
 
+func (h Handler) GetSubscription(w http.ResponseWriter, r *http.Request) {
+	h.subscription(w, r, nil)
+}
+
+func (h Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
+	subscribed := true
+	h.subscription(w, r, &subscribed)
+}
+
+func (h Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
+	subscribed := false
+	h.subscription(w, r, &subscribed)
+}
+
+func (h Handler) subscription(w http.ResponseWriter, r *http.Request, subscribed *bool) {
+	p, _ := auth.FromContext(r.Context())
+	issueID, err := h.resolveIssueID(r.Context(), p.WorkspaceID, chi.URLParam(r, "id"))
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "Issue not found", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Issue subscription failed", err.Error())
+		return
+	}
+	if subscribed != nil {
+		_, err := h.DB.Exec(r.Context(), `
+			insert into issue_subscription (issue_id, user_id, subscribed, updated_at)
+			values ($1::uuid,$2,$3,now())
+			on conflict (issue_id, user_id)
+			do update set subscribed=excluded.subscribed, updated_at=now()`, issueID, p.UserID, *subscribed)
+		if err != nil {
+			problem.Write(w, 500, "Issue subscription failed", err.Error())
+			return
+		}
+	}
+	summary, err := h.subscriptionSummary(r.Context(), issueID, p.UserID)
+	if err != nil {
+		problem.Write(w, 500, "Issue subscription failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, summary)
+}
+
 func (h Handler) userInWorkspace(ctx context.Context, userID, workspaceID string) (bool, error) {
 	var one int
 	err := h.DB.QueryRow(ctx, `select 1 from member where user_id=$1 and workspace_id=$2::uuid limit 1`, userID, workspaceID).Scan(&one)
@@ -227,6 +279,39 @@ func (h Handler) userInWorkspace(ctx context.Context, userID, workspaceID string
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (h Handler) resolveIssueID(ctx context.Context, workspaceID, id string) (string, error) {
+	var issueID string
+	where := "i.identifier=$2"
+	if isUUIDLike(id) {
+		where = "(i.identifier=$2 or i.id=$2::uuid)"
+	}
+	err := h.DB.QueryRow(ctx, `select i.id::text from issue i join team t on t.id=i.team_id where t.workspace_id=$1::uuid and `+where+` limit 1`, workspaceID, id).Scan(&issueID)
+	return issueID, err
+}
+
+func (h Handler) subscriptionSummary(ctx context.Context, issueID, userID string) (subscriptionSummary, error) {
+	rows, err := h.DB.Query(ctx, `select user_id, subscribed from issue_subscription where issue_id=$1::uuid`, issueID)
+	if err != nil {
+		return subscriptionSummary{}, err
+	}
+	defer rows.Close()
+	var summary subscriptionSummary
+	for rows.Next() {
+		var rowUserID string
+		var subscribed bool
+		if err := rows.Scan(&rowUserID, &subscribed); err != nil {
+			return subscriptionSummary{}, err
+		}
+		if subscribed {
+			summary.WatcherCount++
+		}
+		if rowUserID == userID {
+			summary.Subscribed = subscribed
+		}
+	}
+	return summary, rows.Err()
 }
 
 func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -549,6 +634,24 @@ func escapeLike(value string) string {
 	value = strings.ReplaceAll(value, `%`, `\%`)
 	value = strings.ReplaceAll(value, `_`, `\_`)
 	return value
+}
+func isUUIDLike(value string) bool {
+	if len(value) != 36 {
+		return false
+	}
+	for i, r := range value {
+		switch i {
+		case 8, 13, 18, 23:
+			if r != '-' {
+				return false
+			}
+		default:
+			if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
 }
 func parseDate(value *string) (*time.Time, error) {
 	if value == nil || strings.TrimSpace(*value) == "" {

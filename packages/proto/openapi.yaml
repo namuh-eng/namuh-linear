@@ -182,6 +182,45 @@ paths:
                 items: { $ref: '#/components/schemas/IssueSearchResult' }
         default:
           $ref: '#/components/responses/Problem'
+  /issues/{id}/subscription:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getIssueSubscription
+      responses:
+        '200':
+          description: Issue subscription summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueSubscriptionSummary'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: subscribeToIssue
+      responses:
+        '200':
+          description: Issue subscription summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueSubscriptionSummary'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: unsubscribeFromIssue
+      responses:
+        '200':
+          description: Issue subscription summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueSubscriptionSummary'
+        default:
+          $ref: '#/components/responses/Problem'
   /issue-templates:
     get:
       operationId: listIssueTemplates
@@ -2218,6 +2257,12 @@ components:
         assigneeName: { type: [string, 'null'] }
         assigneeImage: { type: [string, 'null'] }
         createdAt: { type: string, format: date-time }
+    IssueSubscriptionSummary:
+      type: object
+      required: [subscribed, watcherCount]
+      properties:
+        subscribed: { type: boolean }
+        watcherCount: { type: integer }
     CreateIssueRequest:
       type: object
       required: [title, team_id]

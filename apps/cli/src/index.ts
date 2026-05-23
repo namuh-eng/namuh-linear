@@ -172,6 +172,36 @@ async function main() {
     return;
   }
 
+  if (action === "subscription") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.GET(
+      "/issues/{id}/subscription",
+      { params: { path: { id } } },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "subscribe") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.POST(
+      "/issues/{id}/subscription",
+      { params: { path: { id } } },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "unsubscribe") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.DELETE(
+      "/issues/{id}/subscription",
+      { params: { path: { id } } },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
   if (action === "watch") {
     console.log(
       JSON.stringify({
@@ -858,6 +888,9 @@ function usage(): never {
   exponential issues create --title <title> --team-id <uuid> [--idempotency-key <key>]
   exponential issues update --id <id-or-identifier> [--title <title>] [--state-id <uuid>]
   exponential issues delete --id <id-or-identifier> [--idempotency-key <key>]
+  exponential issues subscription --id <id-or-identifier>
+  exponential issues subscribe --id <id-or-identifier>
+  exponential issues unsubscribe --id <id-or-identifier>
   exponential issues watch [--version <n>]
   exponential workspaces list
   exponential workspaces create --name <name> --url-slug <slug>

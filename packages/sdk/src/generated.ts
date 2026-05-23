@@ -92,6 +92,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/issues/{id}/subscription": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get: operations["getIssueSubscription"];
+    put?: never;
+    post: operations["subscribeToIssue"];
+    delete: operations["unsubscribeFromIssue"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/issue-templates": {
     parameters: {
       query?: never;
@@ -1520,6 +1538,10 @@ export interface components {
       /** Format: date-time */
       createdAt: string;
     };
+    IssueSubscriptionSummary: {
+      subscribed: boolean;
+      watcherCount: number;
+    };
     CreateIssueRequest: {
       title: string;
       description?: string | null;
@@ -1816,6 +1838,75 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IssueSearchResult"][];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  getIssueSubscription: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Issue subscription summary */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssueSubscriptionSummary"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  subscribeToIssue: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Issue subscription summary */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssueSubscriptionSummary"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  unsubscribeFromIssue: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Issue subscription summary */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssueSubscriptionSummary"];
         };
       };
       default: components["responses"]["Problem"];
