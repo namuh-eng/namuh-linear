@@ -3,6 +3,11 @@ import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issue, team } from "@/lib/db/schema";
 import {
+  createHeadlessIssuesClient,
+  headlessIssuesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
+import {
   getIssueSubscriptionSummary,
   setIssueSubscription,
 } from "@/lib/issue-subscriptions";
@@ -80,6 +85,30 @@ export async function GET(
   }
 
   const { id } = await params;
+  if (headlessIssuesEnabled()) {
+    const workspaceId = await resolveRequestWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessIssuesClient(token);
+      const { data, error, response } = await client.GET(
+        "/issues/{id}/subscription",
+        { params: { path: { id } } },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const resolved = await resolveAccessibleIssue(request, id, session.user.id);
   if (resolved.response) {
     return resolved.response;
@@ -103,6 +132,30 @@ export async function POST(
   }
 
   const { id } = await params;
+  if (headlessIssuesEnabled()) {
+    const workspaceId = await resolveRequestWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessIssuesClient(token);
+      const { data, error, response } = await client.POST(
+        "/issues/{id}/subscription",
+        { params: { path: { id } } },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const resolved = await resolveAccessibleIssue(request, id, session.user.id);
   if (resolved.response) {
     return resolved.response;
@@ -127,6 +180,30 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  if (headlessIssuesEnabled()) {
+    const workspaceId = await resolveRequestWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessIssuesClient(token);
+      const { data, error, response } = await client.DELETE(
+        "/issues/{id}/subscription",
+        { params: { path: { id } } },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const resolved = await resolveAccessibleIssue(request, id, session.user.id);
   if (resolved.response) {
     return resolved.response;

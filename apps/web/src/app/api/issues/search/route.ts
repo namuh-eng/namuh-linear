@@ -2,6 +2,11 @@ import { resolveRequestWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issue, member, team, user, workflowState } from "@/lib/db/schema";
+import {
+  createHeadlessIssuesClient,
+  headlessIssuesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { activeTeamFilter } from "@/lib/team-lifecycle";
 import { and, desc, eq, ilike, isNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -43,6 +48,23 @@ export async function GET(request: Request) {
 
   if (!workspaceId) {
     return NextResponse.json([]);
+  }
+
+  if (headlessIssuesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssuesClient(token);
+    const { data, error, response } = await client.GET("/issues/search", {
+      params: { query: { q: query ?? "", workspaceId } },
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   // Search active workspace issues by title or identifier and include every
