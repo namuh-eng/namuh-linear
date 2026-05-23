@@ -7,6 +7,10 @@ export function headlessIssuesEnabled() {
   return process.env.EXPONENTIAL_HEADLESS_ISSUES === "true";
 }
 
+export function headlessIssueBulkEnabled() {
+  return process.env.EXPONENTIAL_HEADLESS_ISSUE_BULK === "true";
+}
+
 export function headlessViewsEnabled() {
   return process.env.EXPONENTIAL_HEADLESS_VIEWS === "true";
 }
@@ -37,6 +41,10 @@ export function createHeadlessClient(token: string) {
 }
 
 export function createHeadlessIssuesClient(token: string) {
+  return createHeadlessClient(token);
+}
+
+export function createHeadlessIssueBulkClient(token: string) {
   return createHeadlessClient(token);
 }
 

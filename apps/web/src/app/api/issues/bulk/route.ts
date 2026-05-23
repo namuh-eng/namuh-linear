@@ -11,6 +11,11 @@ import {
   team,
   workflowState,
 } from "@/lib/db/schema";
+import {
+  createHeadlessIssueBulkClient,
+  headlessIssueBulkEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { insertIssueHistoryEvent } from "@/lib/issue-history";
 import { normalizeBulkIssueLabelIds } from "@/lib/label-application";
 import { canAccessTeam, getWorkspaceMember } from "@/lib/teams";
@@ -59,6 +64,24 @@ export async function PATCH(request: Request) {
     issueIds?: unknown;
     updates?: BulkIssueUpdates;
   };
+
+  if (headlessIssueBulkEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssueBulkClient(token);
+    const { data, error, response } = await client.PATCH("/issues/bulk", {
+      body: body as never,
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const issueIds = uniqueStrings(body.issueIds);
   const updates = body.updates ?? {};
 
