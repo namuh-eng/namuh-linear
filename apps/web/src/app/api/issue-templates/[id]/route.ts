@@ -2,6 +2,11 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issueTemplate } from "@/lib/db/schema";
+import {
+  createHeadlessIssueTemplatesClient,
+  headlessIssueTemplatesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { and, eq, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { normalizeIssueTemplateSettings } from "../route";
@@ -38,6 +43,26 @@ export async function PATCH(
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  if (headlessIssueTemplatesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssueTemplatesClient(token);
+    const { data, error, response } = await client.PATCH(
+      "/issue-templates/{id}",
+      {
+        params: { path: { id } },
+        body: body as never,
+      },
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const updates: Partial<typeof issueTemplate.$inferInsert> = {
     updatedAt: new Date(),
   };
@@ -99,6 +124,26 @@ export async function DELETE(
   if (!workspaceId)
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
   const { id } = await params;
+
+  if (headlessIssueTemplatesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssueTemplatesClient(token);
+    const { data, error, response } = await client.DELETE(
+      "/issue-templates/{id}",
+      {
+        params: { path: { id } },
+      },
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const [deleted] = await db
     .delete(issueTemplate)
     .where(

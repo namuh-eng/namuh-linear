@@ -2,6 +2,11 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issueTemplate } from "@/lib/db/schema";
+import {
+  createHeadlessIssueTemplatesClient,
+  headlessIssueTemplatesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { findAccessibleTeam } from "@/lib/teams";
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -89,6 +94,24 @@ export async function GET(
   const workspaceId = await getWorkspace(session.user.id);
   if (!workspaceId) return NextResponse.json({ templates: [] });
 
+  if (headlessIssueTemplatesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssueTemplatesClient(token);
+    const searchParams = new URL(request.url).searchParams;
+    const query = Object.fromEntries(searchParams.entries());
+    const { data, error, response } = await client.GET("/issue-templates", {
+      params: { query },
+    } as never);
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const teamKey = new URL(request.url).searchParams.get("teamKey")?.trim();
   let teamId: string | null = null;
   if (teamKey) {
@@ -148,6 +171,22 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  if (headlessIssueTemplatesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssueTemplatesClient(token);
+    const { data, error, response } = await client.POST("/issue-templates", {
+      body: body as never,
+    });
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   let source: IssueTemplatePayload | null = null;
