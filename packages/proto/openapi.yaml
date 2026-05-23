@@ -1397,6 +1397,35 @@ paths:
                 $ref: '#/components/schemas/CreateWorkspaceResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /workspaces/current/collaboration:
+    get:
+      operationId: getCurrentWorkspaceCollaboration
+      responses:
+        '200':
+          description: Current workspace collaboration settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceCollaborationResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      operationId: updateCurrentWorkspaceCollaboration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceCollaborationRequest'
+      responses:
+        '200':
+          description: Updated collaboration settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceCollaborationResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /workspaces/current/documents:
     get:
       operationId: getCurrentWorkspaceDocuments
@@ -2605,6 +2634,54 @@ components:
         preview:
           type: array
           items: { $ref: '#/components/schemas/WorkspaceImportPreviewRow' }
+    CollaborationAsksSettings:
+      type: object
+      required: [enabled, intakeEmail, defaultPriority, autoAssign]
+      properties:
+        enabled: { type: boolean }
+        intakeEmail: { type: string }
+        defaultPriority: { type: string, enum: [low, medium, high, urgent] }
+        autoAssign: { type: boolean }
+    CollaborationPulseSettings:
+      type: object
+      required: [enabled, digestFrequency, burnoutAlerts, velocityTarget]
+      properties:
+        enabled: { type: boolean }
+        digestFrequency: { type: string, enum: [daily, weekly, off] }
+        burnoutAlerts: { type: boolean }
+        velocityTarget: { type: integer }
+    CollaborationCustomerRequestSettings:
+      type: object
+      required: [enabled, intakeEmail, defaultPriority, autoLinkIssues, requireCompany, confirmationMessage]
+      properties:
+        enabled: { type: boolean }
+        intakeEmail: { type: string }
+        defaultPriority: { type: string, enum: [low, medium, high, urgent] }
+        autoLinkIssues: { type: boolean }
+        requireCompany: { type: boolean }
+        confirmationMessage: { type: string }
+    WorkspaceCollaborationSettings:
+      type: object
+      required: [asks, pulse, customerRequests]
+      properties:
+        asks: { $ref: '#/components/schemas/CollaborationAsksSettings' }
+        pulse: { $ref: '#/components/schemas/CollaborationPulseSettings' }
+        customerRequests: { $ref: '#/components/schemas/CollaborationCustomerRequestSettings' }
+    WorkspaceCollaborationPermissions:
+      type: object
+      required: [canManage, role]
+      properties:
+        canManage: { type: boolean }
+        role: { type: string }
+    WorkspaceCollaborationResponse:
+      type: object
+      required: [collaboration, permissions]
+      properties:
+        collaboration: { $ref: '#/components/schemas/WorkspaceCollaborationSettings' }
+        permissions: { $ref: '#/components/schemas/WorkspaceCollaborationPermissions' }
+    UpdateWorkspaceCollaborationRequest:
+      type: object
+      additionalProperties: true
     WorkspaceDocumentTemplate:
       type: object
       required: [id, name, description]

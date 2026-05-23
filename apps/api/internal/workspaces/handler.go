@@ -141,6 +141,8 @@ func (h Handler) Routes() chi.Router {
 	r.Delete("/members", h.RemoveMemberOrInvitation)
 	r.Post("/invite", h.Invite)
 	r.Post("/imports/preview", h.PreviewImport)
+	r.Get("/current/collaboration", h.GetCollaboration)
+	r.Patch("/current/collaboration", h.UpdateCollaboration)
 	r.Get("/current/documents", h.GetDocumentsSettings)
 	r.Patch("/current/documents", h.UpdateDocumentsSettings)
 	r.Post("/current/documents", h.CreateDocumentTemplate)
@@ -367,6 +369,89 @@ type workspaceDocumentsPatch struct {
 type workspaceDocumentTemplateRequest struct {
 	Name        any `json:"name"`
 	Description any `json:"description"`
+}
+
+type collaborationSettings struct {
+	Asks             asksSettings            `json:"asks"`
+	Pulse            pulseSettings           `json:"pulse"`
+	CustomerRequests customerRequestSettings `json:"customerRequests"`
+}
+
+type asksSettings struct {
+	Enabled         bool   `json:"enabled"`
+	IntakeEmail     string `json:"intakeEmail"`
+	DefaultPriority string `json:"defaultPriority"`
+	AutoAssign      bool   `json:"autoAssign"`
+}
+
+type pulseSettings struct {
+	Enabled         bool   `json:"enabled"`
+	DigestFrequency string `json:"digestFrequency"`
+	BurnoutAlerts   bool   `json:"burnoutAlerts"`
+	VelocityTarget  int    `json:"velocityTarget"`
+}
+
+type customerRequestSettings struct {
+	Enabled             bool   `json:"enabled"`
+	IntakeEmail         string `json:"intakeEmail"`
+	DefaultPriority     string `json:"defaultPriority"`
+	AutoLinkIssues      bool   `json:"autoLinkIssues"`
+	RequireCompany      bool   `json:"requireCompany"`
+	ConfirmationMessage string `json:"confirmationMessage"`
+}
+
+type collaborationPermissions struct {
+	CanManage bool   `json:"canManage"`
+	Role      string `json:"role"`
+}
+
+type collaborationResponse struct {
+	Collaboration collaborationSettings    `json:"collaboration"`
+	Permissions   collaborationPermissions `json:"permissions"`
+}
+
+func (h Handler) GetCollaboration(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No active workspace found", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Get collaboration settings failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, collaborationResponse{Collaboration: readCollaborationSettings(settings), Permissions: collaborationPermissions{CanManage: isManager(p.Role), Role: p.Role}})
+}
+
+func (h Handler) UpdateCollaboration(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	if !isManager(p.Role) {
+		problem.Write(w, 403, "Forbidden", "")
+		return
+	}
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No active workspace found", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Update collaboration settings failed", err.Error())
+		return
+	}
+	var body map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		problem.Write(w, 400, "Invalid JSON", err.Error())
+		return
+	}
+	collaboration := mergeCollaborationSettings(settings, body)
+	settings["collaboration"] = collaboration
+	raw, _ := json.Marshal(settings)
+	if _, err := h.DB.Exec(r.Context(), `update workspace set settings=$1::jsonb, updated_at=now() where id=$2::uuid`, raw, p.WorkspaceID); err != nil {
+		problem.Write(w, 500, "Update collaboration settings failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, collaborationResponse{Collaboration: readCollaborationSettings(settings), Permissions: collaborationPermissions{CanManage: true, Role: p.Role}})
 }
 
 func (h Handler) GetDocumentsSettings(w http.ResponseWriter, r *http.Request) {
@@ -1441,4 +1526,105 @@ func createRandomID(prefix string) string {
 		return fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano())
 	}
 	return prefix + "_" + hex.EncodeToString(buf)
+}
+
+const defaultConfirmationMessage = "Thanks for the feedback — our product team will review it."
+
+func readCollaborationSettings(settings map[string]any) collaborationSettings {
+	collaboration := recordFromAny(settings["collaboration"])
+	asks := recordFromAny(collaboration["asks"])
+	pulse := recordFromAny(collaboration["pulse"])
+	customerRequests := recordFromAny(collaboration["customerRequests"])
+	return collaborationSettings{Asks: asksSettings{Enabled: boolFromAny(asks["enabled"], false), IntakeEmail: asStringValue(asks["intakeEmail"]), DefaultPriority: priorityValue(asks["defaultPriority"], "medium"), AutoAssign: boolFromAny(asks["autoAssign"], true)}, Pulse: pulseSettings{Enabled: boolFromAny(pulse["enabled"], true), DigestFrequency: digestFrequencyValue(pulse["digestFrequency"], "weekly"), BurnoutAlerts: boolFromAny(pulse["burnoutAlerts"], true), VelocityTarget: positiveIntValue(pulse["velocityTarget"], 40, 0)}, CustomerRequests: customerRequestSettings{Enabled: boolFromAny(customerRequests["enabled"], false), IntakeEmail: asStringValue(customerRequests["intakeEmail"]), DefaultPriority: priorityValue(customerRequests["defaultPriority"], "medium"), AutoLinkIssues: boolFromAny(customerRequests["autoLinkIssues"], true), RequireCompany: boolFromAny(customerRequests["requireCompany"], false), ConfirmationMessage: nonEmptyString(customerRequests["confirmationMessage"], defaultConfirmationMessage)}}
+}
+
+func mergeCollaborationSettings(settings map[string]any, body map[string]any) map[string]any {
+	current := readCollaborationSettings(settings)
+	asks := recordFromAny(body["asks"])
+	pulse := recordFromAny(body["pulse"])
+	customerRequests := recordFromAny(body["customerRequests"])
+	if v, ok := asks["enabled"].(bool); ok {
+		current.Asks.Enabled = v
+	}
+	if v, ok := asks["intakeEmail"].(string); ok {
+		current.Asks.IntakeEmail = truncate(strings.TrimSpace(v), 120)
+	}
+	if v, ok := asks["defaultPriority"].(string); ok && validPriorityValue(v) {
+		current.Asks.DefaultPriority = v
+	}
+	if v, ok := asks["autoAssign"].(bool); ok {
+		current.Asks.AutoAssign = v
+	}
+	if v, ok := pulse["enabled"].(bool); ok {
+		current.Pulse.Enabled = v
+	}
+	if v, ok := pulse["digestFrequency"].(string); ok && validDigestFrequency(v) {
+		current.Pulse.DigestFrequency = v
+	}
+	if v, ok := pulse["burnoutAlerts"].(bool); ok {
+		current.Pulse.BurnoutAlerts = v
+	}
+	if value := positiveIntValue(pulse["velocityTarget"], 0, 500); value > 0 {
+		current.Pulse.VelocityTarget = value
+	}
+	if v, ok := customerRequests["enabled"].(bool); ok {
+		current.CustomerRequests.Enabled = v
+	}
+	if v, ok := customerRequests["intakeEmail"].(string); ok {
+		current.CustomerRequests.IntakeEmail = truncate(strings.TrimSpace(v), 120)
+	}
+	if v, ok := customerRequests["defaultPriority"].(string); ok && validPriorityValue(v) {
+		current.CustomerRequests.DefaultPriority = v
+	}
+	if v, ok := customerRequests["autoLinkIssues"].(bool); ok {
+		current.CustomerRequests.AutoLinkIssues = v
+	}
+	if v, ok := customerRequests["requireCompany"].(bool); ok {
+		current.CustomerRequests.RequireCompany = v
+	}
+	if v, ok := customerRequests["confirmationMessage"].(string); ok {
+		current.CustomerRequests.ConfirmationMessage = truncate(strings.TrimSpace(v), 240)
+	}
+	return map[string]any{"asks": current.Asks, "pulse": current.Pulse, "customerRequests": current.CustomerRequests}
+}
+
+func boolFromAny(value any, fallback bool) bool {
+	if v, ok := value.(bool); ok {
+		return v
+	}
+	return fallback
+}
+func positiveIntValue(value any, fallback int, max int) int {
+	n := intValue(value, fallback)
+	if n <= 0 {
+		return fallback
+	}
+	if max > 0 && n > max {
+		return fallback
+	}
+	return n
+}
+func nonEmptyString(value any, fallback string) string {
+	if s := strings.TrimSpace(asStringValue(value)); s != "" {
+		return s
+	}
+	return fallback
+}
+func priorityValue(value any, fallback string) string {
+	if s, ok := value.(string); ok && validPriorityValue(s) {
+		return s
+	}
+	return fallback
+}
+func validPriorityValue(value string) bool {
+	return value == "low" || value == "medium" || value == "high" || value == "urgent"
+}
+func digestFrequencyValue(value any, fallback string) string {
+	if s, ok := value.(string); ok && validDigestFrequency(s) {
+		return s
+	}
+	return fallback
+}
+func validDigestFrequency(value string) bool {
+	return value == "daily" || value == "weekly" || value == "off"
 }

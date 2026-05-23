@@ -69,3 +69,16 @@ func TestNormalizeWorkspaceDocuments(t *testing.T) {
 		t.Fatalf("documents = %#v", got)
 	}
 }
+
+func TestReadAndMergeCollaborationSettings(t *testing.T) {
+	settings := map[string]any{"collaboration": map[string]any{"asks": map[string]any{"enabled": true, "intakeEmail": "help@example.com"}, "pulse": map[string]any{"digestFrequency": "daily", "velocityTarget": float64(20)}}}
+	got := readCollaborationSettings(settings)
+	if !got.Asks.Enabled || got.Asks.DefaultPriority != "medium" || got.Pulse.VelocityTarget != 20 {
+		t.Fatalf("collaboration = %#v", got)
+	}
+	merged := mergeCollaborationSettings(settings, map[string]any{"asks": map[string]any{"defaultPriority": "urgent"}, "pulse": map[string]any{"velocityTarget": float64(55)}})
+	next := readCollaborationSettings(map[string]any{"collaboration": merged})
+	if next.Asks.DefaultPriority != "urgent" || next.Pulse.VelocityTarget != 55 {
+		t.Fatalf("merged = %#v", next)
+	}
+}

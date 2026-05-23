@@ -911,6 +911,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/workspaces/current/collaboration": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getCurrentWorkspaceCollaboration"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["updateCurrentWorkspaceCollaboration"];
+    trace?: never;
+  };
   "/workspaces/current/documents": {
     parameters: {
       query?: never;
@@ -1802,6 +1818,45 @@ export interface components {
     };
     WorkspaceImportPreviewResponse: {
       preview: components["schemas"]["WorkspaceImportPreviewRow"][];
+    };
+    CollaborationAsksSettings: {
+      enabled: boolean;
+      intakeEmail: string;
+      /** @enum {string} */
+      defaultPriority: "low" | "medium" | "high" | "urgent";
+      autoAssign: boolean;
+    };
+    CollaborationPulseSettings: {
+      enabled: boolean;
+      /** @enum {string} */
+      digestFrequency: "daily" | "weekly" | "off";
+      burnoutAlerts: boolean;
+      velocityTarget: number;
+    };
+    CollaborationCustomerRequestSettings: {
+      enabled: boolean;
+      intakeEmail: string;
+      /** @enum {string} */
+      defaultPriority: "low" | "medium" | "high" | "urgent";
+      autoLinkIssues: boolean;
+      requireCompany: boolean;
+      confirmationMessage: string;
+    };
+    WorkspaceCollaborationSettings: {
+      asks: components["schemas"]["CollaborationAsksSettings"];
+      pulse: components["schemas"]["CollaborationPulseSettings"];
+      customerRequests: components["schemas"]["CollaborationCustomerRequestSettings"];
+    };
+    WorkspaceCollaborationPermissions: {
+      canManage: boolean;
+      role: string;
+    };
+    WorkspaceCollaborationResponse: {
+      collaboration: components["schemas"]["WorkspaceCollaborationSettings"];
+      permissions: components["schemas"]["WorkspaceCollaborationPermissions"];
+    };
+    UpdateWorkspaceCollaborationRequest: {
+      [key: string]: unknown;
     };
     WorkspaceDocumentTemplate: {
       id: string;
@@ -4182,6 +4237,52 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CreateWorkspaceResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  getCurrentWorkspaceCollaboration: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current workspace collaboration settings */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceCollaborationResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateCurrentWorkspaceCollaboration: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateWorkspaceCollaborationRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated collaboration settings */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceCollaborationResponse"];
         };
       };
       default: components["responses"]["Problem"];
