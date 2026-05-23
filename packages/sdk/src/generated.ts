@@ -40,6 +40,24 @@ export interface paths {
     patch: operations["updateIssue"];
     trace?: never;
   };
+  "/teams": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List visible teams in the authenticated workspace */
+    get: operations["listTeams"];
+    put?: never;
+    /** Create a team with default workflow states */
+    post: operations["createTeam"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/workspaces": {
     parameters: {
       query?: never;
@@ -133,6 +151,37 @@ export interface components {
       title: string;
       status: number;
       detail?: string;
+    };
+    Team: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      key: string;
+      icon?: string | null;
+      isPrivate: boolean;
+      issueCount: number;
+      memberCount: number;
+      currentUserIsMember: boolean;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      retiredAt?: string | null;
+    };
+    TeamListResponse: {
+      /** Format: uuid */
+      workspaceId: string;
+      viewerRole: components["schemas"]["WorkspaceRole"];
+      canManageTeams: boolean;
+      teams: components["schemas"]["Team"][];
+    };
+    CreateTeamRequest: {
+      name: string;
+      key?: string;
+      isPrivate?: boolean;
+      icon?: string;
+    };
+    CreateTeamResponse: {
+      team: components["schemas"]["Team"];
     };
     /** @enum {string} */
     WorkspaceRole: "owner" | "admin" | "member" | "guest";
@@ -484,6 +533,52 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Issue"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listTeams: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Teams */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TeamListResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createTeam: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateTeamRequest"];
+      };
+    };
+    responses: {
+      /** @description Created team */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CreateTeamResponse"];
         };
       };
       default: components["responses"]["Problem"];

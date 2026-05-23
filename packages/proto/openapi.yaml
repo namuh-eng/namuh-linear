@@ -99,6 +99,37 @@ paths:
                   success: { type: boolean }
         default:
           $ref: '#/components/responses/Problem'
+  /teams:
+    get:
+      operationId: listTeams
+      summary: List visible teams in the authenticated workspace
+      responses:
+        '200':
+          description: Teams
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createTeam
+      summary: Create a team with default workflow states
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeamRequest'
+      responses:
+        '201':
+          description: Created team
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTeamResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /workspaces:
     get:
       operationId: listWorkspaces
@@ -308,6 +339,43 @@ components:
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
+    Team:
+      type: object
+      required: [id, name, key, isPrivate, issueCount, memberCount, currentUserIsMember, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        key: { type: string }
+        icon: { type: [string, 'null'] }
+        isPrivate: { type: boolean }
+        issueCount: { type: integer }
+        memberCount: { type: integer }
+        currentUserIsMember: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        retiredAt: { type: [string, 'null'], format: date-time }
+    TeamListResponse:
+      type: object
+      required: [workspaceId, viewerRole, canManageTeams, teams]
+      properties:
+        workspaceId: { type: string, format: uuid }
+        viewerRole: { $ref: '#/components/schemas/WorkspaceRole' }
+        canManageTeams: { type: boolean }
+        teams:
+          type: array
+          items: { $ref: '#/components/schemas/Team' }
+    CreateTeamRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        key: { type: string, maxLength: 10 }
+        isPrivate: { type: boolean }
+        icon: { type: string, maxLength: 16 }
+    CreateTeamResponse:
+      type: object
+      required: [team]
+      properties:
+        team: { $ref: '#/components/schemas/Team' }
     WorkspaceRole:
       type: string
       enum: [owner, admin, member, guest]
