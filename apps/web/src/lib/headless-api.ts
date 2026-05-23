@@ -49,6 +49,10 @@ export function headlessAgentRunsEnabled() {
   return process.env.EXPONENTIAL_HEADLESS_AGENT_RUNS === "true";
 }
 
+export function headlessProjectLabelsEnabled() {
+  return process.env.EXPONENTIAL_HEADLESS_PROJECT_LABELS === "true";
+}
+
 export function createHeadlessClient(token: string) {
   return createExponentialClient({
     baseUrl: process.env.EXPONENTIAL_API_URL ?? "http://localhost:3016/v1",
@@ -97,6 +101,10 @@ export function createHeadlessProjectUpdatesClient(token: string) {
 }
 
 export function createHeadlessAgentRunsClient(token: string) {
+  return createHeadlessClient(token);
+}
+
+export function createHeadlessProjectLabelsClient(token: string) {
   return createHeadlessClient(token);
 }
 

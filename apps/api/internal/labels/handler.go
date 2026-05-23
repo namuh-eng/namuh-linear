@@ -546,7 +546,7 @@ func (h Handler) UpdateProjectLabel(w http.ResponseWriter, r *http.Request) {
 		add("description=?", nullableTrim(input.Description))
 	}
 	args = append(args, id, p.WorkspaceID)
-	label, err := scanProjectLabel(h.DB.QueryRow(r.Context(), `update project_label set `+strings.Join(sets, ",")+` where id=$`+itoa(len(args)-1)+`::uuid and workspace_id=$`+itoa(len(args))+`::uuid returning id::text,name,color,description,0::int,created_at,updated_at`, args...))
+	label, err := scanProjectLabel(h.DB.QueryRow(r.Context(), `update project_label set `+strings.Join(sets, ",")+` where id=$`+itoa(len(args)-1)+`::uuid and workspace_id=$`+itoa(len(args))+`::uuid returning id::text,name,color,description,(select count(*)::int from project pr where pr.workspace_id=$`+itoa(len(args))+`::uuid and (pr.settings->'labelIds') ? project_label.id::text),created_at,updated_at`, args...))
 	if isUniqueViolation(err) {
 		problem.Write(w, 409, "A project label with this name already exists", "")
 		return
@@ -565,13 +565,51 @@ func (h Handler) UpdateProjectLabel(w http.ResponseWriter, r *http.Request) {
 func (h Handler) DeleteProjectLabel(w http.ResponseWriter, r *http.Request) {
 	p, _ := auth.FromContext(r.Context())
 	id := chi.URLParam(r, "id")
-	cmd, err := h.DB.Exec(r.Context(), `delete from project_label where id=$1::uuid and workspace_id=$2::uuid`, id, p.WorkspaceID)
+	tx, err := h.DB.Begin(r.Context())
+	if err != nil {
+		problem.Write(w, 500, "Delete project label failed", err.Error())
+		return
+	}
+	defer func() { _ = tx.Rollback(r.Context()) }()
+	var exists int
+	if err := tx.QueryRow(r.Context(), `select 1 from project_label where id=$1::uuid and workspace_id=$2::uuid`, id, p.WorkspaceID).Scan(&exists); errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "Project label not found", "")
+		return
+	} else if err != nil {
+		problem.Write(w, 500, "Delete project label failed", err.Error())
+		return
+	}
+	if _, err := tx.Exec(r.Context(), `
+		update project
+		set settings = jsonb_set(
+			coalesce(settings, '{}'::jsonb),
+			'{labelIds}',
+			coalesce(
+				(
+					select jsonb_agg(label_id)
+					from jsonb_array_elements(coalesce(settings->'labelIds', '[]'::jsonb)) as label_ids(label_id)
+					where label_id <> to_jsonb($1::text)
+				),
+				'[]'::jsonb
+			),
+			true
+		)
+		where workspace_id=$2::uuid
+		  and coalesce(settings->'labelIds', '[]'::jsonb) ? $1`, id, p.WorkspaceID); err != nil {
+		problem.Write(w, 500, "Delete project label failed", err.Error())
+		return
+	}
+	cmd, err := tx.Exec(r.Context(), `delete from project_label where id=$1::uuid and workspace_id=$2::uuid`, id, p.WorkspaceID)
 	if err != nil {
 		problem.Write(w, 500, "Delete project label failed", err.Error())
 		return
 	}
 	if cmd.RowsAffected() == 0 {
 		problem.Write(w, 404, "Project label not found", "")
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		problem.Write(w, 500, "Delete project label failed", err.Error())
 		return
 	}
 	problem.JSON(w, 200, map[string]bool{"success": true})
