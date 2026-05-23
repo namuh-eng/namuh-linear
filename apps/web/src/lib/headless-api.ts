@@ -93,6 +93,10 @@ export function headlessAnalyticsEnabled() {
   return process.env.EXPONENTIAL_HEADLESS_ANALYTICS === "true";
 }
 
+export function headlessTeamsEnabled() {
+  return process.env.EXPONENTIAL_HEADLESS_TEAMS === "true";
+}
+
 export function createHeadlessClient(token: string) {
   return createExponentialClient({
     baseUrl: process.env.EXPONENTIAL_API_URL ?? "http://localhost:3016/v1",
@@ -185,6 +189,10 @@ export function createHeadlessIntegrationsClient(token: string) {
 }
 
 export function createHeadlessAnalyticsClient(token: string) {
+  return createHeadlessClient(token);
+}
+
+export function createHeadlessTeamsClient(token: string) {
   return createHeadlessClient(token);
 }
 
