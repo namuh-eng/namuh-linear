@@ -315,6 +315,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/agent/runs/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["updateAgentRunSuggestion"];
+    trace?: never;
+  };
   "/analytics": {
     parameters: {
       query?: never;
@@ -1785,6 +1803,11 @@ export interface components {
       prompt: string;
       teamKey?: string;
       context?: string;
+    };
+    UpdateAgentRunSuggestionRequest: {
+      suggestionId: string;
+      /** @enum {string} */
+      status: "accepted" | "declined";
     };
     AuthProviderCapabilitiesResponse: {
       providers: {
@@ -4270,6 +4293,33 @@ export interface operations {
     responses: {
       /** @description Created agent run */
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentRunResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateAgentRunSuggestion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateAgentRunSuggestionRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated agent run */
+      200: {
         headers: {
           [name: string]: unknown;
         };

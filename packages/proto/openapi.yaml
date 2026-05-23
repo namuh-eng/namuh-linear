@@ -505,6 +505,29 @@ paths:
                 $ref: '#/components/schemas/AgentRunResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /agent/runs/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updateAgentRunSuggestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentRunSuggestionRequest'
+      responses:
+        '200':
+          description: Updated agent run
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /analytics:
     get:
       operationId: analyticsNamespace
@@ -2824,6 +2847,12 @@ components:
         prompt: { type: string }
         teamKey: { type: string }
         context: { type: string }
+    UpdateAgentRunSuggestionRequest:
+      type: object
+      required: [suggestionId, status]
+      properties:
+        suggestionId: { type: string }
+        status: { type: string, enum: [accepted, declined] }
     AuthProviderCapabilitiesResponse:
       type: object
       required: [providers, workspace]

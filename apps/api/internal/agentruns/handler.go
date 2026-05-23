@@ -76,6 +76,7 @@ func (h Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.List)
 	r.Post("/", h.Create)
+	r.Patch("/{id}", h.UpdateSuggestion)
 	return r
 }
 
@@ -139,6 +140,27 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 	owner := h.ownerName(r, p.UserID)
 	run := createRun(p.WorkspaceID, input, owner, guidance)
 	problem.JSON(w, 201, runResponse{Run: run})
+}
+
+func (h Handler) UpdateSuggestion(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	var raw map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		problem.JSON(w, 400, map[string]string{"error": "Invalid JSON"})
+		return
+	}
+	suggestionID := trim(raw["suggestionId"])
+	status := trim(raw["status"])
+	if suggestionID == "" || (status != "accepted" && status != "declined") {
+		problem.JSON(w, 400, map[string]string{"error": "Invalid suggestion action"})
+		return
+	}
+	run, ok := updateSuggestion(p.WorkspaceID, chi.URLParam(r, "id"), suggestionID, status)
+	if !ok {
+		problem.JSON(w, 404, map[string]string{"error": "Agent run not found"})
+		return
+	}
+	problem.JSON(w, 200, runResponse{Run: run})
 }
 
 func (h Handler) capability(r *http.Request, p auth.Principal) (capability, error) {
@@ -225,6 +247,34 @@ func createRun(workspaceID string, input request, owner string, guidance Guidanc
 	runsByWorkspace[workspaceID] = append([]Run{run}, runs...)
 	return cloneRun(run)
 }
+
+func updateSuggestion(workspaceID, runID, suggestionID, status string) (Run, bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	ensureSeed(workspaceID)
+	runs := runsByWorkspace[workspaceID]
+	for runIndex := range runs {
+		if runs[runIndex].ID != runID {
+			continue
+		}
+		found := false
+		for suggestionIndex := range runs[runIndex].Suggestions {
+			if runs[runIndex].Suggestions[suggestionIndex].ID == suggestionID {
+				runs[runIndex].Suggestions[suggestionIndex].Status = status
+				found = true
+				break
+			}
+		}
+		if !found {
+			return Run{}, false
+		}
+		runs[runIndex].UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+		runs[runIndex].Logs = append(runs[runIndex].Logs, "Suggestion "+suggestionID+" marked "+status+".")
+		return cloneRun(runs[runIndex]), true
+	}
+	return Run{}, false
+}
+
 func ensureSeed(workspaceID string) {
 	if _, ok := runsByWorkspace[workspaceID]; ok {
 		return

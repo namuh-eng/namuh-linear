@@ -4,6 +4,11 @@ import {
   updateAgentSuggestion,
 } from "@/lib/agent-runs";
 import { requireApiSession } from "@/lib/api-auth";
+import {
+  createHeadlessAgentRunsClient,
+  headlessAgentRunsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { NextResponse } from "next/server";
 
 const suggestionStatuses = new Set(["accepted", "declined"]);
@@ -20,6 +25,31 @@ export async function PATCH(
   const workspaceId = await resolveActiveWorkspaceId(session.user.id);
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
+  }
+
+  if (headlessAgentRunsEnabled()) {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+    const { id } = await params;
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessAgentRunsClient(token);
+    const { data, error, response } = await client.PATCH("/agent/runs/{id}", {
+      params: { path: { id } },
+      body: body as never,
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   let body: Record<string, unknown>;
