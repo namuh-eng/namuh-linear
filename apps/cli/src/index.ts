@@ -111,6 +111,19 @@ async function main() {
     return;
   }
 
+  if (action === "search") {
+    const { data, error, response } = await client.GET("/issues/search", {
+      params: {
+        query: {
+          q: requireOption(args, "query"),
+          workspaceId: readOption(args, "workspace-id"),
+        },
+      },
+    });
+    printResult(data, error, response.status);
+    return;
+  }
+
   if (action === "get") {
     const id = requireOption(args, "id");
     const { data, error, response } = await client.GET("/issues/{id}", {
@@ -840,6 +853,7 @@ function readJSONOption(args: string[], name: string) {
 function usage(): never {
   console.error(`Usage:
   exponential issues list [--team-id <uuid>] [--cursor <cursor>] [--limit <n>]
+  exponential issues search --query <text> [--workspace-id <uuid>]
   exponential issues get --id <id-or-identifier>
   exponential issues create --title <title> --team-id <uuid> [--idempotency-key <key>]
   exponential issues update --id <id-or-identifier> [--title <title>] [--state-id <uuid>]

@@ -83,10 +83,24 @@ type updateRequest struct {
 	Archive            *bool    `json:"archive"`
 }
 
+type SearchResult struct {
+	ID            string  `json:"id"`
+	Identifier    string  `json:"identifier"`
+	Title         string  `json:"title"`
+	Priority      string  `json:"priority"`
+	StateName     string  `json:"stateName"`
+	StateCategory string  `json:"stateCategory"`
+	StateColor    string  `json:"stateColor"`
+	AssigneeName  *string `json:"assigneeName"`
+	AssigneeImage *string `json:"assigneeImage"`
+	CreatedAt     string  `json:"createdAt"`
+}
+
 func (h Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.List)
 	r.Post("/", h.Create)
+	r.Get("/search", h.Search)
 	r.Get("/{id}", h.Get)
 	r.Patch("/{id}", h.Update)
 	r.Delete("/{id}", h.Delete)
@@ -136,6 +150,62 @@ func (h Handler) List(w http.ResponseWriter, r *http.Request) {
 	problem.JSON(w, http.StatusOK, listResponse{Data: issues, NextCursor: next})
 }
 
+func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if query == "" {
+		problem.JSON(w, http.StatusOK, []SearchResult{})
+		return
+	}
+	workspaceID := p.WorkspaceID
+	requestedWorkspaceID := strings.TrimSpace(r.URL.Query().Get("workspaceId"))
+	if requestedWorkspaceID != "" {
+		ok, err := h.userInWorkspace(r.Context(), p.UserID, requestedWorkspaceID)
+		if err != nil {
+			problem.Write(w, 500, "Search issues failed", err.Error())
+			return
+		}
+		if !ok {
+			problem.JSON(w, http.StatusOK, []SearchResult{})
+			return
+		}
+		workspaceID = requestedWorkspaceID
+	}
+	rows, err := h.DB.Query(r.Context(), `
+		select i.id::text, i.identifier, i.title, i.priority::text, ws.name, ws.category::text, ws.color, u.name, u.image, i.created_at
+		from issue i
+		join team t on t.id=i.team_id
+		join workflow_state ws on ws.id=i.state_id
+		left join "user" u on u.id=i.assignee_id
+		where t.workspace_id=$1::uuid
+		  and t.deleted_at is null
+		  and i.archived_at is null
+		  and (i.title ilike $2 or i.identifier ilike $2)
+		order by i.created_at desc
+		limit 10`, workspaceID, "%"+escapeLike(query)+"%")
+	if err != nil {
+		problem.Write(w, 500, "Search issues failed", err.Error())
+		return
+	}
+	defer rows.Close()
+	results := []SearchResult{}
+	for rows.Next() {
+		var result SearchResult
+		var createdAt time.Time
+		if err := rows.Scan(&result.ID, &result.Identifier, &result.Title, &result.Priority, &result.StateName, &result.StateCategory, &result.StateColor, &result.AssigneeName, &result.AssigneeImage, &createdAt); err != nil {
+			problem.Write(w, 500, "Search issues failed", err.Error())
+			return
+		}
+		result.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+		results = append(results, result)
+	}
+	if err := rows.Err(); err != nil {
+		problem.Write(w, 500, "Search issues failed", err.Error())
+		return
+	}
+	problem.JSON(w, http.StatusOK, results)
+}
+
 func (h Handler) Get(w http.ResponseWriter, r *http.Request) {
 	p, _ := auth.FromContext(r.Context())
 	issue, err := h.findIssue(r.Context(), chi.URLParam(r, "id"), p.WorkspaceID)
@@ -148,6 +218,15 @@ func (h Handler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	problem.JSON(w, http.StatusOK, issue)
+}
+
+func (h Handler) userInWorkspace(ctx context.Context, userID, workspaceID string) (bool, error) {
+	var one int
+	err := h.DB.QueryRow(ctx, `select 1 from member where user_id=$1 and workspace_id=$2::uuid limit 1`, userID, workspaceID).Scan(&one)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -464,6 +543,12 @@ func valueOrEmpty(value *string) string {
 		return ""
 	}
 	return *value
+}
+func escapeLike(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `%`, `\%`)
+	value = strings.ReplaceAll(value, `_`, `\_`)
+	return value
 }
 func parseDate(value *string) (*time.Time, error) {
 	if value == nil || strings.TrimSpace(*value) == "" {

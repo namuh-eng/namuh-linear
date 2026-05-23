@@ -76,6 +76,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/issues/search": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["searchIssues"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/issue-templates": {
     parameters: {
       query?: never;
@@ -1490,6 +1506,20 @@ export interface components {
       settings?: components["schemas"]["IssueTemplateSettings"];
       archived?: boolean;
     };
+    IssueSearchResult: {
+      /** Format: uuid */
+      id: string;
+      identifier: string;
+      title: string;
+      priority: components["schemas"]["IssuePriority"];
+      stateName: string;
+      stateCategory: string;
+      stateColor: string;
+      assigneeName: string | null;
+      assigneeImage: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
     CreateIssueRequest: {
       title: string;
       description?: string | null;
@@ -1762,6 +1792,30 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ReactionSummaryList"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  searchIssues: {
+    parameters: {
+      query?: {
+        q?: string;
+        workspaceId?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Issue search results */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssueSearchResult"][];
         };
       };
       default: components["responses"]["Problem"];

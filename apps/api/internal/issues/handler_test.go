@@ -39,3 +39,9 @@ func TestValidPriority(t *testing.T) {
 		t.Fatal("p0 should be invalid")
 	}
 }
+
+func TestEscapeLike(t *testing.T) {
+	if got := escapeLike(`ENG_%\`); got != `ENG\_\%\\` {
+		t.Fatalf("escaped pattern = %q", got)
+	}
+}

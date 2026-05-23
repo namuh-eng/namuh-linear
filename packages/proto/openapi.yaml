@@ -162,6 +162,26 @@ paths:
                 $ref: '#/components/schemas/ReactionSummaryList'
         default:
           $ref: '#/components/responses/Problem'
+  /issues/search:
+    get:
+      operationId: searchIssues
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: workspaceId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Issue search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/IssueSearchResult' }
+        default:
+          $ref: '#/components/responses/Problem'
   /issue-templates:
     get:
       operationId: listIssueTemplates
@@ -2184,6 +2204,20 @@ components:
         description: { type: string }
         settings: { $ref: '#/components/schemas/IssueTemplateSettings' }
         archived: { type: boolean }
+    IssueSearchResult:
+      type: object
+      required: [id, identifier, title, priority, stateName, stateCategory, stateColor, assigneeName, assigneeImage, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        identifier: { type: string }
+        title: { type: string }
+        priority: { $ref: '#/components/schemas/IssuePriority' }
+        stateName: { type: string }
+        stateCategory: { type: string }
+        stateColor: { type: string }
+        assigneeName: { type: [string, 'null'] }
+        assigneeImage: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
     CreateIssueRequest:
       type: object
       required: [title, team_id]
