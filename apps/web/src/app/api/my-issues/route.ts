@@ -10,6 +10,11 @@ import {
   user,
   workflowState,
 } from "@/lib/db/schema";
+import {
+  createHeadlessMyIssuesClient,
+  headlessMyIssuesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { getLabelsForIssues } from "@/lib/issue-labels";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -22,7 +27,11 @@ export async function GET(request: Request) {
 
   const userId = session.user.id;
   const url = new URL(request.url);
-  const tab = url.searchParams.get("tab") ?? "assigned";
+  const rawTab = url.searchParams.get("tab") ?? "assigned";
+  const tab =
+    rawTab === "created" || rawTab === "subscribed" || rawTab === "activity"
+      ? rawTab
+      : "assigned";
 
   // Get user's workspace
   const memberships = await db
@@ -37,6 +46,23 @@ export async function GET(request: Request) {
   }
 
   const workspaceId = memberships[0].workspaceId;
+
+  if (headlessMyIssuesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessMyIssuesClient(token);
+    const { data, error, response } = await client.GET("/my-issues", {
+      params: { query: { tab } },
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
 
   // Get all teams in workspace
   const teams = await db

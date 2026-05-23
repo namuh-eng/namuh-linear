@@ -11,6 +11,10 @@ export function headlessViewsEnabled() {
   return process.env.EXPONENTIAL_HEADLESS_VIEWS === "true";
 }
 
+export function headlessMyIssuesEnabled() {
+  return process.env.EXPONENTIAL_HEADLESS_MY_ISSUES === "true";
+}
+
 export function createHeadlessClient(token: string) {
   return createExponentialClient({
     baseUrl: process.env.EXPONENTIAL_API_URL ?? "http://localhost:3016/v1",
@@ -23,6 +27,10 @@ export function createHeadlessIssuesClient(token: string) {
 }
 
 export function createHeadlessViewsClient(token: string) {
+  return createHeadlessClient(token);
+}
+
+export function createHeadlessMyIssuesClient(token: string) {
   return createHeadlessClient(token);
 }
 
