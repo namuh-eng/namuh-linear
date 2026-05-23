@@ -394,6 +394,25 @@ paths:
                 $ref: '#/components/schemas/AccountPreferencesResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /analytics:
+    get:
+      operationId: analyticsNamespace
+      summary: Analytics route namespace; concrete resources are under /analytics/workspace.
+      responses:
+        default:
+          $ref: '#/components/responses/Problem'
+  /analytics/workspace:
+    get:
+      operationId: getWorkspaceAnalytics
+      responses:
+        '200':
+          description: Workspace analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceAnalyticsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /comments/{id}:
     parameters:
       - name: id
@@ -1599,6 +1618,32 @@ components:
         accountPreferences:
           type: object
           additionalProperties: true
+    AnalyticsCompletedTeamCount:
+      type: object
+      required: [teamId, teamName, completedCount]
+      properties:
+        teamId: { type: string, format: uuid }
+        teamName: { type: string }
+        completedCount: { type: integer }
+    AnalyticsActiveTeamCount:
+      type: object
+      required: [teamId, teamName, activeCount]
+      properties:
+        teamId: { type: string, format: uuid }
+        teamName: { type: string }
+        activeCount: { type: integer }
+    WorkspaceAnalyticsResponse:
+      type: object
+      required: [workspaceId, completedLast30Days, activeIssues, period]
+      properties:
+        workspaceId: { type: string, format: uuid }
+        completedLast30Days:
+          type: array
+          items: { $ref: '#/components/schemas/AnalyticsCompletedTeamCount' }
+        activeIssues:
+          type: array
+          items: { $ref: '#/components/schemas/AnalyticsActiveTeamCount' }
+        period: { type: string }
     CommentUser:
       type: object
       required: [name]

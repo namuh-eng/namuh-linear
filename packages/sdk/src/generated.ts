@@ -225,6 +225,39 @@ export interface paths {
     patch: operations["updateAccountPreferences"];
     trace?: never;
   };
+  "/analytics": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Analytics route namespace; concrete resources are under /analytics/workspace. */
+    get: operations["analyticsNamespace"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/analytics/workspace": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getWorkspaceAnalytics"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/comments/{id}": {
     parameters: {
       query?: never;
@@ -974,6 +1007,25 @@ export interface components {
       accountPreferences: {
         [key: string]: unknown;
       };
+    };
+    AnalyticsCompletedTeamCount: {
+      /** Format: uuid */
+      teamId: string;
+      teamName: string;
+      completedCount: number;
+    };
+    AnalyticsActiveTeamCount: {
+      /** Format: uuid */
+      teamId: string;
+      teamName: string;
+      activeCount: number;
+    };
+    WorkspaceAnalyticsResponse: {
+      /** Format: uuid */
+      workspaceId: string;
+      completedLast30Days: components["schemas"]["AnalyticsCompletedTeamCount"][];
+      activeIssues: components["schemas"]["AnalyticsActiveTeamCount"][];
+      period: string;
     };
     CommentUser: {
       name: string;
@@ -2473,6 +2525,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AccountPreferencesResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  analyticsNamespace: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      default: components["responses"]["Problem"];
+    };
+  };
+  getWorkspaceAnalytics: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Workspace analytics */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceAnalyticsResponse"];
         };
       };
       default: components["responses"]["Problem"];
