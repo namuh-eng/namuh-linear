@@ -2,10 +2,13 @@ package notifications
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/namuh-eng/exponential/apps/api/internal/auth"
 	"github.com/namuh-eng/exponential/apps/api/internal/problem"
@@ -39,10 +42,29 @@ type bulkReadResponse struct {
 	UnreadCount  int32 `json:"unreadCount"`
 }
 
+type notificationActionResponse struct {
+	Success      bool                    `json:"success"`
+	UnreadCount  int32                   `json:"unreadCount"`
+	Notification *notificationSnoozeInfo `json:"notification,omitempty"`
+}
+
+type notificationSnoozeInfo struct {
+	ID             string  `json:"id"`
+	SnoozedUntilAt *string `json:"snoozedUntilAt"`
+	UnsnoozedAt    *string `json:"unsnoozedAt"`
+}
+
+type snoozeRequest struct {
+	SnoozedUntilAt *string `json:"snoozedUntilAt"`
+}
+
 func (h Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.List)
 	r.Patch("/bulk-read", h.BulkRead)
+	r.Patch("/{id}/read", h.MarkRead)
+	r.Patch("/{id}/unread", h.MarkUnread)
+	r.Patch("/{id}/snooze", h.Snooze)
 	return r
 }
 
@@ -93,6 +115,69 @@ func (h Handler) BulkRead(w http.ResponseWriter, r *http.Request) {
 	problem.JSON(w, 200, bulkReadResponse{Success: true, UpdatedCount: cmd.RowsAffected(), UnreadCount: count})
 }
 
+func (h Handler) MarkRead(w http.ResponseWriter, r *http.Request) {
+	h.updateReadState(w, r, true)
+}
+
+func (h Handler) MarkUnread(w http.ResponseWriter, r *http.Request) {
+	h.updateReadState(w, r, false)
+}
+
+func (h Handler) updateReadState(w http.ResponseWriter, r *http.Request, read bool) {
+	p, _ := auth.FromContext(r.Context())
+	var err error
+	if read {
+		err = h.DB.QueryRow(r.Context(), `update notification set read_at=now() where id=$1::uuid and user_id=$2 returning id`, chi.URLParam(r, "id"), p.UserID).Scan(new(string))
+	} else {
+		err = h.DB.QueryRow(r.Context(), `update notification set read_at=null where id=$1::uuid and user_id=$2 returning id`, chi.URLParam(r, "id"), p.UserID).Scan(new(string))
+	}
+	if err != nil {
+		writeNotificationUpdateErr(w, err)
+		return
+	}
+	count, err := h.unreadCount(r.Context(), p.UserID)
+	if err != nil {
+		problem.Write(w, 500, "Update notification failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, notificationActionResponse{Success: true, UnreadCount: count})
+}
+
+func (h Handler) Snooze(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	var input snoozeRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		problem.Write(w, 400, "Invalid JSON", err.Error())
+		return
+	}
+	var snoozeDate *time.Time
+	if input.SnoozedUntilAt != nil && *input.SnoozedUntilAt != "" {
+		parsed, err := time.Parse(time.RFC3339, *input.SnoozedUntilAt)
+		if err != nil {
+			problem.Write(w, 400, "snoozedUntilAt must be a valid ISO date or null", "")
+			return
+		}
+		snoozeDate = &parsed
+	}
+	var id string
+	var snoozed, unsnoozed *time.Time
+	err := h.DB.QueryRow(r.Context(), `
+		update notification
+		set snoozed_until_at=$1, unsnoozed_at=case when $1::timestamptz is null then now() else null end
+		where id=$2::uuid and user_id=$3
+		returning id::text, snoozed_until_at, unsnoozed_at`, snoozeDate, chi.URLParam(r, "id"), p.UserID).Scan(&id, &snoozed, &unsnoozed)
+	if err != nil {
+		writeNotificationUpdateErr(w, err)
+		return
+	}
+	count, err := h.unreadCount(r.Context(), p.UserID)
+	if err != nil {
+		problem.Write(w, 500, "Snooze notification failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, notificationActionResponse{Success: true, UnreadCount: count, Notification: &notificationSnoozeInfo{ID: id, SnoozedUntilAt: formatTime(snoozed), UnsnoozedAt: formatTime(unsnoozed)}})
+}
+
 type scanner interface{ Scan(dest ...any) error }
 
 func scanNotification(row scanner) (Notification, error) {
@@ -121,4 +206,12 @@ func formatTime(t *time.Time) *string {
 	}
 	v := t.UTC().Format(time.RFC3339Nano)
 	return &v
+}
+
+func writeNotificationUpdateErr(w http.ResponseWriter, err error) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "Notification not found", "")
+		return
+	}
+	problem.Write(w, 500, "Update notification failed", err.Error())
 }

@@ -318,6 +318,39 @@ async function notificationCommand() {
     return;
   }
 
+  if (action === "read") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.PATCH(
+      "/notifications/{id}/read",
+      { params: { path: { id } } },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "unread") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.PATCH(
+      "/notifications/{id}/unread",
+      { params: { path: { id } } },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "snooze") {
+    const id = requireOption(args, "id");
+    const { data, error, response } = await client.PATCH(
+      "/notifications/{id}/snooze",
+      {
+        params: { path: { id } },
+        body: { snoozedUntilAt: readOption(args, "until") ?? null },
+      },
+    );
+    printResult(data, error, response.status);
+    return;
+  }
+
   usage();
 }
 
@@ -1003,6 +1036,9 @@ function usage(): never {
   exponential account preferences
   exponential notifications list
   exponential notifications mark-read
+  exponential notifications read --id <uuid>
+  exponential notifications unread --id <uuid>
+  exponential notifications snooze --id <uuid> [--until ISO_DATE]
   exponential favorites list
   exponential favorites add --object-type project|issue|view --object-id <id>
   exponential favorites reorder --ordered-ids project:id,issue:id

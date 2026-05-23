@@ -479,6 +479,60 @@ export interface paths {
     patch: operations["markNotificationsRead"];
     trace?: never;
   };
+  "/notifications/{id}/read": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["markNotificationRead"];
+    trace?: never;
+  };
+  "/notifications/{id}/unread": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["markNotificationUnread"];
+    trace?: never;
+  };
+  "/notifications/{id}/snooze": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["snoozeNotification"];
+    trace?: never;
+  };
   "/personal-access-tokens": {
     parameters: {
       query?: never;
@@ -1120,6 +1174,23 @@ export interface components {
       success: boolean;
       updatedCount: number;
       unreadCount: number;
+    };
+    NotificationSnoozeInfo: {
+      /** Format: uuid */
+      id: string;
+      /** Format: date-time */
+      snoozedUntilAt: string | null;
+      /** Format: date-time */
+      unsnoozedAt: string | null;
+    };
+    NotificationActionResponse: {
+      success: boolean;
+      unreadCount: number;
+      notification?: components["schemas"]["NotificationSnoozeInfo"] | null;
+    };
+    SnoozeNotificationRequest: {
+      /** Format: date-time */
+      snoozedUntilAt?: string | null;
     };
     PersonalAccessToken: {
       /** Format: uuid */
@@ -2873,6 +2944,79 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["BulkReadNotificationsResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  markNotificationRead: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Notification read result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NotificationActionResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  markNotificationUnread: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Notification unread result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NotificationActionResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  snoozeNotification: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SnoozeNotificationRequest"];
+      };
+    };
+    responses: {
+      /** @description Notification snooze result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NotificationActionResponse"];
         };
       };
       default: components["responses"]["Problem"];

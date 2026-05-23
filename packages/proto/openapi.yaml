@@ -781,6 +781,63 @@ paths:
                 $ref: '#/components/schemas/BulkReadNotificationsResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /notifications/{id}/read:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: markNotificationRead
+      responses:
+        '200':
+          description: Notification read result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationActionResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /notifications/{id}/unread:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: markNotificationUnread
+      responses:
+        '200':
+          description: Notification unread result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationActionResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /notifications/{id}/snooze:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: snoozeNotification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnoozeNotificationRequest'
+      responses:
+        '200':
+          description: Notification snooze result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationActionResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /personal-access-tokens:
     get:
       operationId: listPersonalAccessTokens
@@ -1755,6 +1812,27 @@ components:
         success: { type: boolean }
         updatedCount: { type: integer }
         unreadCount: { type: integer }
+    NotificationSnoozeInfo:
+      type: object
+      required: [id, snoozedUntilAt, unsnoozedAt]
+      properties:
+        id: { type: string, format: uuid }
+        snoozedUntilAt: { type: [string, 'null'], format: date-time }
+        unsnoozedAt: { type: [string, 'null'], format: date-time }
+    NotificationActionResponse:
+      type: object
+      required: [success, unreadCount]
+      properties:
+        success: { type: boolean }
+        unreadCount: { type: integer }
+        notification:
+          anyOf:
+            - $ref: '#/components/schemas/NotificationSnoozeInfo'
+            - type: 'null'
+    SnoozeNotificationRequest:
+      type: object
+      properties:
+        snoozedUntilAt: { type: [string, 'null'], format: date-time }
     PersonalAccessToken:
       type: object
       required: [id, name, token_prefix, scopes, created_at]
