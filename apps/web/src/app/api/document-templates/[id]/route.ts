@@ -6,6 +6,11 @@ import {
   persistDocumentSettings,
   readDocumentSettings,
 } from "@/lib/document-settings";
+import {
+  createHeadlessDocumentsClient,
+  headlessDocumentsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { NextResponse } from "next/server";
 
 export async function PATCH(
@@ -36,6 +41,26 @@ export async function PATCH(
   const body = await request.json().catch(() => null);
   if (!body)
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+
+  if (headlessDocumentsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: access.id,
+    });
+    const client = createHeadlessDocumentsClient(token);
+    const { data, error, response } = await client.PATCH(
+      "/document-templates/{id}",
+      {
+        params: { path: { id } },
+        body: body as never,
+      },
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
 
   let input: ReturnType<typeof parseTemplateInput>;
   try {
@@ -80,6 +105,26 @@ export async function DELETE(
 
   const documents = readDocumentSettings(access.settings);
   const { id } = await params;
+
+  if (headlessDocumentsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: access.id,
+    });
+    const client = createHeadlessDocumentsClient(token);
+    const { data, error, response } = await client.DELETE(
+      "/document-templates/{id}",
+      {
+        params: { path: { id } },
+      },
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const exists = documents.templates.some((template) => template.id === id);
   if (!exists) {
     return NextResponse.json({ error: "Template not found" }, { status: 404 });

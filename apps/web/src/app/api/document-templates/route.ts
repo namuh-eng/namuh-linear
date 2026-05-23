@@ -7,6 +7,11 @@ import {
   persistDocumentSettings,
   readDocumentSettings,
 } from "@/lib/document-settings";
+import {
+  createHeadlessDocumentsClient,
+  headlessDocumentsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -27,6 +32,22 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   if (!body)
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+
+  if (headlessDocumentsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: access.id,
+    });
+    const client = createHeadlessDocumentsClient(token);
+    const { data, error, response } = await client.POST("/document-templates", {
+      body: body as never,
+    });
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
 
   let input: ReturnType<typeof parseTemplateInput>;
   try {
