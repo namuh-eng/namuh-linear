@@ -7,7 +7,8 @@
   "types": "src/index.ts",
   "scripts": {
     "generate": "openapi-typescript ../proto/openapi.yaml -o src/generated.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "openapi-fetch": "^0.15.0"
@@ -15,6 +16,7 @@
   "devDependencies": {
     "openapi-typescript": "^7.10.1",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "@types/node": "^20.17.0"
   }
 }

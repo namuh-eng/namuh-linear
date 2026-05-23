@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { createExponentialClient } from "./index";
+import { createExponentialClient } from "./index.js";
 
 describe("createExponentialClient", () => {
   it("attaches bearer auth", async () => {
     let authorization: string | null = null;
     const client = createExponentialClient({
       token: "lin_api_test",
-      fetch: async (request) => {
+      fetch: async (request: RequestInfo | URL) => {
         authorization = new Request(request).headers.get("authorization");
         return new Response(JSON.stringify({ data: [] }), {
           status: 200,

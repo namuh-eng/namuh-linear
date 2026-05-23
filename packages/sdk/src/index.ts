@@ -25,3 +25,9 @@ export function createExponentialClient(options: {
 }
 
 export type { components, paths } from "./generated.js";
+
+export {
+  syncWebSocketUrl,
+  type SyncMessage,
+  type SyncOperation,
+} from "./sync.js";
