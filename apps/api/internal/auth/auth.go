@@ -33,7 +33,7 @@ type Middleware struct {
 
 func (m Middleware) Require(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		principal, err := m.authenticate(r.Context(), r.Header)
+		principal, err := m.authenticate(r.Context(), r)
 		if err != nil {
 			problem.Write(w, http.StatusUnauthorized, "Unauthorized", err.Error())
 			return
@@ -42,13 +42,20 @@ func (m Middleware) Require(next http.Handler) http.Handler {
 	})
 }
 
-func (m Middleware) authenticate(ctx context.Context, headers http.Header) (Principal, error) {
-	authorization := strings.TrimSpace(headers.Get("Authorization"))
+func bearerToken(r *http.Request) string {
+	authorization := strings.TrimSpace(r.Header.Get("Authorization"))
 	parts := strings.Fields(authorization)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+		return parts[1]
+	}
+	return strings.TrimSpace(r.URL.Query().Get("access_token"))
+}
+
+func (m Middleware) authenticate(ctx context.Context, r *http.Request) (Principal, error) {
+	token := bearerToken(r)
+	if token == "" {
 		return Principal{}, errUnauthorized("missing bearer token")
 	}
-	token := parts[1]
 	if !(strings.HasPrefix(token, "lin_api_") || strings.HasPrefix(token, "pat_")) {
 		return Principal{}, errUnauthorized("unsupported token prefix")
 	}
