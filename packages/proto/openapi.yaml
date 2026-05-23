@@ -99,6 +99,23 @@ paths:
                   success: { type: boolean }
         default:
           $ref: '#/components/responses/Problem'
+  /sync/ws:
+    get:
+      operationId: watchSync
+      summary: Open a workspace sync WebSocket and replay operations after a version
+      parameters:
+        - name: version
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: access_token
+          in: query
+          description: Browser/CLI WebSocket auth fallback when Authorization headers are unavailable.
+          schema: { type: string }
+      responses:
+        '101':
+          description: WebSocket protocol switch
+        default:
+          $ref: '#/components/responses/Problem'
 components:
   securitySchemes:
     bearerAuth:

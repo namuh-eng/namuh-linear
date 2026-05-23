@@ -20,7 +20,7 @@ for (const file of routerFiles) {
   }
 }
 
-const required = [...mountedRoutes].filter((route) => route !== "/v1/sync/ws");
+const required = [...mountedRoutes];
 const missing = required.filter((route) => {
   const specPath = route.replace(/^\/v1/, "");
   return !openapi.includes(`${specPath}:`);
