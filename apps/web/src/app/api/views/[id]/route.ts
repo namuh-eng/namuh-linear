@@ -2,6 +2,11 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { customView, team, user } from "@/lib/db/schema";
+import {
+  createHeadlessViewsClient,
+  headlessViewsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { normalizeViewFilterState } from "@/lib/views";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -114,6 +119,23 @@ export async function GET(
   }
 
   const { id } = await params;
+  if (headlessViewsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessViewsClient(token);
+    const { data, error, response } = await client.GET("/views/{id}", {
+      params: { path: { id } },
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const view = await getScopedView(id, workspaceId);
   if (!view) {
     return NextResponse.json({ error: "View not found" }, { status: 404 });
@@ -137,12 +159,30 @@ export async function PATCH(
   }
 
   const { id } = await params;
+  const body = await request.json();
+  if (headlessViewsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessViewsClient(token);
+    const { data, error, response } = await client.PATCH("/views/{id}", {
+      params: { path: { id } },
+      body,
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const existing = await getScopedView(id, workspaceId);
   if (!existing) {
     return NextResponse.json({ error: "View not found" }, { status: 404 });
   }
 
-  const body = await request.json();
   const selectedTeam =
     body.teamId === undefined
       ? await getWorkspaceTeam(workspaceId, existing.teamId)
@@ -213,6 +253,23 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  if (headlessViewsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessViewsClient(token);
+    const { data, error, response } = await client.DELETE("/views/{id}", {
+      params: { path: { id } },
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const existing = await getScopedView(id, workspaceId);
   if (!existing) {
     return NextResponse.json({ error: "View not found" }, { status: 404 });

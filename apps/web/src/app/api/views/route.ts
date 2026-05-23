@@ -2,6 +2,11 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { customView, team, user } from "@/lib/db/schema";
+import {
+  createHeadlessViewsClient,
+  headlessViewsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { normalizeViewFilterState } from "@/lib/views";
 import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -85,6 +90,21 @@ export async function GET() {
     return NextResponse.json({ views: [], teams: [] });
   }
 
+  if (headlessViewsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessViewsClient(token);
+    const { data, error, response } = await client.GET("/views");
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const views = await db
     .select({
       id: customView.id,
@@ -130,6 +150,23 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
+
+  if (headlessViewsEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessViewsClient(token);
+    const { data, error, response } = await client.POST("/views", {
+      body,
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
 
   const {
     name,

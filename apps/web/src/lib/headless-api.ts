@@ -7,11 +7,23 @@ export function headlessIssuesEnabled() {
   return process.env.EXPONENTIAL_HEADLESS_ISSUES === "true";
 }
 
-export function createHeadlessIssuesClient(token: string) {
+export function headlessViewsEnabled() {
+  return process.env.EXPONENTIAL_HEADLESS_VIEWS === "true";
+}
+
+export function createHeadlessClient(token: string) {
   return createExponentialClient({
     baseUrl: process.env.EXPONENTIAL_API_URL ?? "http://localhost:3016/v1",
     token,
   });
+}
+
+export function createHeadlessIssuesClient(token: string) {
+  return createHeadlessClient(token);
+}
+
+export function createHeadlessViewsClient(token: string) {
+  return createHeadlessClient(token);
 }
 
 export async function mintInternalApiToken(input: {
