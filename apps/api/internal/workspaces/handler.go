@@ -132,6 +132,8 @@ func (h Handler) Routes() chi.Router {
 	r.Post("/", h.Create)
 	r.Get("/current", h.GetCurrent)
 	r.Patch("/current", h.UpdateCurrent)
+	r.Get("/current/billing", h.GetBilling)
+	r.Patch("/current/billing", h.UpdateBilling)
 	r.Delete("/current", h.DeleteCurrent)
 	r.Get("/members", h.ListMembers)
 	r.Patch("/members", h.UpdateMemberOrInvitation)
@@ -300,6 +302,97 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	problem.JSON(w, 201, createWorkspaceResponse{Workspace: ws, Team: team})
+}
+
+type billingPlan struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Price       string   `json:"price"`
+	Description string   `json:"description"`
+	Features    []string `json:"features"`
+}
+
+type billingPatchRequest struct {
+	Plan any `json:"plan"`
+}
+
+type billingWorkspace struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	URLSlug string `json:"urlSlug"`
+	Role    string `json:"role"`
+}
+
+type billingUsage struct {
+	SeatsUsed  int `json:"seatsUsed"`
+	IssuesUsed int `json:"issuesUsed"`
+	IssueLimit int `json:"issueLimit"`
+}
+
+type billingResponse struct {
+	Workspace      billingWorkspace `json:"workspace"`
+	CurrentPlan    string           `json:"currentPlan"`
+	CanManage      bool             `json:"canManage"`
+	Usage          billingUsage     `json:"usage"`
+	Plans          []billingPlan    `json:"plans"`
+	PaymentMethods []any            `json:"paymentMethods"`
+	Invoices       []any            `json:"invoices"`
+}
+
+func (h Handler) GetBilling(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	response, err := h.billingResponse(r.Context(), p)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No active workspace found", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Get billing failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, response)
+}
+
+func (h Handler) UpdateBilling(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	if !isManager(p.Role) {
+		problem.Write(w, 403, "Only workspace admins can manage billing", "")
+		return
+	}
+	var input billingPatchRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		problem.Write(w, 400, "Invalid JSON", err.Error())
+		return
+	}
+	requestedPlan := normalizeBillingPlan(input.Plan)
+	if requestedPlan != input.Plan {
+		problem.Write(w, 400, "Unsupported billing plan", "")
+		return
+	}
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No active workspace found", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Update billing failed", err.Error())
+		return
+	}
+	billing := recordFromAny(settings["billing"])
+	settings["plan"] = requestedPlan
+	billing["plan"] = requestedPlan
+	settings["billing"] = billing
+	body, _ := json.Marshal(settings)
+	if _, err := h.DB.Exec(r.Context(), `update workspace set settings=$1::jsonb, updated_at=now() where id=$2::uuid`, body, p.WorkspaceID); err != nil {
+		problem.Write(w, 500, "Update billing failed", err.Error())
+		return
+	}
+	response, err := h.billingResponse(r.Context(), p)
+	if err != nil {
+		problem.Write(w, 500, "Update billing failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, response)
 }
 
 func (h Handler) GetCurrent(w http.ResponseWriter, r *http.Request) {
@@ -1087,4 +1180,113 @@ func (h Handler) workflowStateNames(ctx context.Context, teamID string) (map[str
 		out[strings.ToLower(name)] = true
 	}
 	return out, rows.Err()
+}
+
+func (h Handler) billingResponse(ctx context.Context, p auth.Principal) (billingResponse, error) {
+	var ws billingWorkspace
+	var raw []byte
+	err := h.DB.QueryRow(ctx, `
+		select w.id::text, w.name, w.url_slug, coalesce(w.settings,'{}'::jsonb), m.role::text
+		from workspace w join member m on m.workspace_id=w.id and m.user_id=$1
+		where w.id=$2::uuid limit 1`, p.UserID, p.WorkspaceID).Scan(&ws.ID, &ws.Name, &ws.URLSlug, &raw, &ws.Role)
+	if err != nil {
+		return billingResponse{}, err
+	}
+	settings := mapFromJSON(raw)
+	state := readBillingState(settings)
+	return billingResponse{Workspace: ws, CurrentPlan: state.plan, CanManage: isManager(ws.Role), Usage: billingUsage{SeatsUsed: state.seatsUsed, IssuesUsed: state.issuesUsed, IssueLimit: state.usageLimit}, Plans: billingPlans(), PaymentMethods: state.paymentMethods, Invoices: state.invoices}, nil
+}
+
+func (h Handler) workspaceSettings(ctx context.Context, workspaceID string) (map[string]any, error) {
+	var raw []byte
+	err := h.DB.QueryRow(ctx, `select coalesce(settings,'{}'::jsonb) from workspace where id=$1::uuid`, workspaceID).Scan(&raw)
+	if err != nil {
+		return nil, err
+	}
+	return mapFromJSON(raw), nil
+}
+
+type billingState struct {
+	plan           string
+	seatsUsed      int
+	issuesUsed     int
+	usageLimit     int
+	paymentMethods []any
+	invoices       []any
+}
+
+func readBillingState(settings map[string]any) billingState {
+	billing := recordFromAny(settings["billing"])
+	return billingState{plan: normalizeBillingPlan(firstNonNil(billing["plan"], settings["plan"])), seatsUsed: intValue(billing["seatsUsed"], 3), issuesUsed: intValue(billing["issuesUsed"], 42), usageLimit: intValue(billing["usageLimit"], 250), paymentMethods: arrayOrDefault(billing["paymentMethods"], defaultPaymentMethods()), invoices: arrayOrDefault(billing["invoices"], defaultInvoices())}
+}
+
+func normalizeBillingPlan(value any) string {
+	if value == "standard" || value == "plus" {
+		return "business"
+	}
+	if s, ok := value.(string); ok {
+		switch s {
+		case "free", "basic", "business", "enterprise":
+			return s
+		}
+	}
+	return "free"
+}
+
+func billingPlans() []billingPlan {
+	return []billingPlan{{ID: "free", Name: "Free", Price: "$0", Description: "For individuals and small trials.", Features: []string{"3 members", "250 issues", "Basic workspace settings"}}, {ID: "basic", Name: "Basic", Price: "$8/user/month", Description: "Core issue tracking for focused teams.", Features: []string{"Unlimited issues", "5 teams", "Basic automations"}}, {ID: "business", Name: "Business", Price: "$14/user/month", Description: "Advanced controls for growing organizations.", Features: []string{"Unlimited teams", "Admin controls", "Priority support"}}, {ID: "enterprise", Name: "Enterprise", Price: "Custom", Description: "Security, scale, and support for large companies.", Features: []string{"SAML/SCIM", "Audit exports", "Dedicated support"}}}
+}
+
+func defaultPaymentMethods() []any {
+	return []any{map[string]any{"id": "pm_dev_visa", "brand": "Visa", "last4": "4242", "expMonth": 12, "expYear": 2030, "isDefault": true}}
+}
+
+func defaultInvoices() []any {
+	return []any{map[string]any{"id": "inv_dev_001", "number": "DEV-001", "date": "2026-05-01", "amount": "$0.00", "status": "paid"}}
+}
+
+func mapFromJSON(raw []byte) map[string]any {
+	out := map[string]any{}
+	_ = json.Unmarshal(raw, &out)
+	return out
+}
+
+func recordFromAny(value any) map[string]any {
+	if record, ok := value.(map[string]any); ok {
+		return record
+	}
+	return map[string]any{}
+}
+
+func firstNonNil(values ...any) any {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+	return nil
+}
+
+func intValue(value any, fallback int) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	case float64:
+		return int(v)
+	case float32:
+		return int(v)
+	default:
+		return fallback
+	}
+}
+
+func arrayOrDefault(value any, fallback []any) []any {
+	if items, ok := value.([]any); ok {
+		return items
+	}
+	return fallback
 }

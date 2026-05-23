@@ -911,6 +911,22 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/workspaces/current/billing": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getCurrentWorkspaceBilling"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["updateCurrentWorkspaceBilling"];
+    trace?: never;
+  };
   "/workspaces/current": {
     parameters: {
       query?: never;
@@ -1770,6 +1786,40 @@ export interface components {
     };
     WorkspaceImportPreviewResponse: {
       preview: components["schemas"]["WorkspaceImportPreviewRow"][];
+    };
+    BillingPlan: {
+      /** @enum {string} */
+      id: "free" | "basic" | "business" | "enterprise";
+      name: string;
+      price: string;
+      description: string;
+      features: string[];
+    };
+    BillingWorkspace: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      urlSlug: string;
+      role: string;
+    };
+    BillingUsage: {
+      seatsUsed: number;
+      issuesUsed: number;
+      issueLimit: number;
+    };
+    WorkspaceBillingResponse: {
+      workspace: components["schemas"]["BillingWorkspace"];
+      /** @enum {string} */
+      currentPlan: "free" | "basic" | "business" | "enterprise";
+      canManage: boolean;
+      usage: components["schemas"]["BillingUsage"];
+      plans: components["schemas"]["BillingPlan"][];
+      paymentMethods: unknown[];
+      invoices: unknown[];
+    };
+    UpdateWorkspaceBillingRequest: {
+      /** @enum {string} */
+      plan: "free" | "basic" | "business" | "enterprise";
     };
     Workspace: {
       /** Format: uuid */
@@ -4092,6 +4142,52 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CreateWorkspaceResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  getCurrentWorkspaceBilling: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current workspace billing */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceBillingResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateCurrentWorkspaceBilling: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateWorkspaceBillingRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated workspace billing */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceBillingResponse"];
         };
       };
       default: components["responses"]["Problem"];

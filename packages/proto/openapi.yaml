@@ -1397,6 +1397,35 @@ paths:
                 $ref: '#/components/schemas/CreateWorkspaceResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /workspaces/current/billing:
+    get:
+      operationId: getCurrentWorkspaceBilling
+      responses:
+        '200':
+          description: Current workspace billing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceBillingResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      operationId: updateCurrentWorkspaceBilling
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkspaceBillingRequest'
+      responses:
+        '200':
+          description: Updated workspace billing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceBillingResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /workspaces/current:
     get:
       operationId: getCurrentWorkspace
@@ -2530,6 +2559,54 @@ components:
         preview:
           type: array
           items: { $ref: '#/components/schemas/WorkspaceImportPreviewRow' }
+    BillingPlan:
+      type: object
+      required: [id, name, price, description, features]
+      properties:
+        id: { type: string, enum: [free, basic, business, enterprise] }
+        name: { type: string }
+        price: { type: string }
+        description: { type: string }
+        features:
+          type: array
+          items: { type: string }
+    BillingWorkspace:
+      type: object
+      required: [id, name, urlSlug, role]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        urlSlug: { type: string }
+        role: { type: string }
+    BillingUsage:
+      type: object
+      required: [seatsUsed, issuesUsed, issueLimit]
+      properties:
+        seatsUsed: { type: integer }
+        issuesUsed: { type: integer }
+        issueLimit: { type: integer }
+    WorkspaceBillingResponse:
+      type: object
+      required: [workspace, currentPlan, canManage, usage, plans, paymentMethods, invoices]
+      properties:
+        workspace: { $ref: '#/components/schemas/BillingWorkspace' }
+        currentPlan: { type: string, enum: [free, basic, business, enterprise] }
+        canManage: { type: boolean }
+        usage: { $ref: '#/components/schemas/BillingUsage' }
+        plans:
+          type: array
+          items: { $ref: '#/components/schemas/BillingPlan' }
+        paymentMethods:
+          type: array
+          items: {}
+        invoices:
+          type: array
+          items: {}
+    UpdateWorkspaceBillingRequest:
+      type: object
+      required: [plan]
+      properties:
+        plan: { type: string, enum: [free, basic, business, enterprise] }
     Workspace:
       type: object
       required: [id, name, urlSlug, region, fiscalMonth, welcomeMessage, plan]

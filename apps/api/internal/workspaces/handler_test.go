@@ -51,3 +51,13 @@ func TestParseImportCSV(t *testing.T) {
 		t.Fatalf("first row = %#v", rows[0])
 	}
 }
+
+func TestBillingStateDefaultsAndNormalization(t *testing.T) {
+	state := readBillingState(map[string]any{"billing": map[string]any{"plan": "standard", "issuesUsed": float64(99)}})
+	if state.plan != "business" || state.issuesUsed != 99 || state.usageLimit != 250 {
+		t.Fatalf("state = %#v", state)
+	}
+	if len(state.paymentMethods) != 1 || len(state.invoices) != 1 {
+		t.Fatalf("defaults missing = %#v", state)
+	}
+}
