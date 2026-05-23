@@ -2,6 +2,11 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { member, workspace } from "@/lib/db/schema";
+import {
+  createHeadlessWorkspacesClient,
+  headlessWorkspacesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { asRecord, isWorkspaceAdminRole } from "@/lib/workspace-permissions";
 import { readWorkspaceScimSettings } from "@/lib/workspace-saml-scim";
 import { and, eq } from "drizzle-orm";
@@ -35,6 +40,28 @@ export async function DELETE(
 ) {
   const { response: authResponse, session } = await requireApiSession();
   if (authResponse) return authResponse;
+
+  if (headlessWorkspacesEnabled()) {
+    const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+    if (workspaceId) {
+      const { tokenId } = await params;
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessWorkspacesClient(token);
+      const { data, error, response } = await client.DELETE(
+        "/workspaces/current/security/scim/tokens/{tokenId}",
+        { params: { path: { tokenId } } },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
   const currentWorkspace = await findCurrentWorkspace(session.user.id);
   if (!currentWorkspace)
     return NextResponse.json(
