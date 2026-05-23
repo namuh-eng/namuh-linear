@@ -1,6 +1,12 @@
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { comment, reaction } from "@/lib/db/schema";
+import {
+  createHeadlessCommentsClient,
+  headlessCommentsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -40,6 +46,30 @@ export async function POST(
 
   const { id } = await params;
   const body = (await request.json()) as { emoji?: string };
+
+  if (headlessCommentsEnabled()) {
+    const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessCommentsClient(token);
+      const { data, error, response } = await client.POST(
+        "/comments/{id}/reactions",
+        {
+          params: { path: { id } },
+          body: body as never,
+        },
+      );
+      if (error)
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const emoji = body.emoji?.trim();
 
   if (!emoji) {

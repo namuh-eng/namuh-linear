@@ -3,6 +3,11 @@ import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { comment, commentAttachment, issue, team } from "@/lib/db/schema";
 import { markIssueDiscussionSummaryStale } from "@/lib/discussion-summary-store";
+import {
+  createHeadlessCommentsClient,
+  headlessCommentsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { insertIssueHistoryEvent } from "@/lib/issue-history";
 import { getIssueNotificationRecipients } from "@/lib/issue-subscriptions";
 import {
@@ -90,12 +95,36 @@ export async function POST(
     return NextResponse.json({ error: "No workspace found" }, { status: 400 });
   }
 
+  const contentType = request.headers.get("content-type") ?? "";
+  if (
+    headlessCommentsEnabled() &&
+    !contentType.includes("multipart/form-data")
+  ) {
+    const body = await request.json();
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessCommentsClient(token);
+    const { data, error, response } = await client.POST(
+      "/issues/{id}/comments",
+      {
+        params: { path: { id } },
+        body: body as never,
+      },
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const currentIssue = await findIssueRecord(id);
   if (!currentIssue || currentIssue.workspaceId !== workspaceId) {
     return NextResponse.json({ error: "Issue not found" }, { status: 404 });
   }
 
-  const contentType = request.headers.get("content-type") ?? "";
   let nextBody = "";
   let attachments: File[] = [];
   let canonicalMentionedUserIds: string[] = [];

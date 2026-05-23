@@ -1,7 +1,13 @@
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { comment, commentAttachment } from "@/lib/db/schema";
 import { markIssueDiscussionSummaryStale } from "@/lib/discussion-summary-store";
+import {
+  createHeadlessCommentsClient,
+  headlessCommentsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { deleteFile } from "@/lib/s3";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -17,6 +23,27 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json();
+
+  if (headlessCommentsEnabled()) {
+    const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessCommentsClient(token);
+      const { data, error, response } = await client.PATCH("/comments/{id}", {
+        params: { path: { id } },
+        body: body as never,
+      });
+      if (error)
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const nextBody = typeof body.body === "string" ? body.body.trim() : "";
 
   if (!nextBody) {
@@ -54,6 +81,25 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  if (headlessCommentsEnabled()) {
+    const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessCommentsClient(token);
+      const { data, error, response } = await client.DELETE("/comments/{id}", {
+        params: { path: { id } },
+      });
+      if (error)
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
 
   // Find comment to check ownership and get attachments
   const [existingComment] = await db
