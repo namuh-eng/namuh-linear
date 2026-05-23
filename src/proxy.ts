@@ -213,21 +213,6 @@ function getWorkspacePrefixedTeamAnalyticsRoute(pathname: string) {
   return null;
 }
 
-function getWorkspacePrefixedCyclesRoute(pathname: string) {
-  const segments = getPathSegments(pathname);
-
-  if (
-    isWorkspaceSlugSegment(segments[0]) &&
-    segments[1] === "team" &&
-    segments.length >= 4 &&
-    segments[3] === "cycles"
-  ) {
-    return { slug: decodeURIComponent(segments[0]) };
-  }
-
-  return null;
-}
-
 function getWorkspaceCyclesRedirect(pathname: string) {
   const segments = getPathSegments(pathname);
 
@@ -453,13 +438,6 @@ export async function proxy(request: NextRequest) {
       "x-workspace-slug",
       workspacePrefixedTeamAnalyticsRoute.slug,
     );
-    return NextResponse.next({ request: { headers: requestHeaders } });
-  }
-
-  const workspacePrefixedCyclesRoute =
-    getWorkspacePrefixedCyclesRoute(pathname);
-  if (workspacePrefixedCyclesRoute) {
-    requestHeaders.set("x-workspace-slug", workspacePrefixedCyclesRoute.slug);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 

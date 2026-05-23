@@ -1,14 +1,9 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const pushMock = vi.fn();
+const redirectMock = vi.fn();
 let paramsMock: Record<string, string> = {};
 let shellContextMock = {
   workspaceId: "workspace-1",
@@ -26,6 +21,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/foreverbrowsing/team/ENG/cycles/cycle-1",
   useRouter: () => ({ push: pushMock, replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
+  redirect: redirectMock,
 }));
 
 vi.mock("@/app/(app)/app-shell", () => ({
@@ -35,31 +31,6 @@ vi.mock("@/app/(app)/app-shell", () => ({
 vi.mock("@/components/contextual-insights", () => ({
   ContextualInsights: () => null,
 }));
-
-const cyclesResponse = {
-  team: {
-    id: "team-1",
-    name: "Engineering",
-    key: "ENG",
-    cyclesEnabled: true,
-    cycleStartDay: 1,
-    cycleDurationWeeks: 2,
-    timezone: "America/Los_Angeles",
-  },
-  cycles: [
-    {
-      id: "cycle-1",
-      name: "Workspace Cycle",
-      number: 7,
-      teamId: "team-1",
-      startDate: "2026-05-18T00:00:00.000Z",
-      endDate: "2026-05-31T00:00:00.000Z",
-      autoRollover: true,
-      issueCount: 1,
-      completedIssueCount: 0,
-    },
-  ],
-};
 
 const cycleDetailResponse = {
   team: { id: "team-1", name: "Engineering", key: "ENG" },
@@ -140,6 +111,7 @@ describe("workspace-prefixed cycles pages", () => {
       teams: [{ id: "team-1", name: "Engineering", key: "ENG" }],
     };
     pushMock.mockReset();
+    redirectMock.mockReset();
   });
 
   afterEach(() => {
@@ -147,31 +119,17 @@ describe("workspace-prefixed cycles pages", () => {
     cleanup();
   });
 
-  it("renders /:workspaceSlug/cycles using the active team and emits slug-preserving cycle links", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(cyclesResponse),
-        } as Response),
-      ),
-    );
+  it("redirects /:workspaceSlug/cycles to the canonical team cycles route", async () => {
     const { default: WorkspaceCyclesPage } = await import(
       "@/app/(app)/[workspaceSlug]/cycles/page"
     );
 
-    render(<WorkspaceCyclesPage />);
+    await WorkspaceCyclesPage({
+      params: Promise.resolve({ workspaceSlug: "foreverbrowsing" }),
+    });
 
-    await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith("/api/teams/ENG/cycles");
-    });
-    const cycleLink = await screen.findByRole("link", {
-      name: /workspace cycle/i,
-    });
-    expect(cycleLink).toHaveAttribute(
-      "href",
-      "/foreverbrowsing/team/ENG/cycles/cycle-1",
+    expect(redirectMock).toHaveBeenCalledWith(
+      "/foreverbrowsing/team/ENG/cycles",
     );
   });
 

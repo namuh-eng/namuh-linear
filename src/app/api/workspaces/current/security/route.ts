@@ -80,7 +80,6 @@ const DEFAULT_SECURITY_STATE: WorkspaceSecurityState = {
   ipRestrictions: [],
 };
 
-
 function validateIpRestrictions(value: unknown) {
   if (!Array.isArray(value)) {
     return "IP restrictions must be a list";

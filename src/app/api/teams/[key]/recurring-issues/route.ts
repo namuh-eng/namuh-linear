@@ -2,6 +2,7 @@ import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { recurringIssue, workflowState } from "@/lib/db/schema";
 import {
+  type RecurringIssueCadenceConfig,
   computeNextRunAt,
   formatCadence,
   normalizeCadenceConfig,
@@ -38,7 +39,7 @@ function serializeRecurringIssue(record: typeof recurringIssue.$inferSelect) {
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
     cadenceLabel: formatCadence(
-      record.cadenceConfig as { cadence: string; interval: number },
+      record.cadenceConfig as RecurringIssueCadenceConfig,
     ),
   };
 }

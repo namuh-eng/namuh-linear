@@ -56,12 +56,10 @@ describe("DocumentsSettingsPage component", () => {
     render(<DocumentsSettingsPage />);
 
     expect(await screen.findByText("Documents")).toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Default document visibility"),
-    ).toHaveValue("workspace");
-    expect(
-      screen.getByLabelText(/Auto-link project documents/),
-    ).toBeChecked();
+    expect(screen.getByLabelText("Default document visibility")).toHaveValue(
+      "workspace",
+    );
+    expect(screen.getByLabelText(/Auto-link project documents/)).toBeChecked();
   });
 
   it("persists workspace document defaults", async () => {

@@ -614,7 +614,10 @@ export async function PATCH(
     body.gitBranchFormat === undefined
       ? currentFlags.gitBranchFormat
       : body.gitBranchFormat.trim();
-  if (body.gitBranchFormat !== undefined && (!nextGitBranchFormat || !nextGitBranchFormat.includes("{number}"))) {
+  if (
+    body.gitBranchFormat !== undefined &&
+    (!nextGitBranchFormat || !nextGitBranchFormat.includes("{number}"))
+  ) {
     return NextResponse.json(
       { error: "Branch format must include {number}" },
       { status: 400 },

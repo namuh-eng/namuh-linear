@@ -231,9 +231,7 @@ describe("CreateIssueModal", () => {
 
     await screen.findByLabelText("Issue template");
 
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      "/api/teams/ENG/templates",
-    );
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/teams/ENG/templates");
   });
 
   it("includes a default cycle when creating from a cycle context", async () => {

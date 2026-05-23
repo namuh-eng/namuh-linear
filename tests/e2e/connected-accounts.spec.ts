@@ -93,7 +93,6 @@ test.describe("Connected accounts", () => {
         0,
       );
     }
-
   });
 
   test("non-prefixed connected accounts route still renders for authenticated users", async ({

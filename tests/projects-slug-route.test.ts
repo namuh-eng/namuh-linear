@@ -11,7 +11,6 @@ const projectIssuesWhereMock = vi.fn();
 const updateSetMock = vi.fn();
 const workspaceSettingsLimitMock = vi.fn();
 const resolveWorkspaceIdBySlugMock = vi.fn();
-const workspaceSettingsLimitMock = vi.fn();
 
 vi.mock("@/lib/auth", () => ({
   auth: {

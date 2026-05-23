@@ -92,7 +92,8 @@ function JobList({ title, jobs }: { title: string; jobs: ImportJob[] }) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[13px] font-medium text-[var(--color-text-primary)]">
-                    {job.message ?? `${job.provider} import — ${job.fileName ?? job.id.slice(0, 8)}`}
+                    {job.message ??
+                      `${job.provider} import — ${job.fileName ?? job.id.slice(0, 8)}`}
                   </p>
                   <p className="mt-1 text-[12px] text-[var(--color-text-tertiary)]">
                     {new Date(job.createdAt).toLocaleString()} · {job.status}
@@ -221,7 +222,9 @@ function ImportModal({
       );
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to prepare provider import",
+        err instanceof Error
+          ? err.message
+          : "Unable to prepare provider import",
       );
     } finally {
       setBusy(false);
@@ -327,7 +330,10 @@ function ImportModal({
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
             <button
               type="button"
-              onClick={() => { setProvider(null); setStep("upload"); }}
+              onClick={() => {
+                setProvider(null);
+                setStep("upload");
+              }}
               className="mb-4 text-[12px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
             >
               ← Back to providers

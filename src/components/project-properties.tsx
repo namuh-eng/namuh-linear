@@ -122,7 +122,6 @@ export interface ProjectPropertiesProps {
   teams: { id: string; name: string; key: string }[];
   labels: { id: string; name: string; color: string }[];
   slackChannel: string | null;
-  availableStatuses?: ProjectStatusOption[];
   availableMembers: { id: string; name: string; image?: string | null }[];
   availableTeams: { id: string; name: string; key: string }[];
   availableLabels: { id: string; name: string; color: string }[];

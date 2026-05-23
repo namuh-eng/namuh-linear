@@ -199,7 +199,9 @@ describe("TeamWorkflowsSettingsPage", () => {
     });
 
     render(<TeamWorkflowsSettingsPage />);
-    await waitFor(() => screen.getByLabelText("Enable branch and PR automation"));
+    await waitFor(() =>
+      screen.getByLabelText("Enable branch and PR automation"),
+    );
 
     fireEvent.click(screen.getByLabelText("Enable branch and PR automation"));
 

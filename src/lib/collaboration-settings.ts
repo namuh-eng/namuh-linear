@@ -48,7 +48,6 @@ function readPositiveInteger(value: unknown, fallback: number) {
     : fallback;
 }
 
-
 export function readCollaborationSettings(
   settings: unknown,
 ): CollaborationSettings {

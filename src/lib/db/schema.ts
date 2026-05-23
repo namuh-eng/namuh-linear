@@ -1168,7 +1168,6 @@ export const teamRelations = relations(team, ({ one, many }) => ({
   recurringIssues: many(recurringIssue),
   labels: many(label),
   cycles: many(cycle),
-  recurringIssues: many(recurringIssue),
 }));
 
 export const teamMemberRelations = relations(teamMember, ({ one }) => ({
@@ -1280,7 +1279,6 @@ export const issueRelationRelations = relations(issueRelation, ({ one }) => ({
     relationName: "target",
   }),
 }));
-
 
 export const labelRelations = relations(label, ({ one, many }) => ({
   workspace: one(workspace, {

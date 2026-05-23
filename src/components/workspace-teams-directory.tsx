@@ -47,7 +47,6 @@ export function WorkspaceTeamsDirectory({
   const [isPrivate, setIsPrivate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const workspaceSlug = useAppShellContext()?.workspaceSlug;
 
   const filteredTeams = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();

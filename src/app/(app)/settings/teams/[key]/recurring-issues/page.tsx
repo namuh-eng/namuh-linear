@@ -46,7 +46,9 @@ function toFormValues(issue: RecurringIssue) {
     description: issue.description ?? "",
     cadence: issue.cadenceConfig.cadence,
     interval: String(issue.cadenceConfig.interval),
-    startAt: issue.startAt ? getLocalDateTimeInputValue(new Date(issue.startAt)) : getLocalDateTimeInputValue(),
+    startAt: issue.startAt
+      ? getLocalDateTimeInputValue(new Date(issue.startAt))
+      : getLocalDateTimeInputValue(),
     timezone: issue.timezone || "UTC",
     enabled: issue.enabled,
     priority: issue.priority ?? "none",

@@ -57,11 +57,6 @@ type SamlDiscoveryResponse = {
 
 const emptyEmailLoginError = "Please enter an email address for login.";
 
-function isProviderConfigured(capability: ProviderCapability | undefined) {
-  return typeof capability === "boolean"
-    ? capability
-    : capability?.configured === true;
-}
 function shouldUseNativeEmailValidation(
   form: HTMLFormElement,
   email: string,
@@ -273,6 +268,9 @@ export function AuthPage({
     true,
   );
   const [passkeySupported, setPasskeySupported] = useState(false);
+  const [emailConfigured, setEmailConfigured] = useState(true);
+  const [googleDisabledByWorkspace, setGoogleDisabledByWorkspace] =
+    useState(false);
   const [error, setError] = useState("");
   const emailSubmitAttemptRef = useRef(0);
 
@@ -318,6 +316,12 @@ export function AuthPage({
           data.providers?.emailPasskey !== false &&
             data.providers?.passkey === true,
         );
+        setEmailConfigured(
+          data.workspace?.authentication?.emailPasskey !== false,
+        );
+        setGoogleDisabledByWorkspace(
+          data.workspace?.authentication?.google === false,
+        );
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
@@ -325,6 +329,8 @@ export function AuthPage({
         setGoogleConfigured(false);
         setGoogleAllowed(true);
         setPasskeyConfigured(true);
+        setEmailConfigured(true);
+        setGoogleDisabledByWorkspace(false);
       }
     }
 
