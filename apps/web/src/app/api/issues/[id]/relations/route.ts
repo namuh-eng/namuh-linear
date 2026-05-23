@@ -2,6 +2,11 @@ import { resolveRequestWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issue, issueRelation, team } from "@/lib/db/schema";
+import {
+  createHeadlessIssuesClient,
+  headlessIssuesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { insertIssueHistoryEvent } from "@/lib/issue-history";
 import {
   buildNotificationValues,
@@ -147,6 +152,27 @@ export async function POST(
   } | null;
   const relationType = body?.type;
   const targetIssueId = body?.targetIssueId ?? body?.relatedIssueId;
+
+  if (headlessIssuesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssuesClient(token);
+    const { data, error, response } = await client.POST(
+      "/issues/{id}/relations",
+      {
+        params: { path: { id } },
+        body: body as never,
+      },
+    );
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
 
   if (!isRelationType(relationType) || typeof targetIssueId !== "string") {
     return NextResponse.json(

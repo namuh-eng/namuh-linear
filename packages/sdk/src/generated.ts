@@ -94,6 +94,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/issues/{id}/relations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["createIssueRelation"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/issues/{id}/relations/{relationID}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        relationID: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteIssueRelation"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/issues/bulk": {
     parameters: {
       query?: never;
@@ -3356,6 +3393,25 @@ export interface components {
     IssueHistoryResponse: {
       history: components["schemas"]["IssueHistoryEvent"][];
     };
+    /** @enum {string} */
+    IssueRelationType: "blocks" | "blocked_by" | "duplicate" | "related";
+    IssueRelationIssue: {
+      /** Format: uuid */
+      id: string;
+      identifier: string;
+      title: string;
+    };
+    IssueRelation: {
+      /** Format: uuid */
+      id: string;
+      type: components["schemas"]["IssueRelationType"];
+      issue: components["schemas"]["IssueRelationIssue"];
+    };
+    CreateIssueRelationRequest: {
+      type: components["schemas"]["IssueRelationType"];
+      targetIssueId?: string;
+      relatedIssueId?: string;
+    };
     BulkIssueUpdates: {
       /** Format: uuid */
       stateId?: string | null;
@@ -3673,6 +3729,57 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["IssueHistoryResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createIssueRelation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateIssueRelationRequest"];
+      };
+    };
+    responses: {
+      /** @description Created issue relation */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssueRelation"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteIssueRelation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        relationID: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted issue relation */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuccessResponse"];
         };
       };
       default: components["responses"]["Problem"];

@@ -179,6 +179,50 @@ paths:
                 $ref: '#/components/schemas/IssueHistoryResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /issues/{id}/relations:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: createIssueRelation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIssueRelationRequest'
+      responses:
+        '201':
+          description: Created issue relation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueRelation'
+        default:
+          $ref: '#/components/responses/Problem'
+  /issues/{id}/relations/{relationID}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: relationID
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    delete:
+      operationId: deleteIssueRelation
+      responses:
+        '200':
+          description: Deleted issue relation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /issues/bulk:
     patch:
       operationId: bulkUpdateIssues
@@ -4633,6 +4677,30 @@ components:
         history:
           type: array
           items: { $ref: '#/components/schemas/IssueHistoryEvent' }
+    IssueRelationType:
+      type: string
+      enum: [blocks, blocked_by, duplicate, related]
+    IssueRelationIssue:
+      type: object
+      required: [id, identifier, title]
+      properties:
+        id: { type: string, format: uuid }
+        identifier: { type: string }
+        title: { type: string }
+    IssueRelation:
+      type: object
+      required: [id, type, issue]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/IssueRelationType' }
+        issue: { $ref: '#/components/schemas/IssueRelationIssue' }
+    CreateIssueRelationRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { $ref: '#/components/schemas/IssueRelationType' }
+        targetIssueId: { type: string }
+        relatedIssueId: { type: string }
     BulkIssueUpdates:
       type: object
       properties:

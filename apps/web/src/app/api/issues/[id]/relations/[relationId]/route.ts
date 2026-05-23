@@ -2,6 +2,11 @@ import { resolveRequestWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issue, issueRelation, team } from "@/lib/db/schema";
+import {
+  createHeadlessIssuesClient,
+  headlessIssuesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { insertIssueHistoryEvent } from "@/lib/issue-history";
 import { and, eq, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -48,6 +53,26 @@ export async function DELETE(
   }
 
   const { id, relationId } = await params;
+  if (headlessIssuesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssuesClient(token);
+    const { data, error, response } = await client.DELETE(
+      "/issues/{id}/relations/{relationID}",
+      {
+        params: { path: { id, relationID: relationId } },
+      },
+    );
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const sourceIssue = await findIssueInWorkspace(id, workspaceId);
   if (!sourceIssue) {
     return NextResponse.json({ error: "Issue not found" }, { status: 404 });
