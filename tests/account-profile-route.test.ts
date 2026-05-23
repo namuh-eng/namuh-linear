@@ -4,6 +4,7 @@ import { member, user, workspace } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describeDb } from "./_helpers/db-integration";
 
 const TEST_USER_ID = "13000000-0000-0000-0000-000000000001";
 const TEST_WS_ID = "13000000-0000-0000-0000-000000000002";
@@ -27,7 +28,7 @@ vi.mock("@/lib/auth", () => ({
 
 import { auth } from "@/lib/auth";
 
-describe("Account Profile API Route", () => {
+describeDb("Account Profile API Route", () => {
   beforeAll(async () => {
     // Cleanup
     await db.delete(member).where(eq(member.userId, TEST_USER_ID));

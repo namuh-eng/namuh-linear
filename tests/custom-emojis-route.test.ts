@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describeDb } from "./_helpers/db-integration";
 
 const TEST_USER_ID = "21700000-0000-0000-0000-000000000001";
 const TEST_WORKSPACE_ID = "21700000-0000-0000-0000-000000000002";
@@ -19,7 +20,7 @@ vi.mock("@/lib/active-workspace", () => ({
 
 import { auth } from "@/lib/auth";
 
-describe("custom emojis API", () => {
+describeDb("custom emojis API", () => {
   beforeAll(async () => {
     await db.delete(member).where(eq(member.userId, TEST_USER_ID));
     await db.delete(workspace).where(eq(workspace.id, TEST_WORKSPACE_ID));

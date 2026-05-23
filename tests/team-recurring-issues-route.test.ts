@@ -15,6 +15,7 @@ import {
 } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describeDb } from "./_helpers/db-integration";
 
 const USER_ID = "20900000-0000-0000-0000-000000000001";
 const WORKSPACE_ID = "20900000-0000-0000-0000-000000000002";
@@ -86,7 +87,7 @@ async function seedRows() {
   });
 }
 
-describe("team recurring issues API", () => {
+describeDb("team recurring issues API", () => {
   beforeEach(async () => {
     await cleanupRows();
     await seedRows();

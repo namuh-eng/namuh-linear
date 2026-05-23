@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { member, team, teamMember, user, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describeDb } from "./_helpers/db-integration";
 
 const USER_ID = "33200000-0000-0000-0000-000000000001";
 const WS_ID = "33200000-0000-0000-0000-000000000002";
@@ -54,7 +55,7 @@ function mockSession() {
   });
 }
 
-describe("agent runs route", () => {
+describeDb("agent runs route", () => {
   beforeAll(async () => {
     await db.delete(teamMember).where(eq(teamMember.userId, USER_ID));
     await db.delete(team).where(eq(team.id, ENG_TEAM_ID));

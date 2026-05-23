@@ -34,12 +34,20 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/active-workspace", () => ({
   resolveActiveWorkspaceId: resolveActiveWorkspaceIdMock,
+  resolveRequestWorkspaceId: resolveActiveWorkspaceIdMock,
 }));
 
 vi.mock("@/lib/api-settings", () => ({
   GRAPHQL_DOCS_URL: "https://docs.test/graphql",
   OAUTH_APPLICATIONS_DOCS_URL: "https://docs.test/oauth",
   WEBHOOKS_DOCS_URL: "https://docs.test/webhooks",
+  validateWebhookUrl: (value: unknown) =>
+    typeof value === "string" && /^https:\/\//.test(value)
+      ? { ok: true as const, url: value }
+      : {
+          ok: false as const,
+          error: "Webhook URL must be a valid HTTPS URL.",
+        },
   asRecord: (value: unknown) =>
     value && typeof value === "object" && !Array.isArray(value)
       ? (value as Record<string, unknown>)

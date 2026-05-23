@@ -11,6 +11,7 @@ import {
   it,
   vi,
 } from "vitest";
+import { describeDb } from "./_helpers/db-integration";
 
 const ADMIN_USER_ID = "22700000-0000-0000-0000-000000000001";
 const MEMBER_USER_ID = "22700000-0000-0000-0000-000000000002";
@@ -34,7 +35,7 @@ vi.mock("@/lib/auth", () => ({
 
 import { auth } from "@/lib/auth";
 
-describe("Workspace billing API", () => {
+describeDb("Workspace billing API", () => {
   beforeAll(async () => {
     await db.delete(member).where(eq(member.workspaceId, WORKSPACE_ID));
     await db.delete(workspace).where(eq(workspace.id, WORKSPACE_ID));

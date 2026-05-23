@@ -13,6 +13,8 @@ let mockParams = { key: "ENG", cycleId: "cycle-1" } as {
 vi.mock("next/navigation", () => ({
   useParams: () => mockParams,
   useRouter: () => ({ push: pushMock }),
+  usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("next/link", () => ({

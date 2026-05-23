@@ -10,6 +10,7 @@ import {
 } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describeDb } from "./_helpers/db-integration";
 
 const TEST_USER_ID = "15000000-0000-0000-0000-000000000001";
 const TEST_OTHER_USER_ID = "15000000-0000-0000-0000-000000000006";
@@ -44,7 +45,7 @@ const getSessionMock = auth.api.getSession as unknown as ReturnType<
   typeof vi.fn
 >;
 
-describe("Team Settings API Route", () => {
+describeDb("Team Settings API Route", () => {
   beforeAll(async () => {
     // Cleanup
     await db.delete(teamMember).where(eq(teamMember.teamId, TEST_TEAM_ID));

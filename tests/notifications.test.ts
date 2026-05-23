@@ -16,6 +16,7 @@ import {
 } from "@/lib/notifications";
 import { inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describeDb } from "./_helpers/db-integration";
 
 const DISABLED_USER_ID = "notif-pref-disabled-user";
 const ENABLED_USER_ID = "notif-pref-enabled-user";
@@ -71,7 +72,7 @@ function settingsWithEventEnabled(
   return settings;
 }
 
-describe("notifications helpers", () => {
+describeDb("notifications helpers", () => {
   it("extracts unique mention tokens from comment text", () => {
     expect(
       extractMentionTokens("Please review this, @Jaeyun and @jaeyun."),
@@ -151,7 +152,7 @@ describe("notifications helpers", () => {
   });
 });
 
-describe("notification preference enforcement", () => {
+describeDb("notification preference enforcement", () => {
   beforeAll(async () => {
     await db
       .delete(user)

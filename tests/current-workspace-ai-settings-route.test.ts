@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describeDb } from "./_helpers/db-integration";
 
 const OWNER_ID = "22900000-0000-0000-0000-000000000001";
 const MEMBER_ID = "22900000-0000-0000-0000-000000000002";
@@ -52,7 +53,7 @@ function mockSession(userId = OWNER_ID) {
   });
 }
 
-describe("current workspace AI settings route", () => {
+describeDb("current workspace AI settings route", () => {
   beforeAll(async () => {
     await db.delete(member).where(eq(member.workspaceId, WS_ID));
     await db.delete(workspace).where(eq(workspace.id, WS_ID));

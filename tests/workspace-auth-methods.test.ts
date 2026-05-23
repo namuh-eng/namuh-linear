@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describeDb } from "./_helpers/db-integration";
 
 const WORKSPACE_ID = "21000000-0000-0000-0000-000000000001";
 const USER_ID = "21000000-0000-0000-0000-000000000002";
@@ -16,7 +17,7 @@ async function cleanup() {
   await db.delete(user).where(eq(user.id, USER_ID));
 }
 
-describe("workspace-scoped auth method enforcement", () => {
+describeDb("workspace-scoped auth method enforcement", () => {
   beforeAll(async () => {
     await cleanup();
     await db.insert(user).values({
