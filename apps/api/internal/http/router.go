@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/namuh-eng/exponential/apps/api/internal/auth"
 	"github.com/namuh-eng/exponential/apps/api/internal/issues"
+	syncapi "github.com/namuh-eng/exponential/apps/api/internal/sync"
 	"go.uber.org/zap"
 )
 
@@ -27,6 +28,7 @@ func NewRouter(logger *zap.Logger, db *pgxpool.Pool) stdhttp.Handler {
 		v1.Group(func(protected chi.Router) {
 			protected.Use(authMiddleware.Require)
 			protected.Mount("/issues", issues.Handler{DB: db}.Routes())
+			protected.Get("/sync/ws", syncapi.Handler{DB: db}.WebSocket)
 		})
 	})
 	return r

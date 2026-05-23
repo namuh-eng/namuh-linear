@@ -7,6 +7,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/spf13/viper v1.21.0
 	go.uber.org/zap v1.28.0
+	nhooyr.io/websocket v1.8.17
 )
 
 require (
