@@ -1,6 +1,12 @@
+import { resolveRequestWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { workspace } from "@/lib/db/schema";
+import {
+  createHeadlessWorkspacesClient,
+  headlessWorkspacesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import {
   BILLING_PLANS,
   asRecord,
@@ -45,6 +51,29 @@ export async function GET(request: Request) {
     return authResponse;
   }
 
+  if (headlessWorkspacesEnabled()) {
+    const workspaceId = await resolveRequestWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessWorkspacesClient(token);
+      const { data, error, response } = await client.GET(
+        "/workspaces/current/billing",
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const currentWorkspace = await findBillingWorkspace(session.user.id, request);
   if (!currentWorkspace) {
     return NextResponse.json(
@@ -60,6 +89,31 @@ export async function PATCH(request: Request) {
   const { response: authResponse, session } = await requireApiSession();
   if (authResponse) {
     return authResponse;
+  }
+
+  if (headlessWorkspacesEnabled()) {
+    const workspaceId = await resolveRequestWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const body = await request.json().catch(() => null);
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessWorkspacesClient(token);
+      const { data, error, response } = await client.PATCH(
+        "/workspaces/current/billing",
+        { body: body as never },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
   }
 
   const currentWorkspace = await findBillingWorkspace(session.user.id, request);
