@@ -143,6 +143,8 @@ func (h Handler) Routes() chi.Router {
 	r.Delete("/members", h.RemoveMemberOrInvitation)
 	r.Post("/invite", h.Invite)
 	r.Post("/imports/preview", h.PreviewImport)
+	r.Get("/current/applications", h.ListApplications)
+	r.Delete("/current/applications/{id}", h.DeleteApplication)
 	r.Get("/current/sla", h.GetSLA)
 	r.Post("/current/sla", h.CreateSLA)
 	r.Patch("/current/sla/{id}", h.UpdateSLA)
@@ -490,6 +492,107 @@ type slaResponse struct {
 
 type slaPolicyResponse struct {
 	Policy slaPolicy `json:"policy"`
+}
+
+type workspaceApplicationsResponse struct {
+	Applications          []workspaceApplication `json:"applications"`
+	CanManageApplications bool                   `json:"canManageApplications"`
+}
+
+type workspaceApplication struct {
+	ID               string            `json:"id"`
+	AppID            string            `json:"appId"`
+	ClientID         string            `json:"clientId"`
+	Name             string            `json:"name"`
+	ImageURL         *string           `json:"imageUrl"`
+	Scopes           []string          `json:"scopes"`
+	PermissionGroups []permissionGroup `json:"permissionGroups"`
+	WebhooksEnabled  bool              `json:"webhooksEnabled"`
+	CreatedAt        *string           `json:"createdAt"`
+	UpdatedAt        *string           `json:"updatedAt"`
+	LastUsedAt       *string           `json:"lastUsedAt"`
+	Owner            applicationOwner  `json:"owner"`
+}
+
+type applicationOwner struct {
+	Name  string  `json:"name"`
+	Email string  `json:"email"`
+	Image *string `json:"image"`
+}
+
+type permissionGroup struct {
+	Label        string   `json:"label"`
+	Descriptions []string `json:"descriptions"`
+}
+
+func (h Handler) ListApplications(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	if !isManager(p.Role) {
+		problem.Write(w, 403, "Forbidden", "")
+		return
+	}
+	rows, err := h.DB.Query(r.Context(), `
+		select g.id, g.app_id, g.client_id, g.name, g.image_url, g.scopes, g.webhooks_enabled, g.created_at, g.updated_at, u.name, u.email, u.image
+		from authorized_application_grant g
+		join member m on m.user_id=g.user_id and m.workspace_id=$1::uuid
+		join "user" u on u.id=g.user_id
+		order by g.updated_at desc`, p.WorkspaceID)
+	if err != nil {
+		problem.Write(w, 500, "List applications failed", err.Error())
+		return
+	}
+	defer rows.Close()
+	applications := []workspaceApplication{}
+	for rows.Next() {
+		var app workspaceApplication
+		var scopesRaw []byte
+		var createdAt, updatedAt *time.Time
+		if err := rows.Scan(&app.ID, &app.AppID, &app.ClientID, &app.Name, &app.ImageURL, &scopesRaw, &app.WebhooksEnabled, &createdAt, &updatedAt, &app.Owner.Name, &app.Owner.Email, &app.Owner.Image); err != nil {
+			problem.Write(w, 500, "List applications failed", err.Error())
+			return
+		}
+		app.Scopes = normalizeApplicationScopes(scopesRaw)
+		app.PermissionGroups = buildApplicationPermissionGroups(app.Scopes)
+		app.CreatedAt = formatOptionalTime(createdAt)
+		app.UpdatedAt = formatOptionalTime(updatedAt)
+		applications = append(applications, app)
+	}
+	if err := rows.Err(); err != nil {
+		problem.Write(w, 500, "List applications failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, workspaceApplicationsResponse{Applications: applications, CanManageApplications: true})
+}
+
+func (h Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	if !isManager(p.Role) {
+		problem.Write(w, 403, "Forbidden", "")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if strings.TrimSpace(id) == "" {
+		problem.Write(w, 400, "Application id is required.", "")
+		return
+	}
+	var found string
+	err := h.DB.QueryRow(r.Context(), `
+		select g.id from authorized_application_grant g
+		join member m on m.user_id=g.user_id and m.workspace_id=$1::uuid
+		where g.id=$2 limit 1`, p.WorkspaceID, id).Scan(&found)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "Application not found", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Delete application failed", err.Error())
+		return
+	}
+	if _, err := h.DB.Exec(r.Context(), `delete from authorized_application_grant where id=$1`, id); err != nil {
+		problem.Write(w, 500, "Delete application failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, map[string]bool{"success": true})
 }
 
 func (h Handler) GetSLA(w http.ResponseWriter, r *http.Request) {
@@ -2194,4 +2297,95 @@ func policyToMap(policy slaPolicy) map[string]any {
 		conditions["teamKey"] = *policy.Conditions.TeamKey
 	}
 	return map[string]any{"name": policy.Name, "description": policy.Description, "responseTimeHours": policy.ResponseTimeHours, "resolutionTimeHours": policy.ResolutionTimeHours, "enabled": policy.Enabled, "conditions": conditions}
+}
+
+func normalizeApplicationScopes(raw []byte) []string {
+	var value any
+	if len(raw) == 0 || json.Unmarshal(raw, &value) != nil {
+		return []string{}
+	}
+	return normalizeApplicationScopesValue(value)
+}
+
+func normalizeApplicationScopesValue(value any) []string {
+	out := []string{}
+	switch v := value.(type) {
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, strings.TrimSpace(s))
+			}
+		}
+	case []string:
+		for _, s := range v {
+			if strings.TrimSpace(s) != "" {
+				out = append(out, strings.TrimSpace(s))
+			}
+		}
+	case string:
+		for _, s := range strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' || r == '\n' || r == '\t' }) {
+			if strings.TrimSpace(s) != "" {
+				out = append(out, strings.TrimSpace(s))
+			}
+		}
+	}
+	return out
+}
+
+func buildApplicationPermissionGroups(scopes []string) []permissionGroup {
+	groups := map[string][]string{}
+	order := []string{}
+	for _, scope := range scopes {
+		group, description := applicationScopePresentation(scope)
+		if _, ok := groups[group]; !ok {
+			order = append(order, group)
+		}
+		groups[group] = append(groups[group], description)
+	}
+	out := []permissionGroup{}
+	for _, label := range order {
+		out = append(out, permissionGroup{Label: label, Descriptions: groups[label]})
+	}
+	return out
+}
+
+func applicationScopePresentation(scope string) (string, string) {
+	switch scope {
+	case "read":
+		return "Workspace data", "View workspace and account information"
+	case "write":
+		return "Workspace data", "Create and update workspace data"
+	case "issues:read":
+		return "Issues", "View issues and related metadata"
+	case "issues:write":
+		return "Issues", "Create and update issues"
+	case "comments:read":
+		return "Comments", "View comments"
+	case "comments:write":
+		return "Comments", "Create and update comments"
+	case "webhooks:read":
+		return "Webhooks", "View webhook subscriptions"
+	case "webhooks:write":
+		return "Webhooks", "Manage webhook subscriptions"
+	default:
+		return "Additional access", humanizeApplicationScope(scope)
+	}
+}
+
+func humanizeApplicationScope(scope string) string {
+	parts := strings.FieldsFunc(scope, func(r rune) bool { return r == ':' || r == '_' || r == '.' || r == '-' })
+	for i, part := range parts {
+		if part != "" {
+			parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func formatOptionalTime(value *time.Time) *string {
+	if value == nil {
+		return nil
+	}
+	formatted := value.UTC().Format(time.RFC3339)
+	return &formatted
 }

@@ -1397,6 +1397,35 @@ paths:
                 $ref: '#/components/schemas/CreateWorkspaceResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /workspaces/current/applications:
+    get:
+      operationId: listCurrentWorkspaceApplications
+      responses:
+        '200':
+          description: Current workspace authorized applications
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceApplicationsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /workspaces/current/applications/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      operationId: deleteCurrentWorkspaceApplication
+      responses:
+        '200':
+          description: Deleted authorized application
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /workspaces/current/sla:
     get:
       operationId: getCurrentWorkspaceSla
@@ -2758,6 +2787,49 @@ components:
         preview:
           type: array
           items: { $ref: '#/components/schemas/WorkspaceImportPreviewRow' }
+    ApplicationPermissionGroup:
+      type: object
+      required: [label, descriptions]
+      properties:
+        label: { type: string }
+        descriptions:
+          type: array
+          items: { type: string }
+    ApplicationOwner:
+      type: object
+      required: [name, email, image]
+      properties:
+        name: { type: string }
+        email: { type: string }
+        image: { type: [string, 'null'] }
+    WorkspaceApplication:
+      type: object
+      required: [id, appId, clientId, name, imageUrl, scopes, permissionGroups, webhooksEnabled, createdAt, updatedAt, lastUsedAt, owner]
+      properties:
+        id: { type: string }
+        appId: { type: string }
+        clientId: { type: string }
+        name: { type: string }
+        imageUrl: { type: [string, 'null'] }
+        scopes:
+          type: array
+          items: { type: string }
+        permissionGroups:
+          type: array
+          items: { $ref: '#/components/schemas/ApplicationPermissionGroup' }
+        webhooksEnabled: { type: boolean }
+        createdAt: { type: [string, 'null'], format: date-time }
+        updatedAt: { type: [string, 'null'], format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        owner: { $ref: '#/components/schemas/ApplicationOwner' }
+    WorkspaceApplicationsResponse:
+      type: object
+      required: [applications, canManageApplications]
+      properties:
+        applications:
+          type: array
+          items: { $ref: '#/components/schemas/WorkspaceApplication' }
+        canManageApplications: { type: boolean }
     SlaPolicyCondition:
       type: object
       properties:

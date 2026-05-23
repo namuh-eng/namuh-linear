@@ -121,3 +121,14 @@ func TestReadAndNormalizeSLASettings(t *testing.T) {
 		t.Fatal("response target above resolution should fail")
 	}
 }
+
+func TestApplicationScopesAndPermissionGroups(t *testing.T) {
+	scopes := normalizeApplicationScopes([]byte(`["issues:read","custom.scope"]`))
+	if len(scopes) != 2 || scopes[0] != "issues:read" {
+		t.Fatalf("scopes = %#v", scopes)
+	}
+	groups := buildApplicationPermissionGroups(scopes)
+	if len(groups) != 2 || groups[0].Label != "Issues" || groups[1].Descriptions[0] != "Custom Scope" {
+		t.Fatalf("groups = %#v", groups)
+	}
+}

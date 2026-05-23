@@ -911,6 +911,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/workspaces/current/applications": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listCurrentWorkspaceApplications"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/workspaces/current/applications/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteCurrentWorkspaceApplication"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/workspaces/current/sla": {
     parameters: {
       query?: never;
@@ -1884,6 +1918,36 @@ export interface components {
     };
     WorkspaceImportPreviewResponse: {
       preview: components["schemas"]["WorkspaceImportPreviewRow"][];
+    };
+    ApplicationPermissionGroup: {
+      label: string;
+      descriptions: string[];
+    };
+    ApplicationOwner: {
+      name: string;
+      email: string;
+      image: string | null;
+    };
+    WorkspaceApplication: {
+      id: string;
+      appId: string;
+      clientId: string;
+      name: string;
+      imageUrl: string | null;
+      scopes: string[];
+      permissionGroups: components["schemas"]["ApplicationPermissionGroup"][];
+      webhooksEnabled: boolean;
+      /** Format: date-time */
+      createdAt: string | null;
+      /** Format: date-time */
+      updatedAt: string | null;
+      /** Format: date-time */
+      lastUsedAt: string | null;
+      owner: components["schemas"]["ApplicationOwner"];
+    };
+    WorkspaceApplicationsResponse: {
+      applications: components["schemas"]["WorkspaceApplication"][];
+      canManageApplications: boolean;
     };
     SlaPolicyCondition: {
       /** @enum {string} */
@@ -4387,6 +4451,50 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CreateWorkspaceResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listCurrentWorkspaceApplications: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current workspace authorized applications */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceApplicationsResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteCurrentWorkspaceApplication: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted authorized application */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuccessResponse"];
         };
       };
       default: components["responses"]["Problem"];
