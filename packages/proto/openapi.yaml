@@ -1296,6 +1296,70 @@ paths:
                 $ref: '#/components/schemas/SuccessResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /project-updates:
+    get:
+      operationId: listProjectUpdates
+      summary: List project update reminder configurations
+      responses:
+        '200':
+          description: Project update reminder configurations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectUpdateListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createProjectUpdate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      responses:
+        '201':
+          description: Created project update reminder configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectUpdateResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /project-updates/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updateProjectUpdate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      responses:
+        '200':
+          description: Updated project update reminder configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectUpdateResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteProjectUpdate
+      responses:
+        '200':
+          description: Deleted project update reminder configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /projects:
     get:
       operationId: listProjects
@@ -2757,6 +2821,52 @@ components:
       properties:
         token: { $ref: '#/components/schemas/PersonalAccessToken' }
         value: { type: string }
+    ProjectUpdate:
+      type: object
+      required: [id, name, enabled, cadence, dueDay, dueTime, timezone, scope, projectIds, reportingTarget, shareTarget, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        enabled: { type: boolean }
+        cadence: { type: string, enum: [weekly, biweekly, monthly] }
+        dueDay: { type: string, enum: [monday, tuesday, wednesday, thursday, friday] }
+        dueTime: { type: string }
+        timezone: { type: string }
+        scope: { type: string, enum: [all_projects, active_projects, selected_projects] }
+        projectIds:
+          type: array
+          items: { type: string }
+        reportingTarget: { type: string, enum: [workspace, slack, email] }
+        shareTarget: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProjectUpdateListResponse:
+      type: object
+      required: [configurations]
+      properties:
+        configurations:
+          type: array
+          items: { $ref: '#/components/schemas/ProjectUpdate' }
+    ProjectUpdateResponse:
+      type: object
+      required: [configuration]
+      properties:
+        configuration: { $ref: '#/components/schemas/ProjectUpdate' }
+    ProjectUpdateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        enabled: { type: boolean }
+        cadence: { type: string, enum: [weekly, biweekly, monthly] }
+        dueDay: { type: string, enum: [monday, tuesday, wednesday, thursday, friday] }
+        dueTime: { type: string }
+        timezone: { type: string }
+        scope: { type: string, enum: [all_projects, active_projects, selected_projects] }
+        projectIds:
+          type: array
+          items: { type: string }
+        reportingTarget: { type: string, enum: [workspace, slack, email] }
+        shareTarget: { type: string }
     ProjectUpdateConfiguration:
       type: object
       required: [id, name, enabled, cadence, dayOfWeek, timeOfDay, timezone, projectScope, statusScope, shareTargets, createdAt, updatedAt]

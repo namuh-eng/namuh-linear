@@ -886,6 +886,41 @@ export interface paths {
     patch: operations["updateProjectUpdateConfiguration"];
     trace?: never;
   };
+  "/project-updates": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List project update reminder configurations */
+    get: operations["listProjectUpdates"];
+    put?: never;
+    post: operations["createProjectUpdate"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/project-updates/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteProjectUpdate"];
+    options?: never;
+    head?: never;
+    patch: operations["updateProjectUpdate"];
+    trace?: never;
+  };
   "/projects": {
     parameters: {
       query?: never;
@@ -1858,6 +1893,49 @@ export interface components {
     CreatePersonalAccessTokenResponse: {
       token: components["schemas"]["PersonalAccessToken"];
       value: string;
+    };
+    ProjectUpdate: {
+      id: string;
+      name: string;
+      enabled: boolean;
+      /** @enum {string} */
+      cadence: "weekly" | "biweekly" | "monthly";
+      /** @enum {string} */
+      dueDay: "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
+      dueTime: string;
+      timezone: string;
+      /** @enum {string} */
+      scope: "all_projects" | "active_projects" | "selected_projects";
+      projectIds: string[];
+      /** @enum {string} */
+      reportingTarget: "workspace" | "slack" | "email";
+      shareTarget: string;
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    ProjectUpdateListResponse: {
+      configurations: components["schemas"]["ProjectUpdate"][];
+    };
+    ProjectUpdateResponse: {
+      configuration: components["schemas"]["ProjectUpdate"];
+    };
+    ProjectUpdateRequest: {
+      name?: string;
+      enabled?: boolean;
+      /** @enum {string} */
+      cadence?: "weekly" | "biweekly" | "monthly";
+      /** @enum {string} */
+      dueDay?: "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
+      dueTime?: string;
+      timezone?: string;
+      /** @enum {string} */
+      scope?: "all_projects" | "active_projects" | "selected_projects";
+      projectIds?: string[];
+      /** @enum {string} */
+      reportingTarget?: "workspace" | "slack" | "email";
+      shareTarget?: string;
     };
     ProjectUpdateConfiguration: {
       id: string;
@@ -4773,6 +4851,102 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ProjectUpdateConfigurationResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listProjectUpdates: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Project update reminder configurations */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectUpdateListResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createProjectUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Created project update reminder configuration */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectUpdateResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteProjectUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted project update reminder configuration */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuccessResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateProjectUpdate: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated project update reminder configuration */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectUpdateResponse"];
         };
       };
       default: components["responses"]["Problem"];
