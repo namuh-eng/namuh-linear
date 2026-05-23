@@ -4,6 +4,10 @@ import {
   isGoogleOAuthConfigured,
   isSlackOAuthConfigured,
 } from "@/lib/auth-providers";
+import {
+  createHeadlessAuthProvidersClient,
+  headlessAuthProvidersEnabled,
+} from "@/lib/headless-api";
 import { isPasskeyAuthEnabled } from "@/lib/passkeys";
 import {
   isWorkspaceAuthMethodAllowed,
@@ -27,6 +31,29 @@ function accountProviderCapability(configured: boolean, label: string) {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const callbackUrl = url.searchParams.get("callbackUrl");
+
+  if (headlessAuthProvidersEnabled()) {
+    const client = createHeadlessAuthProvidersClient();
+    const { data, error, response } = await client.GET(
+      "/auth/provider-capabilities",
+      {
+        params: {
+          query: callbackUrl ? { callbackUrl } : {},
+        },
+      },
+    );
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    const cacheControl = (response as Response).headers.get("cache-control");
+    return NextResponse.json(data, {
+      status: (response as Response).status,
+      headers: cacheControl ? { "Cache-Control": cacheControl } : undefined,
+    });
+  }
+
   const policy = await resolveWorkspaceAuthPolicy({
     callbackUrl,
     baseUrl: url.origin,

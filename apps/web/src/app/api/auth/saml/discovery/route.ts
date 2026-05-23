@@ -1,3 +1,7 @@
+import {
+  createHeadlessAuthProvidersClient,
+  headlessAuthProvidersEnabled,
+} from "@/lib/headless-api";
 import { discoverSamlUrlFromEmail } from "@/lib/saml-sso";
 import { NextResponse } from "next/server";
 
@@ -20,6 +24,23 @@ export async function POST(request: Request) {
   }
 
   const email = typeof body.email === "string" ? body.email : "";
+
+  if (headlessAuthProvidersEnabled()) {
+    const client = createHeadlessAuthProvidersClient();
+    const { data, error, response } = await client.POST(
+      "/auth/saml/discovery",
+      {
+        body: { email },
+      },
+    );
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const result = await discoverSamlUrlFromEmail(email);
 
   if (!result.ok) {
