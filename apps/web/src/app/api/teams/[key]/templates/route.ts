@@ -5,6 +5,11 @@ import {
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issueTemplate } from "@/lib/db/schema";
+import {
+  createHeadlessTeamsClient,
+  headlessTeamsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { findAccessibleTeam } from "@/lib/teams";
 import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -51,6 +56,14 @@ async function requireTeam(request: Request, params: Promise<{ key: string }>) {
   return { session, teamRecord } as const;
 }
 
+async function createTeamTemplateClient(input: {
+  userId: string;
+  workspaceId: string;
+}) {
+  const token = await mintInternalApiToken(input);
+  return createHeadlessTeamsClient(token);
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ key: string }> },
@@ -58,6 +71,28 @@ export async function GET(
   const result = await requireTeam(request, params);
   if ("response" in result) return result.response;
   const { teamRecord } = result;
+
+  if (headlessTeamsEnabled()) {
+    const client = await createTeamTemplateClient({
+      userId: result.session.user.id,
+      workspaceId: teamRecord.workspaceId,
+    });
+    const { data, error, response } = await client.GET("/issue-templates", {
+      params: { query: { teamKey: teamRecord.key } },
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(
+      {
+        team: { name: teamRecord.name, key: teamRecord.key },
+        templates: data?.templates ?? [],
+      },
+      { status: (response as Response).status },
+    );
+  }
 
   const templates = await db
     .select()
@@ -136,6 +171,26 @@ export async function POST(
     );
   }
 
+  if (headlessTeamsEnabled()) {
+    const client = await createTeamTemplateClient({
+      userId: session.user.id,
+      workspaceId: teamRecord.workspaceId,
+    });
+    const { data, error, response } = await client.POST("/issue-templates", {
+      body: {
+        name,
+        description,
+        settings,
+      } as never,
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const [template] = await db
     .insert(issueTemplate)
     .values({
@@ -204,6 +259,30 @@ export async function PATCH(
     );
   }
 
+  if (headlessTeamsEnabled()) {
+    const client = await createTeamTemplateClient({
+      userId: result.session.user.id,
+      workspaceId: teamRecord.workspaceId,
+    });
+    const { data, error, response } = await client.PATCH(
+      "/issue-templates/{id}",
+      {
+        params: { path: { id } },
+        body: {
+          name,
+          description,
+          settings,
+        } as never,
+      },
+    );
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const [template] = await db
     .update(issueTemplate)
     .set({
@@ -250,6 +329,25 @@ export async function DELETE(
   const current = currentRows[0];
   if (!current || !belongsToTeam(current, teamRecord.id, teamRecord.key)) {
     return NextResponse.json({ error: "Template not found" }, { status: 404 });
+  }
+
+  if (headlessTeamsEnabled()) {
+    const client = await createTeamTemplateClient({
+      userId: result.session.user.id,
+      workspaceId: teamRecord.workspaceId,
+    });
+    const { data, error, response } = await client.DELETE(
+      "/issue-templates/{id}",
+      {
+        params: { path: { id } },
+      },
+    );
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const [deleted] = await db
