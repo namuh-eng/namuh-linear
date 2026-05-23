@@ -2,6 +2,11 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { member, project, workspace } from "@/lib/db/schema";
+import {
+  createHeadlessProjectStatusesClient,
+  headlessProjectStatusesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { readProjectSettings } from "@/lib/project-detail";
 import {
   DEFAULT_PROJECT_STATUSES,
@@ -77,6 +82,22 @@ export async function GET() {
   }
 
   try {
+    const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+    if (workspaceId && headlessProjectStatusesEnabled()) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessProjectStatusesClient(token);
+      const { data, error, response } = await client.GET("/project-statuses");
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+
     const access = await getWorkspaceAccess(session.user.id);
     if (!access) {
       return NextResponse.json({
@@ -136,6 +157,23 @@ export async function PATCH(request: Request) {
     body = (await request.json()) as { statuses?: unknown };
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  if (headlessProjectStatusesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: access.workspaceId,
+    });
+    const client = createHeadlessProjectStatusesClient(token);
+    const { data, error, response } = await client.PATCH("/project-statuses", {
+      body: body as never,
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const countsByKey = await getProjectCounts(access.workspaceId);
