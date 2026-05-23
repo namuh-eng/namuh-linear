@@ -162,6 +162,23 @@ paths:
                 $ref: '#/components/schemas/ReactionSummaryList'
         default:
           $ref: '#/components/responses/Problem'
+  /issues/{id}/history:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getIssueHistory
+      responses:
+        '200':
+          description: Issue history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssueHistoryResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /issues/bulk:
     patch:
       operationId: bulkUpdateIssues
@@ -4590,6 +4607,32 @@ components:
       properties:
         subscribed: { type: boolean }
         watcherCount: { type: integer }
+    IssueHistoryActor:
+      type: object
+      required: [id, name, email]
+      properties:
+        id: { type: string }
+        name: { type: [string, 'null'] }
+        email: { type: [string, 'null'] }
+    IssueHistoryEvent:
+      type: object
+      required: [id, type, metadata, actor, createdAt]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        metadata: { type: object, additionalProperties: true }
+        actor:
+          anyOf:
+            - $ref: '#/components/schemas/IssueHistoryActor'
+            - type: 'null'
+        createdAt: { type: string, format: date-time }
+    IssueHistoryResponse:
+      type: object
+      required: [history]
+      properties:
+        history:
+          type: array
+          items: { $ref: '#/components/schemas/IssueHistoryEvent' }
     BulkIssueUpdates:
       type: object
       properties:

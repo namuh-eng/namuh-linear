@@ -2,6 +2,11 @@ import { resolveRequestWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issue, issueHistory, team, user } from "@/lib/db/schema";
+import {
+  createHeadlessIssuesClient,
+  headlessIssuesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { and, asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -70,6 +75,23 @@ export async function GET(
   }
 
   const { id } = await params;
+  if (headlessIssuesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssuesClient(token);
+    const { data, error, response } = await client.GET("/issues/{id}/history", {
+      params: { path: { id } },
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const currentIssue = await findAccessibleIssue(id, workspaceId);
   if (!currentIssue || currentIssue.workspaceId !== workspaceId) {
     return NextResponse.json({ error: "Issue not found" }, { status: 404 });

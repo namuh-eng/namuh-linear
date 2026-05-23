@@ -107,6 +107,7 @@ func (h Handler) Routes() chi.Router {
 	r.Post("/", h.Create)
 	r.Patch("/bulk", h.Bulk)
 	r.Get("/search", h.Search)
+	r.Get("/{id}/history", h.History)
 	r.Get("/{id}/subscription", h.GetSubscription)
 	r.Post("/{id}/subscription", h.Subscribe)
 	r.Delete("/{id}/subscription", h.Unsubscribe)

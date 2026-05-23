@@ -76,6 +76,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/issues/{id}/history": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get: operations["getIssueHistory"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/issues/bulk": {
     parameters: {
       query?: never;
@@ -3320,6 +3338,24 @@ export interface components {
       subscribed: boolean;
       watcherCount: number;
     };
+    IssueHistoryActor: {
+      id: string;
+      name: string | null;
+      email: string | null;
+    };
+    IssueHistoryEvent: {
+      id: string;
+      type: string;
+      metadata: {
+        [key: string]: unknown;
+      };
+      actor: components["schemas"]["IssueHistoryActor"] | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    IssueHistoryResponse: {
+      history: components["schemas"]["IssueHistoryEvent"][];
+    };
     BulkIssueUpdates: {
       /** Format: uuid */
       stateId?: string | null;
@@ -3614,6 +3650,29 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ReactionSummaryList"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  getIssueHistory: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Issue history */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IssueHistoryResponse"];
         };
       };
       default: components["responses"]["Problem"];
