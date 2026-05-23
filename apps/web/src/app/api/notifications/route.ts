@@ -1,6 +1,12 @@
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issue, notification, user } from "@/lib/db/schema";
+import {
+  createHeadlessNotificationsClient,
+  headlessNotificationsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { desc, eq, sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -18,6 +24,23 @@ export async function GET() {
   const { response: authResponse, session } = await requireApiSession();
   if (authResponse) {
     return authResponse;
+  }
+
+  if (headlessNotificationsEnabled()) {
+    const workspaceId = await resolveActiveWorkspaceId(session.user.id);
+    if (workspaceId) {
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessNotificationsClient(token);
+      const { data, error, response } = await client.GET("/notifications");
+      if (error)
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
   }
 
   const userId = session.user.id;
