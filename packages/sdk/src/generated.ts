@@ -263,6 +263,38 @@ export interface paths {
     patch: operations["updateProjectLabel"];
     trace?: never;
   };
+  "/notifications": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listNotifications"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/notifications/bulk-read": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: operations["markNotificationsRead"];
+    trace?: never;
+  };
   "/personal-access-tokens": {
     parameters: {
       query?: never;
@@ -653,6 +685,41 @@ export interface components {
       name?: string;
       color?: string;
       description?: string | null;
+    };
+    Notification: {
+      /** Format: uuid */
+      id: string;
+      /** @enum {string} */
+      type:
+        | "assigned"
+        | "mentioned"
+        | "status_change"
+        | "comment"
+        | "duplicate";
+      actorName: string;
+      actorImage?: string | null;
+      issueIdentifier: string;
+      issueTitle: string;
+      issuePriority: string;
+      /** Format: uuid */
+      issueId?: string | null;
+      /** Format: date-time */
+      readAt?: string | null;
+      /** Format: date-time */
+      snoozedUntilAt?: string | null;
+      /** Format: date-time */
+      unsnoozedAt?: string | null;
+      /** Format: date-time */
+      createdAt: string;
+    };
+    NotificationListResponse: {
+      notifications: components["schemas"]["Notification"][];
+      unreadCount: number;
+    };
+    BulkReadNotificationsResponse: {
+      success: boolean;
+      updatedCount: number;
+      unreadCount: number;
     };
     PersonalAccessToken: {
       /** Format: uuid */
@@ -1708,6 +1775,48 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ProjectLabelResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listNotifications: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Notifications */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["NotificationListResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  markNotificationsRead: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bulk mark notifications read */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BulkReadNotificationsResponse"];
         };
       };
       default: components["responses"]["Problem"];

@@ -56,6 +56,11 @@ async function main() {
     return;
   }
 
+  if (resource === "notifications") {
+    await notificationCommand();
+    return;
+  }
+
   if (resource !== "issues") {
     usage();
   }
@@ -180,6 +185,24 @@ async function workspaceCommand() {
     const { data, error, response } = await client.POST("/workspaces/invite", {
       body: { invites: [{ email, role }] },
     });
+    printResult(data, error, response.status);
+    return;
+  }
+
+  usage();
+}
+
+async function notificationCommand() {
+  if (action === "list") {
+    const { data, error, response } = await client.GET("/notifications");
+    printResult(data, error, response.status);
+    return;
+  }
+
+  if (action === "mark-read") {
+    const { data, error, response } = await client.PATCH(
+      "/notifications/bulk-read",
+    );
     printResult(data, error, response.status);
     return;
   }
@@ -531,7 +554,9 @@ function usage(): never {
   exponential emojis create --name <name> --image-url <url-or-data-url>
   exponential emojis delete --id <id>
   exponential account profile
-  exponential account preferences`);
+  exponential account preferences
+  exponential notifications list
+  exponential notifications mark-read`);
   process.exit(1);
 }
 

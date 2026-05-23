@@ -469,6 +469,30 @@ paths:
                 $ref: '#/components/schemas/SuccessResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /notifications:
+    get:
+      operationId: listNotifications
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /notifications/bulk-read:
+    patch:
+      operationId: markNotificationsRead
+      responses:
+        '200':
+          description: Bulk mark notifications read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkReadNotificationsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /personal-access-tokens:
     get:
       operationId: listPersonalAccessTokens
@@ -1113,6 +1137,37 @@ components:
         name: { type: string, minLength: 1, maxLength: 255 }
         color: { type: string }
         description: { type: [string, 'null'] }
+    Notification:
+      type: object
+      required: [id, type, actorName, issueIdentifier, issueTitle, issuePriority, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [assigned, mentioned, status_change, comment, duplicate] }
+        actorName: { type: string }
+        actorImage: { type: [string, 'null'] }
+        issueIdentifier: { type: string }
+        issueTitle: { type: string }
+        issuePriority: { type: string }
+        issueId: { type: [string, 'null'], format: uuid }
+        readAt: { type: [string, 'null'], format: date-time }
+        snoozedUntilAt: { type: [string, 'null'], format: date-time }
+        unsnoozedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+    NotificationListResponse:
+      type: object
+      required: [notifications, unreadCount]
+      properties:
+        notifications:
+          type: array
+          items: { $ref: '#/components/schemas/Notification' }
+        unreadCount: { type: integer }
+    BulkReadNotificationsResponse:
+      type: object
+      required: [success, updatedCount, unreadCount]
+      properties:
+        success: { type: boolean }
+        updatedCount: { type: integer }
+        unreadCount: { type: integer }
     PersonalAccessToken:
       type: object
       required: [id, name, token_prefix, scopes, created_at]
