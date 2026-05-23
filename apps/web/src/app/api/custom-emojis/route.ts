@@ -7,6 +7,11 @@ import {
 } from "@/lib/custom-emojis";
 import { db } from "@/lib/db";
 import { workspace } from "@/lib/db/schema";
+import {
+  createHeadlessCustomEmojisClient,
+  headlessCustomEmojisEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -31,6 +36,21 @@ export async function GET() {
   const workspaceId = await getWorkspaceId(session);
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace" }, { status: 404 });
+  }
+
+  if (!("apiKey" in session) && headlessCustomEmojisEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessCustomEmojisClient(token);
+    const { data, error, response } = await client.GET("/custom-emojis");
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const currentWorkspace = await findWorkspace(workspaceId);
@@ -61,6 +81,24 @@ export async function POST(request: Request) {
     name?: unknown;
     imageUrl?: unknown;
   } | null;
+
+  if (!("apiKey" in session) && headlessCustomEmojisEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessCustomEmojisClient(token);
+    const { data, error, response } = await client.POST("/custom-emojis", {
+      body: body as never,
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const input = validateCustomEmojiInput({
     name: body?.name,
     imageUrl: body?.imageUrl,
