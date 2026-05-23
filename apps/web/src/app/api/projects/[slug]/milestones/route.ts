@@ -3,6 +3,11 @@ import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { project, projectMilestone } from "@/lib/db/schema";
 import {
+  createHeadlessProjectsClient,
+  headlessProjectsEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
+import {
   type ProjectActivityEntry,
   readProjectSettings,
 } from "@/lib/project-detail";
@@ -67,6 +72,34 @@ export async function POST(
   if (authResponse) return authResponse;
 
   const { slug } = await params;
+  if (headlessProjectsEnabled()) {
+    const workspaceId = await resolveProjectWorkspaceId(
+      session.user.id,
+      request,
+    );
+    if (workspaceId) {
+      const body = await request.json().catch(() => null);
+      const token = await mintInternalApiToken({
+        userId: session.user.id,
+        workspaceId,
+      });
+      const client = createHeadlessProjectsClient(token);
+      const { data, error, response } = await client.POST(
+        "/projects/{slug}/milestones",
+        {
+          params: { path: { slug } },
+          body: body as never,
+        },
+      );
+      if (error) {
+        return NextResponse.json(error, {
+          status: (response as Response).status,
+        });
+      }
+      return NextResponse.json(data, { status: (response as Response).status });
+    }
+  }
+
   const workspaceId = await resolveProjectWorkspaceId(session.user.id, request);
   if (!workspaceId)
     return NextResponse.json({ error: "Not found" }, { status: 404 });

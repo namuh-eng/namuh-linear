@@ -992,6 +992,46 @@ export interface paths {
     patch: operations["updateProject"];
     trace?: never;
   };
+  "/projects/{slug}/milestones": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create a project milestone */
+    post: operations["createProjectMilestone"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/projects/{slug}/milestones/{milestoneID}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+        milestoneID: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Delete a project milestone */
+    delete: operations["deleteProjectMilestone"];
+    options?: never;
+    head?: never;
+    /** Update a project milestone */
+    patch: operations["updateProjectMilestone"];
+    trace?: never;
+  };
   "/teams": {
     parameters: {
       query?: never;
@@ -2247,6 +2287,24 @@ export interface components {
       created_at: string;
       /** Format: date-time */
       updated_at: string;
+    };
+    ProjectMilestone: {
+      /** Format: uuid */
+      id: string;
+      name: string;
+      sortOrder: number;
+      description?: string | null;
+      issueCount?: number;
+      completedCount?: number;
+      progress?: number;
+    };
+    ProjectMilestoneResponse: {
+      milestone: components["schemas"]["ProjectMilestone"];
+    };
+    ProjectMilestoneRequest: {
+      name?: string;
+      description?: string | null;
+      sortOrder?: number;
     };
     ProjectListResponse: {
       projects: components["schemas"]["Project"][];
@@ -5336,6 +5394,85 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["Project"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createProjectMilestone: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectMilestoneRequest"];
+      };
+    };
+    responses: {
+      /** @description Created milestone */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectMilestoneResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteProjectMilestone: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+        milestoneID: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted milestone */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SuccessResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateProjectMilestone: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+        milestoneID: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectMilestoneRequest"];
+      };
+    };
+    responses: {
+      /** @description Updated milestone */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProjectMilestoneResponse"];
         };
       };
       default: components["responses"]["Problem"];

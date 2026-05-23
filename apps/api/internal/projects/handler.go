@@ -92,6 +92,9 @@ func (h Handler) Routes() chi.Router {
 	r.Get("/{slug}", h.Get)
 	r.Patch("/{slug}", h.Update)
 	r.Delete("/{slug}", h.Delete)
+	r.Post("/{slug}/milestones", h.CreateMilestone)
+	r.Patch("/{slug}/milestones/{milestoneID}", h.UpdateMilestone)
+	r.Delete("/{slug}/milestones/{milestoneID}", h.DeleteMilestone)
 	return r
 }
 

@@ -1486,6 +1486,70 @@ paths:
                 $ref: '#/components/schemas/SuccessResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /projects/{slug}/milestones:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: createProjectMilestone
+      summary: Create a project milestone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectMilestoneRequest'
+      responses:
+        '201':
+          description: Created milestone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMilestoneResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /projects/{slug}/milestones/{milestoneID}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: { type: string }
+      - name: milestoneID
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      operationId: updateProjectMilestone
+      summary: Update a project milestone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectMilestoneRequest'
+      responses:
+        '200':
+          description: Updated milestone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectMilestoneResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteProjectMilestone
+      summary: Delete a project milestone
+      responses:
+        '200':
+          description: Deleted milestone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /teams:
     get:
       operationId: listTeams
@@ -3265,6 +3329,29 @@ components:
         progress: { $ref: '#/components/schemas/ProjectProgress' }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    ProjectMilestone:
+      type: object
+      required: [id, name, sortOrder]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        sortOrder: { type: number }
+        description: { type: [string, 'null'] }
+        issueCount: { type: integer }
+        completedCount: { type: integer }
+        progress: { type: integer }
+    ProjectMilestoneResponse:
+      type: object
+      required: [milestone]
+      properties:
+        milestone:
+          $ref: '#/components/schemas/ProjectMilestone'
+    ProjectMilestoneRequest:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: [string, 'null'] }
+        sortOrder: { type: number }
     ProjectListResponse:
       type: object
       required: [projects]
