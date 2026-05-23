@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/namuh-eng/exponential/apps/api/internal/auth"
@@ -217,6 +218,10 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 500, "Create issue failed", err.Error())
 		return
 	}
+	if err := insertOperation(r.Context(), tx, p.WorkspaceID, "issue", issue.ID, "created", issue, p.UserID); err != nil {
+		problem.Write(w, 500, "Create issue failed", err.Error())
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		problem.Write(w, 500, "Create issue failed", err.Error())
 		return
@@ -311,9 +316,23 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 			sets = append(sets, "archived_at = null")
 		}
 	}
-	args = append(args, existing.ID)
-	updated, err := scanIssue(h.DB.QueryRow(r.Context(), `update issue set `+strings.Join(sets, ", ")+fmt.Sprintf(" where id = $%d::uuid returning ", len(args))+issueColumns(), args...))
+	tx, err := h.DB.Begin(r.Context())
 	if err != nil {
+		problem.Write(w, 500, "Update issue failed", err.Error())
+		return
+	}
+	defer func() { _ = tx.Rollback(r.Context()) }()
+	args = append(args, existing.ID)
+	updated, err := scanIssue(tx.QueryRow(r.Context(), `update issue set `+strings.Join(sets, ", ")+fmt.Sprintf(" where id = $%d::uuid returning ", len(args))+issueColumns(), args...))
+	if err != nil {
+		problem.Write(w, 500, "Update issue failed", err.Error())
+		return
+	}
+	if err := insertOperation(r.Context(), tx, p.WorkspaceID, "issue", updated.ID, "updated", updated, p.UserID); err != nil {
+		problem.Write(w, 500, "Update issue failed", err.Error())
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
 		problem.Write(w, 500, "Update issue failed", err.Error())
 		return
 	}
@@ -335,8 +354,22 @@ func (h Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 500, "Delete issue failed", err.Error())
 		return
 	}
-	_, err = h.DB.Exec(r.Context(), `delete from issue where id=$1::uuid`, existing.ID)
+	tx, err := h.DB.Begin(r.Context())
 	if err != nil {
+		problem.Write(w, 500, "Delete issue failed", err.Error())
+		return
+	}
+	defer func() { _ = tx.Rollback(r.Context()) }()
+	_, err = tx.Exec(r.Context(), `delete from issue where id=$1::uuid`, existing.ID)
+	if err != nil {
+		problem.Write(w, 500, "Delete issue failed", err.Error())
+		return
+	}
+	if err := insertOperation(r.Context(), tx, p.WorkspaceID, "issue", existing.ID, "deleted", existing, p.UserID); err != nil {
+		problem.Write(w, 500, "Delete issue failed", err.Error())
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
 		problem.Write(w, 500, "Delete issue failed", err.Error())
 		return
 	}
@@ -456,6 +489,23 @@ func assertStateForTeam(ctx context.Context, q queryer, stateID, teamID string) 
 	var found string
 	return q.QueryRow(ctx, `select id::text from workflow_state where id=$1::uuid and team_id=$2::uuid`, stateID, teamID).Scan(&found)
 }
+
+type execer interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func insertOperation(ctx context.Context, exec execer, workspaceID, entityType, entityID, opType string, payload any, userID string) error {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = exec.Exec(ctx, `
+		insert into operation (workspace_id, entity_type, entity_id, op_type, payload, version, created_by)
+		values ($1::uuid, $2, $3, $4, $5, nextval('operation_version_seq'), $6)`,
+		workspaceID, entityType, entityID, opType, body, userID)
+	return err
+}
+
 func writeLookupErr(w http.ResponseWriter, err error, title string) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		problem.Write(w, 404, title, "")
