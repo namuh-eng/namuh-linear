@@ -911,6 +911,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/workspaces/current/sla": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getCurrentWorkspaceSla"];
+    put?: never;
+    post: operations["createCurrentWorkspaceSlaPolicy"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/workspaces/current/sla/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: operations["deleteCurrentWorkspaceSlaPolicy"];
+    options?: never;
+    head?: never;
+    patch: operations["updateCurrentWorkspaceSlaPolicy"];
+    trace?: never;
+  };
   "/workspaces/current/ai-settings": {
     parameters: {
       query?: never;
@@ -1850,6 +1884,42 @@ export interface components {
     };
     WorkspaceImportPreviewResponse: {
       preview: components["schemas"]["WorkspaceImportPreviewRow"][];
+    };
+    SlaPolicyCondition: {
+      /** @enum {string} */
+      priority?: "urgent" | "high" | "medium" | "low";
+      teamKey?: string;
+    };
+    SlaPolicy: {
+      id: string;
+      name: string;
+      description: string | null;
+      responseTimeHours: number;
+      resolutionTimeHours: number;
+      enabled: boolean;
+      conditions: components["schemas"]["SlaPolicyCondition"];
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+    };
+    SlaSettingsWithPermissions: {
+      policies: components["schemas"]["SlaPolicy"][];
+      canManage: boolean;
+    };
+    WorkspaceSlaResponse: {
+      sla: components["schemas"]["SlaSettingsWithPermissions"];
+    };
+    SlaPolicyResponse: {
+      policy: components["schemas"]["SlaPolicy"];
+    };
+    SlaPolicyInput: {
+      name?: string;
+      description?: string | null;
+      responseTimeHours?: number;
+      resolutionTimeHours?: number;
+      enabled?: boolean;
+      conditions?: components["schemas"]["SlaPolicyCondition"];
     };
     WorkspaceAiSettings: {
       aiFeaturesEnabled: boolean;
@@ -4317,6 +4387,104 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CreateWorkspaceResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  getCurrentWorkspaceSla: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current workspace SLA settings */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceSlaResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createCurrentWorkspaceSlaPolicy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SlaPolicyInput"];
+      };
+    };
+    responses: {
+      /** @description Created SLA policy */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SlaPolicyResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  deleteCurrentWorkspaceSlaPolicy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deleted SLA policy */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            ok: boolean;
+          };
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  updateCurrentWorkspaceSlaPolicy: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SlaPolicyInput"];
+      };
+    };
+    responses: {
+      /** @description Updated SLA policy */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SlaPolicyResponse"];
         };
       };
       default: components["responses"]["Problem"];

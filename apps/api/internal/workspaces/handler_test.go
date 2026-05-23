@@ -109,3 +109,15 @@ func TestReadAndPatchWorkspaceAISettings(t *testing.T) {
 		t.Fatalf("patched = %#v", patched)
 	}
 }
+
+func TestReadAndNormalizeSLASettings(t *testing.T) {
+	priority := "urgent"
+	settings := map[string]any{"sla": map[string]any{"policies": []any{map[string]any{"id": "sla-1", "name": "Urgent", "responseTimeHours": float64(2), "resolutionTimeHours": float64(8), "conditions": map[string]any{"priority": priority, "teamKey": "eng"}, "createdAt": "2026-05-01T00:00:00Z", "updatedAt": "2026-05-01T00:00:00Z"}}}}
+	got := readSLASettings(settings)
+	if len(got.Policies) != 1 || got.Policies[0].Name != "Urgent" || got.Policies[0].Conditions.TeamKey == nil || *got.Policies[0].Conditions.TeamKey != "ENG" {
+		t.Fatalf("sla = %#v", got)
+	}
+	if _, err := normalizeSLAPolicyInput(map[string]any{"name": "Bad", "responseTimeHours": float64(10), "resolutionTimeHours": float64(2)}); err == nil {
+		t.Fatal("response target above resolution should fail")
+	}
+}

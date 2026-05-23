@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -141,6 +143,10 @@ func (h Handler) Routes() chi.Router {
 	r.Delete("/members", h.RemoveMemberOrInvitation)
 	r.Post("/invite", h.Invite)
 	r.Post("/imports/preview", h.PreviewImport)
+	r.Get("/current/sla", h.GetSLA)
+	r.Post("/current/sla", h.CreateSLA)
+	r.Patch("/current/sla/{id}", h.UpdateSLA)
+	r.Delete("/current/sla/{id}", h.DeleteSLA)
 	r.Get("/current/ai-settings", h.GetAISettings)
 	r.Patch("/current/ai-settings", h.UpdateAISettings)
 	r.Get("/current/initiatives-settings", h.GetInitiativeSettings)
@@ -452,6 +458,185 @@ type aiSettingsResponse struct {
 	AISettings   workspaceAISettings `json:"aiSettings"`
 	Capabilities aiCapabilities      `json:"capabilities"`
 	Limits       aiLimits            `json:"limits"`
+}
+
+type slaPolicyCondition struct {
+	Priority *string `json:"priority,omitempty"`
+	TeamKey  *string `json:"teamKey,omitempty"`
+}
+
+type slaPolicy struct {
+	ID                  string             `json:"id"`
+	Name                string             `json:"name"`
+	Description         *string            `json:"description"`
+	ResponseTimeHours   float64            `json:"responseTimeHours"`
+	ResolutionTimeHours float64            `json:"resolutionTimeHours"`
+	Enabled             bool               `json:"enabled"`
+	Conditions          slaPolicyCondition `json:"conditions"`
+	CreatedAt           string             `json:"createdAt"`
+	UpdatedAt           string             `json:"updatedAt"`
+}
+
+type slaSettings struct {
+	Policies []slaPolicy `json:"policies"`
+}
+
+type slaResponse struct {
+	SLA struct {
+		Policies  []slaPolicy `json:"policies"`
+		CanManage bool        `json:"canManage"`
+	} `json:"sla"`
+}
+
+type slaPolicyResponse struct {
+	Policy slaPolicy `json:"policy"`
+}
+
+func (h Handler) GetSLA(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No workspace", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Get SLA policies failed", err.Error())
+		return
+	}
+	out := slaResponse{}
+	out.SLA.Policies = readSLASettings(settings).Policies
+	out.SLA.CanManage = isManager(p.Role)
+	problem.JSON(w, 200, out)
+}
+
+func (h Handler) CreateSLA(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	if !isManager(p.Role) {
+		problem.Write(w, 403, "Forbidden", "")
+		return
+	}
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No workspace", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Create SLA policy failed", err.Error())
+		return
+	}
+	var body map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		problem.Write(w, 400, "Invalid JSON", err.Error())
+		return
+	}
+	value, err := normalizeSLAPolicyInput(body)
+	if err != nil {
+		problem.Write(w, 400, err.Error(), "")
+		return
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	policy := value
+	policy.ID = createRandomID("sla")
+	policy.CreatedAt = now
+	policy.UpdatedAt = now
+	current := readSLASettings(settings)
+	current.Policies = append([]slaPolicy{policy}, current.Policies...)
+	if err := h.saveSLASettings(r.Context(), p.WorkspaceID, settings, current); err != nil {
+		problem.Write(w, 500, "Create SLA policy failed", err.Error())
+		return
+	}
+	problem.JSON(w, 201, slaPolicyResponse{Policy: policy})
+}
+
+func (h Handler) UpdateSLA(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	if !isManager(p.Role) {
+		problem.Write(w, 403, "Forbidden", "")
+		return
+	}
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No workspace", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Update SLA policy failed", err.Error())
+		return
+	}
+	id := chi.URLParam(r, "id")
+	current := readSLASettings(settings)
+	idx := -1
+	for i, policy := range current.Policies {
+		if policy.ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		problem.Write(w, 404, "SLA policy not found", "")
+		return
+	}
+	body := policyToMap(current.Policies[idx])
+	var patch map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+		problem.Write(w, 400, "Invalid JSON", err.Error())
+		return
+	}
+	for key, value := range patch {
+		body[key] = value
+	}
+	updated, err := normalizeSLAPolicyInput(body)
+	if err != nil {
+		problem.Write(w, 400, err.Error(), "")
+		return
+	}
+	updated.ID = current.Policies[idx].ID
+	updated.CreatedAt = current.Policies[idx].CreatedAt
+	updated.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+	current.Policies[idx] = updated
+	if err := h.saveSLASettings(r.Context(), p.WorkspaceID, settings, current); err != nil {
+		problem.Write(w, 500, "Update SLA policy failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, slaPolicyResponse{Policy: updated})
+}
+
+func (h Handler) DeleteSLA(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
+	if !isManager(p.Role) {
+		problem.Write(w, 403, "Forbidden", "")
+		return
+	}
+	settings, err := h.workspaceSettings(r.Context(), p.WorkspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		problem.Write(w, 404, "No workspace", "")
+		return
+	}
+	if err != nil {
+		problem.Write(w, 500, "Delete SLA policy failed", err.Error())
+		return
+	}
+	id := chi.URLParam(r, "id")
+	current := readSLASettings(settings)
+	next := []slaPolicy{}
+	found := false
+	for _, policy := range current.Policies {
+		if policy.ID == id {
+			found = true
+			continue
+		}
+		next = append(next, policy)
+	}
+	if !found {
+		problem.Write(w, 404, "SLA policy not found", "")
+		return
+	}
+	current.Policies = next
+	if err := h.saveSLASettings(r.Context(), p.WorkspaceID, settings, current); err != nil {
+		problem.Write(w, 500, "Delete SLA policy failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, map[string]bool{"ok": true})
 }
 
 func (h Handler) GetAISettings(w http.ResponseWriter, r *http.Request) {
@@ -1901,4 +2086,112 @@ func firstString(values ...any) string {
 		}
 	}
 	return ""
+}
+
+func readSLASettings(settings map[string]any) slaSettings {
+	sla := recordFromAny(settings["sla"])
+	policies := []slaPolicy{}
+	if rawPolicies, ok := sla["policies"].([]any); ok {
+		for _, raw := range rawPolicies {
+			policy, ok := readSLAPolicy(raw)
+			if ok {
+				policies = append(policies, policy)
+			}
+		}
+	}
+	return slaSettings{Policies: policies}
+}
+
+func readSLAPolicy(raw any) (slaPolicy, bool) {
+	record := recordFromAny(raw)
+	id := asStringValue(record["id"])
+	name := asStringValue(record["name"])
+	if id == "" || name == "" {
+		return slaPolicy{}, false
+	}
+	policy, err := normalizeSLAPolicyInput(record)
+	if err != nil {
+		return slaPolicy{}, false
+	}
+	policy.ID = id
+	policy.CreatedAt = nonEmptyString(record["createdAt"], time.Unix(0, 0).UTC().Format(time.RFC3339))
+	policy.UpdatedAt = nonEmptyString(record["updatedAt"], time.Unix(0, 0).UTC().Format(time.RFC3339))
+	return policy, true
+}
+
+func normalizeSLAPolicyInput(input map[string]any) (slaPolicy, error) {
+	name := truncate(strings.TrimSpace(asStringValue(input["name"])), 80)
+	if name == "" {
+		return slaPolicy{}, fmt.Errorf("Name is required")
+	}
+	response := positiveFloatHours(input["responseTimeHours"], 4)
+	resolution := positiveFloatHours(input["resolutionTimeHours"], 24)
+	if response > resolution {
+		return slaPolicy{}, fmt.Errorf("Response target must be less than or equal to resolution target")
+	}
+	var description *string
+	if text := truncate(strings.TrimSpace(asStringValue(input["description"])), 240); text != "" {
+		description = &text
+	}
+	return slaPolicy{Name: name, Description: description, ResponseTimeHours: response, ResolutionTimeHours: resolution, Enabled: input["enabled"] != false, Conditions: normalizeSLAConditions(input["conditions"])}, nil
+}
+
+func normalizeSLAConditions(raw any) slaPolicyCondition {
+	record := recordFromAny(raw)
+	condition := slaPolicyCondition{}
+	if s := asStringValue(record["priority"]); s == "urgent" || s == "high" || s == "medium" || s == "low" {
+		condition.Priority = &s
+	}
+	if s := strings.ToUpper(truncate(strings.TrimSpace(asStringValue(record["teamKey"])), 12)); s != "" {
+		condition.TeamKey = &s
+	}
+	return condition
+}
+
+func positiveFloatHours(value any, fallback float64) float64 {
+	var f float64
+	switch v := value.(type) {
+	case float64:
+		f = v
+	case float32:
+		f = float64(v)
+	case int:
+		f = float64(v)
+	case int32:
+		f = float64(v)
+	case int64:
+		f = float64(v)
+	case string:
+		parsed, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return fallback
+		}
+		f = parsed
+	default:
+		return fallback
+	}
+	if f <= 0 {
+		return fallback
+	}
+	return math.Round(f*100) / 100
+}
+
+func (h Handler) saveSLASettings(ctx context.Context, workspaceID string, settings map[string]any, sla slaSettings) error {
+	existing := recordFromAny(settings["sla"])
+	existing["policies"] = sla.Policies
+	settings["sla"] = existing
+	raw, _ := json.Marshal(settings)
+	_, err := h.DB.Exec(ctx, `update workspace set settings=$1::jsonb, updated_at=now() where id=$2::uuid`, raw, workspaceID)
+	return err
+}
+
+func policyToMap(policy slaPolicy) map[string]any {
+	conditions := map[string]any{}
+	if policy.Conditions.Priority != nil {
+		conditions["priority"] = *policy.Conditions.Priority
+	}
+	if policy.Conditions.TeamKey != nil {
+		conditions["teamKey"] = *policy.Conditions.TeamKey
+	}
+	return map[string]any{"name": policy.Name, "description": policy.Description, "responseTimeHours": policy.ResponseTimeHours, "resolutionTimeHours": policy.ResolutionTimeHours, "enabled": policy.Enabled, "conditions": conditions}
 }

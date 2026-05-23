@@ -1397,6 +1397,72 @@ paths:
                 $ref: '#/components/schemas/CreateWorkspaceResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /workspaces/current/sla:
+    get:
+      operationId: getCurrentWorkspaceSla
+      responses:
+        '200':
+          description: Current workspace SLA settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceSlaResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createCurrentWorkspaceSlaPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlaPolicyInput'
+      responses:
+        '201':
+          description: Created SLA policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaPolicyResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /workspaces/current/sla/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      operationId: updateCurrentWorkspaceSlaPolicy
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SlaPolicyInput'
+      responses:
+        '200':
+          description: Updated SLA policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlaPolicyResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      operationId: deleteCurrentWorkspaceSlaPolicy
+      responses:
+        '200':
+          description: Deleted SLA policy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+        default:
+          $ref: '#/components/responses/Problem'
   /workspaces/current/ai-settings:
     get:
       operationId: getCurrentWorkspaceAiSettings
@@ -2692,6 +2758,51 @@ components:
         preview:
           type: array
           items: { $ref: '#/components/schemas/WorkspaceImportPreviewRow' }
+    SlaPolicyCondition:
+      type: object
+      properties:
+        priority: { type: string, enum: [urgent, high, medium, low] }
+        teamKey: { type: string }
+    SlaPolicy:
+      type: object
+      required: [id, name, description, responseTimeHours, resolutionTimeHours, enabled, conditions, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        responseTimeHours: { type: number }
+        resolutionTimeHours: { type: number }
+        enabled: { type: boolean }
+        conditions: { $ref: '#/components/schemas/SlaPolicyCondition' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    SlaSettingsWithPermissions:
+      type: object
+      required: [policies, canManage]
+      properties:
+        policies:
+          type: array
+          items: { $ref: '#/components/schemas/SlaPolicy' }
+        canManage: { type: boolean }
+    WorkspaceSlaResponse:
+      type: object
+      required: [sla]
+      properties:
+        sla: { $ref: '#/components/schemas/SlaSettingsWithPermissions' }
+    SlaPolicyResponse:
+      type: object
+      required: [policy]
+      properties:
+        policy: { $ref: '#/components/schemas/SlaPolicy' }
+    SlaPolicyInput:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        responseTimeHours: { type: number }
+        resolutionTimeHours: { type: number }
+        enabled: { type: boolean }
+        conditions: { $ref: '#/components/schemas/SlaPolicyCondition' }
     WorkspaceAiSettings:
       type: object
       required: [aiFeaturesEnabled, askLinearEnabled, issueSuggestionsEnabled, summariesEnabled, autoTriageEnabled, workspaceAgentGuidance, agentUsagePermission]
