@@ -23,6 +23,11 @@ import {
   type DiscussionSummaryStatus,
   buildDiscussionSummaryState,
 } from "@/lib/discussion-summary";
+import {
+  createHeadlessIssuesClient,
+  headlessIssuesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { normalizeIssueDescriptionHtml } from "@/lib/issue-description";
 import { insertIssueHistoryEvent } from "@/lib/issue-history";
 import { getIssueSubscriptionSummary } from "@/lib/issue-subscriptions";
@@ -133,6 +138,23 @@ export async function GET(
   );
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace found" }, { status: 400 });
+  }
+
+  if (headlessIssuesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssuesClient(token);
+    const { data, error, response } = await client.GET("/issues/{id}", {
+      params: { path: { id } },
+    });
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const iss = await findIssueRecord(id, workspaceId);
@@ -542,6 +564,29 @@ export async function PATCH(
   const workspaceId = await resolveRequestWorkspaceId(session.user.id, request);
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace found" }, { status: 400 });
+  }
+
+  if (headlessIssuesEnabled()) {
+    const body = await request.json().catch(() => null);
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssuesClient(token);
+    const idempotencyKey = request.headers.get("idempotency-key");
+    const { data, error, response } = await client.PATCH("/issues/{id}", {
+      params: { path: { id } },
+      body: body as never,
+      headers: idempotencyKey
+        ? { "Idempotency-Key": idempotencyKey }
+        : undefined,
+    } as never);
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const body = (await request.json()) as {
@@ -954,6 +999,27 @@ export async function DELETE(
   );
   if (!workspaceId) {
     return NextResponse.json({ error: "No workspace found" }, { status: 400 });
+  }
+
+  if (headlessIssuesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessIssuesClient(token);
+    const idempotencyKey = _request.headers.get("idempotency-key");
+    const { data, error, response } = await client.DELETE("/issues/{id}", {
+      params: { path: { id } },
+      headers: idempotencyKey
+        ? { "Idempotency-Key": idempotencyKey }
+        : undefined,
+    } as never);
+    if (error) {
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
   }
 
   const existingIssue = await findIssueRecord(id, workspaceId);
