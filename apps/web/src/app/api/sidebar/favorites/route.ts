@@ -3,6 +3,11 @@ import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { customView, issue, project, team, user } from "@/lib/db/schema";
 import {
+  createHeadlessSidebarFavoritesClient,
+  headlessSidebarFavoritesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
+import {
   type SidebarFavorite,
   type SidebarFavoriteObjectType,
   type StoredSidebarFavorite,
@@ -206,6 +211,20 @@ export async function GET(request: Request) {
   const workspaceId = await resolveWorkspaceId(session, request);
   if (!workspaceId) return NextResponse.json({ favorites: [] });
 
+  if (!("apiKey" in session) && headlessSidebarFavoritesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessSidebarFavoritesClient(token);
+    const { data, error, response } = await client.GET("/sidebar/favorites");
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const currentUser = await findCurrentUser(session.user.id);
   if (!currentUser)
     return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -226,11 +245,29 @@ export async function POST(request: Request) {
   if (!workspaceId)
     return NextResponse.json({ error: "No workspace found" }, { status: 400 });
 
+  const body = await request.json().catch(() => null);
+
+  if (!("apiKey" in session) && headlessSidebarFavoritesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessSidebarFavoritesClient(token);
+    const { data, error, response } = await client.POST("/sidebar/favorites", {
+      body: body as never,
+    });
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const currentUser = await findCurrentUser(session.user.id);
   if (!currentUser)
     return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const input = parseFavoriteInput(await request.json().catch(() => null));
+  const input = parseFavoriteInput(body);
   if (!input)
     return NextResponse.json(
       { error: "objectType and objectId are required" },
@@ -293,15 +330,37 @@ export async function PATCH(request: Request) {
   if (!workspaceId)
     return NextResponse.json({ error: "No workspace found" }, { status: 400 });
 
+  const body = (await request.json().catch(() => null)) as {
+    orderedIds?: unknown;
+  } | null;
+
+  if (!("apiKey" in session) && headlessSidebarFavoritesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessSidebarFavoritesClient(token);
+    const { data, error, response } = await client.PATCH("/sidebar/favorites", {
+      body: body as never,
+    });
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const currentUser = await findCurrentUser(session.user.id);
   if (!currentUser)
     return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const body = (await request.json().catch(() => null)) as {
+  const reorderBody = body as {
     orderedIds?: unknown;
   } | null;
-  const orderedIds = Array.isArray(body?.orderedIds)
-    ? body.orderedIds.filter((id): id is string => typeof id === "string")
+  const orderedIds = Array.isArray(reorderBody?.orderedIds)
+    ? reorderBody.orderedIds.filter(
+        (id): id is string => typeof id === "string",
+      )
     : null;
   if (!orderedIds)
     return NextResponse.json(
@@ -354,13 +413,33 @@ export async function DELETE(request: Request) {
   if (!workspaceId)
     return NextResponse.json({ error: "No workspace found" }, { status: 400 });
 
+  const url = new URL(request.url);
+  const objectType = url.searchParams.get("objectType");
+  const objectId = url.searchParams.get("objectId");
+
+  if (!("apiKey" in session) && headlessSidebarFavoritesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const client = createHeadlessSidebarFavoritesClient(token);
+    const { data, error, response } = await client.DELETE(
+      "/sidebar/favorites",
+      {
+        params: { query: { objectType, objectId } },
+      } as never,
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const currentUser = await findCurrentUser(session.user.id);
   if (!currentUser)
     return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const url = new URL(request.url);
-  const objectType = url.searchParams.get("objectType");
-  const objectId = url.searchParams.get("objectId");
   if (!isSidebarFavoriteObjectType(objectType) || !objectId) {
     return NextResponse.json(
       { error: "objectType and objectId are required" },
