@@ -72,4 +72,8 @@ ensure_service "${APP_NAME}-api" "$API_TASK_ARN" "$API_TG_ARN" api 3016
 ensure_service "${APP_NAME}-web" "$WEB_TASK_ARN" "$WEB_TG_ARN" web 3000
 ensure_service "${APP_NAME}-kratos" "$KRATOS_TASK_ARN" "$KRATOS_TG_ARN" kratos 4433
 
+if [ "${CONFIGURE_AUTOSCALING:-true}" != "false" ]; then
+  scripts/configure-ecs-autoscaling.sh
+fi
+
 echo "Deployed ECS services: ${APP_NAME}-api, ${APP_NAME}-web, ${APP_NAME}-kratos"

@@ -5,6 +5,7 @@ for (const expected of [
   "${APP_NAME}-api",
   "${APP_NAME}-web",
   "${APP_NAME}-kratos",
+  "configure-ecs-autoscaling.sh",
 ]) {
   if (!deploy.includes(expected)) {
     throw new Error(`deploy-ecs.sh must manage ${expected}`);
