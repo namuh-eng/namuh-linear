@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -129,8 +131,8 @@ func (h Handler) MutateCurrentAPI(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		url := strings.TrimSpace(asStringValue(body.URL))
-		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			problem.Write(w, 400, "Webhook URL must be HTTP or HTTPS.", "")
+		if err := validateWebhookURL(url); err != nil {
+			problem.JSON(w, 400, map[string]string{"error": err.Error()})
 			return
 		}
 		events := apiEvents(body.Events)
@@ -289,6 +291,34 @@ func apiEvents(v any) []string {
 	}
 	return out
 }
+
+func validateWebhookURL(value string) error {
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return errors.New("Webhook URL must be a valid absolute URL.")
+	}
+	if parsed.Scheme != "https" {
+		return errors.New("Webhook URL must use HTTPS.")
+	}
+	host := strings.ToLower(parsed.Hostname())
+	privateHost := host == "localhost" ||
+		host == "127.0.0.1" ||
+		strings.HasPrefix(host, "10.") ||
+		strings.HasPrefix(host, "192.168.") ||
+		strings.HasPrefix(host, "169.254.") ||
+		strings.HasPrefix(host, "172.16.") ||
+		strings.HasPrefix(host, "172.17.") ||
+		strings.HasPrefix(host, "172.18.") ||
+		strings.HasPrefix(host, "172.19.") ||
+		strings.HasPrefix(host, "172.2") ||
+		strings.HasPrefix(host, "172.30.") ||
+		strings.HasPrefix(host, "172.31.")
+	if privateHost {
+		return errors.New("Webhook URL must not use localhost, loopback, private, or link-local hosts.")
+	}
+	return nil
+}
+
 func nullString(s string) *string {
 	if s == "" {
 		return nil

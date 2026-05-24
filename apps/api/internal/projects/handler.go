@@ -22,23 +22,29 @@ import (
 type Handler struct{ DB *pgxpool.Pool }
 
 type Project struct {
-	ID          string        `json:"id"`
-	Name        string        `json:"name"`
-	Description *string       `json:"description"`
-	Icon        *string       `json:"icon"`
-	Slug        string        `json:"slug"`
-	Status      string        `json:"status"`
-	Priority    string        `json:"priority"`
-	LeadID      *string       `json:"lead_id"`
-	WorkspaceID string        `json:"workspace_id"`
-	StartDate   *string       `json:"start_date"`
-	TargetDate  *string       `json:"target_date"`
-	CompletedAt *string       `json:"completed_at"`
-	CanceledAt  *string       `json:"canceled_at"`
-	Teams       []ProjectTeam `json:"teams"`
-	Progress    Progress      `json:"progress"`
-	CreatedAt   string        `json:"created_at"`
-	UpdatedAt   string        `json:"updated_at"`
+	ID                string            `json:"id"`
+	Name              string            `json:"name"`
+	Description       *string           `json:"description"`
+	Icon              *string           `json:"icon"`
+	Slug              string            `json:"slug"`
+	Status            string            `json:"status"`
+	StatusLabel       string            `json:"statusLabel,omitempty"`
+	StatusColor       string            `json:"statusColor,omitempty"`
+	StatusIcon        string            `json:"statusIcon,omitempty"`
+	Priority          string            `json:"priority"`
+	LeadID            *string           `json:"lead_id"`
+	WorkspaceID       string            `json:"workspace_id"`
+	StartDate         *string           `json:"start_date"`
+	TargetDate        *string           `json:"target_date"`
+	CompletedAt       *string           `json:"completed_at"`
+	CanceledAt        *string           `json:"canceled_at"`
+	Teams             []ProjectTeam     `json:"teams"`
+	Labels            []ProjectLabelRef `json:"labels"`
+	Progress          Progress          `json:"progress"`
+	CreatedAt         string            `json:"created_at"`
+	UpdatedAt         string            `json:"updated_at"`
+	AppliedTemplateID *string           `json:"appliedTemplateId,omitempty"`
+	AppliedMilestones []string          `json:"appliedMilestones,omitempty"`
 }
 
 type ProjectTeam struct {
@@ -51,6 +57,12 @@ type Progress struct {
 	Total      int32 `json:"total"`
 	Completed  int32 `json:"completed"`
 	Percentage int32 `json:"percentage"`
+}
+
+type ProjectLabelRef struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
 }
 
 type listResponse struct {
@@ -70,6 +82,12 @@ type createRequest struct {
 	TeamIDs     []string `json:"team_ids"`
 	TeamKeys    []string `json:"team_keys"`
 	TeamKey     string   `json:"teamKey"`
+	LabelIDs    []string `json:"labelIds"`
+	TemplateID  string   `json:"templateId"`
+	Milestones  []struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	} `json:"projectMilestones"`
 }
 
 type updateRequest struct {
@@ -121,7 +139,12 @@ func (h Handler) Get(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 500, "Get project failed", err.Error())
 		return
 	}
-	problem.JSON(w, 200, project)
+	detail, err := h.projectDetail(r.Context(), p.WorkspaceID, r.URL.Query().Get("workspaceSlug"), project)
+	if err != nil {
+		problem.Write(w, 500, "Get project failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, detail)
 }
 
 func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -149,8 +172,13 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 400, "Project name must include letters or numbers", "")
 		return
 	}
-	status := valueOr(input.Status, "planned")
-	priority := valueOr(input.Priority, "none")
+	templateSettings, appliedTemplateID, err := h.projectTemplateSettings(r.Context(), p.WorkspaceID, input.TemplateID)
+	if err != nil {
+		problem.Write(w, 400, "Project template not found in active workspace", err.Error())
+		return
+	}
+	status := valueOr(input.Status, valueOr(templateSettings.Status, "planned"))
+	priority := valueOr(input.Priority, valueOr(templateSettings.Priority, "none"))
 	if !validStatus(status) || !validPriority(priority) {
 		problem.Write(w, 400, "Invalid project", "status or priority is invalid")
 		return
@@ -201,7 +229,52 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 500, "Create project failed", err.Error())
 		return
 	}
+	projectSettings := map[string]any{}
+	labelIDs := uniqueProjectStrings(append(templateSettings.LabelIDs, input.LabelIDs...))
+	if len(labelIDs) > 0 {
+		projectSettings["labelIds"] = labelIDs
+	}
+	appliedMilestones := append([]string{}, templateSettings.Milestones...)
+	for _, milestone := range input.Milestones {
+		if name := strings.TrimSpace(milestone.Name); name != "" {
+			appliedMilestones = append(appliedMilestones, name)
+		}
+	}
+	if len(projectSettings) > 0 {
+		if err := h.saveProjectSettings(r.Context(), tx, project.ID, projectSettings); err != nil {
+			problem.Write(w, 500, "Create project failed", err.Error())
+			return
+		}
+	}
+	if len(appliedMilestones) > 0 || len(input.Milestones) > 0 {
+		settings, err := h.projectSettings(r.Context(), tx, project.ID)
+		if err != nil {
+			problem.Write(w, 500, "Create project failed", err.Error())
+			return
+		}
+		for index, name := range appliedMilestones {
+			created, err := scanMilestone(tx.QueryRow(r.Context(), `insert into project_milestone (project_id,name,sort_order) values ($1::uuid,$2,$3) returning id::text,name,sort_order`, project.ID, name, index))
+			if err != nil {
+				problem.Write(w, 500, "Create project failed", err.Error())
+				return
+			}
+			var description *string
+			for _, milestone := range input.Milestones {
+				if strings.TrimSpace(milestone.Name) == name {
+					description = nullableString(milestone.Description)
+					break
+				}
+			}
+			setMilestoneDescription(settings, created.ID, description)
+		}
+		if err := h.saveProjectSettings(r.Context(), tx, project.ID, settings); err != nil {
+			problem.Write(w, 500, "Create project failed", err.Error())
+			return
+		}
+	}
 	project.Teams = teams
+	project.AppliedTemplateID = appliedTemplateID
+	project.AppliedMilestones = appliedMilestones
 	if err := insertOperation(r.Context(), tx, p.WorkspaceID, "project", project.ID, "created", project, p.UserID); err != nil {
 		problem.Write(w, 500, "Create project failed", err.Error())
 		return
@@ -250,11 +323,9 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 		add("icon=$%d", truncatePtr(input.Icon, 10))
 	}
 	if input.Status != nil {
-		if !validStatus(*input.Status) {
-			problem.Write(w, 400, "Invalid project status", "")
-			return
+		if validStatus(*input.Status) {
+			add("status=$%d", *input.Status)
 		}
-		add("status=$%d", *input.Status)
 	}
 	if input.Priority != nil {
 		if !validPriority(*input.Priority) {
@@ -325,6 +396,24 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if input.Status != nil {
+		settings, err := h.projectSettings(r.Context(), tx, updated.ID)
+		if err != nil {
+			problem.Write(w, 500, "Update project failed", err.Error())
+			return
+		}
+		if validStatus(*input.Status) {
+			delete(settings, "projectStatusKey")
+			updated.Status = *input.Status
+		} else {
+			settings["projectStatusKey"] = strings.TrimSpace(*input.Status)
+			updated.Status = strings.TrimSpace(*input.Status)
+		}
+		if err := h.saveProjectSettings(r.Context(), tx, updated.ID, settings); err != nil {
+			problem.Write(w, 500, "Update project failed", err.Error())
+			return
+		}
+	}
 	updated.Teams = teams
 	updated.Progress = existing.Progress
 	if err := insertOperation(r.Context(), tx, p.WorkspaceID, "project", updated.ID, "updated", updated, p.UserID); err != nil {
@@ -335,7 +424,12 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 500, "Update project failed", err.Error())
 		return
 	}
-	problem.JSON(w, 200, updated)
+	detail, err := h.projectDetail(r.Context(), p.WorkspaceID, r.URL.Query().Get("workspaceSlug"), updated)
+	if err != nil {
+		problem.Write(w, 500, "Update project failed", err.Error())
+		return
+	}
+	problem.JSON(w, 200, detail)
 }
 
 func (h Handler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -416,6 +510,9 @@ func (h Handler) loadProjects(ctx context.Context, where string, args ...any) ([
 		if projects[i].Teams == nil {
 			projects[i].Teams = []ProjectTeam{}
 		}
+	}
+	if err := h.enrichProjects(ctx, projects); err != nil {
+		return nil, err
 	}
 	return projects, nil
 }
@@ -646,6 +743,42 @@ func projectIDs(projects []Project) []string {
 		ids[i] = p.ID
 	}
 	return ids
+}
+
+type createProjectTemplateSettings struct {
+	Status     *string  `json:"status"`
+	Priority   *string  `json:"priority"`
+	LabelIDs   []string `json:"labelIds"`
+	Milestones []string `json:"milestones"`
+}
+
+func (h Handler) projectTemplateSettings(ctx context.Context, workspaceID, templateID string) (createProjectTemplateSettings, *string, error) {
+	if strings.TrimSpace(templateID) == "" {
+		return createProjectTemplateSettings{}, nil, nil
+	}
+	var raw []byte
+	err := h.DB.QueryRow(ctx, `select coalesce(settings,'{}'::jsonb) from project_template where id=$1::uuid and workspace_id=$2::uuid`, templateID, workspaceID).Scan(&raw)
+	if err != nil {
+		return createProjectTemplateSettings{}, nil, err
+	}
+	var settings createProjectTemplateSettings
+	_ = json.Unmarshal(raw, &settings)
+	id := strings.TrimSpace(templateID)
+	return settings, &id, nil
+}
+
+func uniqueProjectStrings(values []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		out = append(out, trimmed)
+	}
+	return out
 }
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError

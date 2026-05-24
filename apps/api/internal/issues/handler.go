@@ -79,16 +79,47 @@ type updateRequest struct {
 	Title              *string  `json:"title"`
 	Description        *string  `json:"description"`
 	StateID            *string  `json:"state_id"`
+	StateIDCamel       *string  `json:"stateId"`
 	Priority           *string  `json:"priority"`
 	AssigneeID         *string  `json:"assignee_id"`
+	AssigneeIDCamel    *string  `json:"assigneeId"`
 	ProjectID          *string  `json:"project_id"`
+	ProjectIDCamel     *string  `json:"projectId"`
 	ProjectMilestoneID *string  `json:"project_milestone_id"`
+	MilestoneIDCamel   *string  `json:"projectMilestoneId"`
 	CycleID            *string  `json:"cycle_id"`
+	CycleIDCamel       *string  `json:"cycleId"`
 	ParentIssueID      *string  `json:"parent_issue_id"`
+	ParentIssueIDCamel *string  `json:"parentIssueId"`
 	Estimate           *float32 `json:"estimate"`
 	DueDate            *string  `json:"due_date"`
+	DueDateCamel       *string  `json:"dueDate"`
 	SortOrder          *float32 `json:"sort_order"`
 	Archive            *bool    `json:"archive"`
+}
+
+func (r *updateRequest) normalize() {
+	if r.StateID == nil {
+		r.StateID = r.StateIDCamel
+	}
+	if r.AssigneeID == nil {
+		r.AssigneeID = r.AssigneeIDCamel
+	}
+	if r.ProjectID == nil {
+		r.ProjectID = r.ProjectIDCamel
+	}
+	if r.ProjectMilestoneID == nil {
+		r.ProjectMilestoneID = r.MilestoneIDCamel
+	}
+	if r.CycleID == nil {
+		r.CycleID = r.CycleIDCamel
+	}
+	if r.ParentIssueID == nil {
+		r.ParentIssueID = r.ParentIssueIDCamel
+	}
+	if r.DueDate == nil {
+		r.DueDate = r.DueDateCamel
+	}
 }
 
 func (r *createRequest) normalize() {
@@ -684,6 +715,7 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 400, "Invalid JSON", err.Error())
 		return
 	}
+	input.normalize()
 	existing, err := h.findIssue(r.Context(), chi.URLParam(r, "id"), p.WorkspaceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		problem.Write(w, 404, "Issue not found", "")

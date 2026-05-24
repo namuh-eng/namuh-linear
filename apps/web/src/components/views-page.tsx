@@ -1168,7 +1168,7 @@ export function ViewsPage({
           title="No views"
           description={
             activeTab === "issues"
-              ? "Save team issue filters as custom views so you can jump back into focused lists."
+              ? "Save team issue criteria as custom views so you can jump back into focused lists."
               : "Save project filters and sorting as custom views so important roadmaps stay one click away."
           }
           icon={

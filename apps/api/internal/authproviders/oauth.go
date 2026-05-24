@@ -88,7 +88,7 @@ func (h Handler) AuthorizeOAuth(w http.ResponseWriter, r *http.Request) {
 		values.Set("state", state)
 	}
 	callback.RawQuery = values.Encode()
-	http.Redirect(w, r, callback.String(), http.StatusFound)
+	http.Redirect(w, r, callback.String(), http.StatusTemporaryRedirect)
 }
 
 func (h Handler) ExchangeOAuthToken(w http.ResponseWriter, r *http.Request) {
@@ -224,7 +224,7 @@ func oauthError(w http.ResponseWriter, redirectURI, errorName, state string) {
 	}
 	u.RawQuery = q.Encode()
 	w.Header().Set("Location", u.String())
-	w.WriteHeader(http.StatusFound)
+	w.WriteHeader(http.StatusTemporaryRedirect)
 }
 
 func hashOAuthSecret(secret string) string {
