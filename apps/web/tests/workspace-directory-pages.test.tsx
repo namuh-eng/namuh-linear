@@ -62,6 +62,13 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+function requestPath(input: RequestInfo | URL) {
+  if (input instanceof Request) {
+    return new URL(input.url).pathname;
+  }
+  return new URL(input.toString(), "http://localhost").pathname;
+}
+
 describe("workspace directory routes", () => {
   beforeEach(() => {
     cleanup();
@@ -360,13 +367,26 @@ describe("workspace directory routes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create team" }));
 
     await waitFor(() => expect(screen.getByText("Support")).toBeVisible());
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/teams",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ name: "Support", key: "SUP", isPrivate: true }),
-      }),
+    expect(fetchMock).toHaveBeenCalled();
+    const [request, init] = fetchMock.mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit?,
+    ];
+    expect(requestPath(request)).toBe("/api/teams");
+    expect(request instanceof Request ? request.method : init?.method).toBe(
+      "POST",
     );
+    if (request instanceof Request) {
+      await expect(request.clone().json()).resolves.toEqual({
+        name: "Support",
+        key: "SUP",
+        isPrivate: true,
+      });
+    } else {
+      expect(init?.body).toBe(
+        JSON.stringify({ name: "Support", key: "SUP", isPrivate: true }),
+      );
+    }
     fetchMock.mockRestore();
   });
 

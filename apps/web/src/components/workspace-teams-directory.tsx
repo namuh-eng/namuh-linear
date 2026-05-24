@@ -1,6 +1,10 @@
 "use client";
 
 import { useAppShellContext } from "@/app/(app)/app-shell";
+import {
+  apiErrorMessage,
+  createBrowserApiClient,
+} from "@/lib/browser-api-client";
 import type { WorkspaceDirectoryTeam } from "@/lib/workspace-directory";
 import { withWorkspaceSlug } from "@/lib/workspace-paths";
 import Link from "next/link";
@@ -14,6 +18,8 @@ type TeamsDirectoryProps = {
 };
 
 type CreatedTeam = WorkspaceDirectoryTeam;
+
+const apiClient = createBrowserApiClient();
 
 function accessLabel(team: WorkspaceDirectoryTeam) {
   if (team.isPrivate) return "Private";
@@ -89,27 +95,28 @@ export function WorkspaceTeamsDirectory({
     setError(null);
 
     startTransition(async () => {
-      const response = await fetch("/api/teams", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { data, error } = await apiClient.POST("/teams", {
+        body: {
           name: teamName,
           key: teamKey || undefined,
           isPrivate,
-        }),
+        },
       });
-      const data = (await response.json().catch(() => ({}))) as {
-        team?: CreatedTeam;
-        error?: string;
-      };
 
-      if (!response.ok || !data.team) {
-        setError(data.error ?? "Unable to create team");
+      if (error || !data?.team) {
+        setError(apiErrorMessage(error, "Unable to create team"));
         return;
       }
 
+      const createdTeam: CreatedTeam = {
+        ...data.team,
+        icon: data.team.icon ?? null,
+        parentTeamId: null,
+        retiredAt: data.team.retiredAt ?? null,
+      };
+
       setDirectoryTeams((current) =>
-        [...current, data.team as CreatedTeam].sort(
+        [...current, createdTeam].sort(
           (a, b) => a.name.localeCompare(b.name) || a.key.localeCompare(b.key),
         ),
       );

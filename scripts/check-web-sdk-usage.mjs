@@ -78,4 +78,21 @@ for (const forbidden of [
   }
 }
 
+const workspaceTeamsDirectory = readFileSync(
+  "apps/web/src/components/workspace-teams-directory.tsx",
+  "utf8",
+);
+if (!workspaceTeamsDirectory.includes("createBrowserApiClient")) {
+  throw new Error(
+    "WorkspaceTeamsDirectory must consume the generated SDK browser client",
+  );
+}
+for (const forbidden of ['fetch("/api/teams"', "fetch('/api/teams'"]) {
+  if (workspaceTeamsDirectory.includes(forbidden)) {
+    throw new Error(
+      `WorkspaceTeamsDirectory still contains direct teams API fetch: ${forbidden}`,
+    );
+  }
+}
+
 console.log("Web runtime SDK usage guard passed.");
