@@ -2227,7 +2227,28 @@ func mergeCollaborationSettings(settings map[string]any, body map[string]any) ma
 	if v, ok := customerRequests["confirmationMessage"].(string); ok {
 		current.CustomerRequests.ConfirmationMessage = truncate(strings.TrimSpace(v), 240)
 	}
-	return map[string]any{"asks": current.Asks, "pulse": current.Pulse, "customerRequests": current.CustomerRequests}
+	return map[string]any{
+		"asks": map[string]any{
+			"enabled":         current.Asks.Enabled,
+			"intakeEmail":     current.Asks.IntakeEmail,
+			"defaultPriority": current.Asks.DefaultPriority,
+			"autoAssign":      current.Asks.AutoAssign,
+		},
+		"pulse": map[string]any{
+			"enabled":         current.Pulse.Enabled,
+			"digestFrequency": current.Pulse.DigestFrequency,
+			"burnoutAlerts":   current.Pulse.BurnoutAlerts,
+			"velocityTarget":  current.Pulse.VelocityTarget,
+		},
+		"customerRequests": map[string]any{
+			"enabled":             current.CustomerRequests.Enabled,
+			"intakeEmail":         current.CustomerRequests.IntakeEmail,
+			"defaultPriority":     current.CustomerRequests.DefaultPriority,
+			"autoLinkIssues":      current.CustomerRequests.AutoLinkIssues,
+			"requireCompany":      current.CustomerRequests.RequireCompany,
+			"confirmationMessage": current.CustomerRequests.ConfirmationMessage,
+		},
+	}
 }
 
 func boolFromAny(value any, fallback bool) bool {
