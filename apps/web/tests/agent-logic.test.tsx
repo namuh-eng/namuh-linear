@@ -17,6 +17,20 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function requestPath(input: RequestInfo | URL) {
+  if (input instanceof Request) {
+    return new URL(input.url).pathname;
+  }
+  return new URL(input.toString(), "http://localhost").pathname;
+}
+
 describe("Agent Personalization & Team Guidance", () => {
   afterEach(() => {
     cleanup();
@@ -26,19 +40,14 @@ describe("Agent Personalization & Team Guidance", () => {
   it("updates account-level agent instructions", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            accountPreferences: {
-              agentPersonalization: { instructions: "Initial", autoFix: false },
-            },
-          }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      });
+      .mockResolvedValueOnce(
+        jsonResponse({
+          accountPreferences: {
+            agentPersonalization: { instructions: "Initial", autoFix: false },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ success: true }));
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -53,14 +62,27 @@ describe("Agent Personalization & Team Guidance", () => {
     fireEvent.blur(textarea);
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/account/preferences",
-        expect.objectContaining({
-          method: "PATCH",
-          body: expect.stringContaining('"instructions":"New rules"'),
-        }),
-      );
+      expect(fetchMock).toHaveBeenCalled();
     });
+    const [request] = fetchMock.mock.calls[1] as [RequestInfo | URL];
+    expect(requestPath(request)).toBe("/api/account/preferences");
+    expect(request instanceof Request ? request.method : "PATCH").toBe("PATCH");
+    if (request instanceof Request) {
+      await expect(request.clone().json()).resolves.toMatchObject({
+        accountPreferences: {
+          agentPersonalization: { instructions: "New rules" },
+        },
+      });
+    }
+    if (!(request instanceof Request)) {
+      const [, init] = fetchMock.mock.calls[1] as [
+        RequestInfo | URL,
+        RequestInit,
+      ];
+      expect(init.body).toEqual(
+        expect.stringContaining('"instructions":"New rules"'),
+      );
+    }
 
     expect(screen.getByText("Preferences saved")).toBeInTheDocument();
   });

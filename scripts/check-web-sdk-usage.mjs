@@ -137,4 +137,24 @@ for (const forbidden of [
   }
 }
 
+const accountAgentsPage = readFileSync(
+  "apps/web/src/app/(app)/settings/account/agents/page.tsx",
+  "utf8",
+);
+if (!accountAgentsPage.includes("createBrowserApiClient")) {
+  throw new Error(
+    "AccountAgentsPage must consume the generated SDK browser client",
+  );
+}
+for (const forbidden of [
+  'fetch("/api/account/preferences"',
+  "fetch('/api/account/preferences'",
+]) {
+  if (accountAgentsPage.includes(forbidden)) {
+    throw new Error(
+      `AccountAgentsPage still contains direct account preferences API fetch: ${forbidden}`,
+    );
+  }
+}
+
 console.log("Web runtime SDK usage guard passed.");

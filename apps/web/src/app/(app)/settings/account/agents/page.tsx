@@ -6,6 +6,7 @@ import {
   DEFAULT_ACCOUNT_PREFERENCES,
   mergeAccountPreferences,
 } from "@/lib/account-preferences";
+import { createBrowserApiClient } from "@/lib/browser-api-client";
 import { useEffect, useState } from "react";
 
 function Toggle({
@@ -37,6 +38,8 @@ function Toggle({
   );
 }
 
+const apiClient = createBrowserApiClient();
+
 export default function AgentPersonalizationPage() {
   const [preferences, setPreferences] = useState<AccountPreferences>(
     DEFAULT_ACCOUNT_PREFERENCES,
@@ -46,10 +49,10 @@ export default function AgentPersonalizationPage() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/account/preferences")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.accountPreferences) {
+    apiClient
+      .GET("/account/preferences")
+      .then(({ data }) => {
+        if (data?.accountPreferences) {
           setPreferences(
             mergeAccountPreferences(
               DEFAULT_ACCOUNT_PREFERENCES,
@@ -72,17 +75,15 @@ export default function AgentPersonalizationPage() {
     });
 
     try {
-      const res = await fetch("/api/account/preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { error } = await apiClient.PATCH("/account/preferences", {
+        body: {
           accountPreferences: {
             agentPersonalization: patch,
           },
-        }),
+        },
       });
 
-      if (!res.ok) {
+      if (error) {
         throw new Error("Failed to save agent preferences");
       }
 
