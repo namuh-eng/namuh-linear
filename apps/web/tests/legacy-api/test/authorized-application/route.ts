@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
-import { authorizedApplicationGrant, member } from "@/lib/db/schema";
+import { authorizedApplicationGrant } from "@/lib/db/schema";
 import {
   headlessAuthProvidersEnabled,
   mintInternalApiToken,
@@ -31,22 +32,19 @@ export async function POST(request: Request) {
   }
 
   const authSession = session as AuthSession;
+  const activeWorkspaceId = await resolveActiveWorkspaceId(authSession.user.id);
+
+  if (!activeWorkspaceId) {
+    return NextResponse.json(
+      { error: "No active workspace found" },
+      { status: 404 },
+    );
+  }
 
   if (headlessAuthProvidersEnabled()) {
-    const [membership] = await db
-      .select({ workspaceId: member.workspaceId })
-      .from(member)
-      .where(eq(member.userId, authSession.user.id))
-      .limit(1);
-    if (!membership) {
-      return NextResponse.json(
-        { error: "No active workspace found" },
-        { status: 404 },
-      );
-    }
     const token = await mintInternalApiToken({
       userId: authSession.user.id,
-      workspaceId: membership.workspaceId,
+      workspaceId: activeWorkspaceId,
     });
     const upstream = await fetch(
       `${process.env.EXPONENTIAL_API_URL ?? "http://localhost:3016/v1"}/test/authorized-application`,
@@ -84,6 +82,7 @@ export async function POST(request: Request) {
 
   await db.insert(authorizedApplicationGrant).values({
     id,
+    workspaceId: activeWorkspaceId,
     userId: authSession.user.id,
     appId,
     clientId,
@@ -120,22 +119,19 @@ export async function DELETE() {
   }
 
   const authSession = session as AuthSession;
+  const activeWorkspaceId = await resolveActiveWorkspaceId(authSession.user.id);
+
+  if (!activeWorkspaceId) {
+    return NextResponse.json(
+      { error: "No active workspace found" },
+      { status: 404 },
+    );
+  }
 
   if (headlessAuthProvidersEnabled()) {
-    const [membership] = await db
-      .select({ workspaceId: member.workspaceId })
-      .from(member)
-      .where(eq(member.userId, authSession.user.id))
-      .limit(1);
-    if (!membership) {
-      return NextResponse.json(
-        { error: "No active workspace found" },
-        { status: 404 },
-      );
-    }
     const token = await mintInternalApiToken({
       userId: authSession.user.id,
-      workspaceId: membership.workspaceId,
+      workspaceId: activeWorkspaceId,
     });
     const upstream = await fetch(
       `${process.env.EXPONENTIAL_API_URL ?? "http://localhost:3016/v1"}/test/authorized-application`,

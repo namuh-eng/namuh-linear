@@ -25,6 +25,22 @@ interface SearchResult {
   assigneeName?: string | null;
   assigneeImage?: string | null;
   createdAt: string;
+  teamKey?: string;
+  path?: string;
+}
+
+function issueResultPath(issue: SearchResult, query: string) {
+  if (issue.path && issue.identifier.toLowerCase() !== query.toLowerCase()) {
+    return issue.path;
+  }
+
+  if (issue.teamKey && issue.identifier.toLowerCase() !== query.toLowerCase()) {
+    return `/team/${encodeURIComponent(issue.teamKey)}/issue/${encodeURIComponent(
+      issue.identifier,
+    )}`;
+  }
+
+  return `/issue/${encodeURIComponent(issue.identifier)}`;
 }
 
 function SearchContent() {
@@ -121,7 +137,7 @@ function SearchContent() {
                 assigneeImage={issue.assigneeImage ?? undefined}
                 createdAt={issue.createdAt}
                 href={withWorkspaceSlug(
-                  `/issue/${issue.identifier}`,
+                  issueResultPath(issue, query),
                   shellContext?.workspaceSlug,
                 )}
                 labels={[]}
@@ -160,6 +176,8 @@ function isSearchResult(value: unknown): value is SearchResult {
     isStatusCategory(result.stateCategory) &&
     typeof result.stateColor === "string" &&
     typeof result.createdAt === "string" &&
+    (result.teamKey === undefined || typeof result.teamKey === "string") &&
+    (result.path === undefined || typeof result.path === "string") &&
     (result.assigneeName === undefined ||
       result.assigneeName === null ||
       typeof result.assigneeName === "string") &&

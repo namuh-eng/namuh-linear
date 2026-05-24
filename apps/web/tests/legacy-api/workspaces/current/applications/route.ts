@@ -190,10 +190,11 @@ export async function GET() {
       member,
       and(
         eq(member.userId, authorizedApplicationGrant.userId),
-        eq(member.workspaceId, access.workspaceId),
+        eq(member.workspaceId, authorizedApplicationGrant.workspaceId),
       ),
     )
     .innerJoin(user, eq(user.id, authorizedApplicationGrant.userId))
+    .where(eq(authorizedApplicationGrant.workspaceId, access.workspaceId))
     .orderBy(desc(authorizedApplicationGrant.updatedAt));
 
   return NextResponse.json({

@@ -1,6 +1,6 @@
 "use client";
 
-import IssueLabelsPage from "@/app/(app)/settings/issue-labels/page";
+import { IssueLabelsSettingsView } from "@/components/issue-labels-settings-view";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -52,7 +52,7 @@ export default function TeamLabelsSettingsPage() {
           Back to team settings
         </Link>
       </div>
-      <IssueLabelsPage
+      <IssueLabelsSettingsView
         initialScope="team"
         initialTeamId={team.id}
         showScopePicker={false}

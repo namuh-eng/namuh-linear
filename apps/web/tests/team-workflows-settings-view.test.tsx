@@ -94,68 +94,73 @@ describe("TeamWorkflowsSettingsPage", () => {
   it("saves git workflow and auto-assignment controls", async () => {
     render(<TeamWorkflowsSettingsPage />);
     await waitFor(() =>
-      screen.getByLabelText("Enable branch and PR automation"),
+      screen.getByLabelText("Move issue when branch is created"),
     );
 
-    fireEvent.click(screen.getByLabelText("Enable branch and PR automation"));
+    fireEvent.click(screen.getByLabelText("Move issue when branch is created"));
+    fireEvent.change(screen.getByLabelText("Assignment mode"), {
+      target: { value: "round_robin" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save automation settings" }),
+    );
+
     await waitFor(() =>
-      expect(screen.getByText("Workflow settings updated")).toBeInTheDocument(),
+      expect(
+        screen.getByText("Workflow automation updated"),
+      ).toBeInTheDocument(),
     );
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/teams/TEAM/settings",
       expect.objectContaining({
-        body: JSON.stringify({ gitPrAutomationEnabled: true }),
+        method: "PATCH",
+        body: expect.stringContaining('"workflowAutomation"'),
       }),
     );
-
-    fireEvent.change(screen.getByLabelText("Assignment mode"), {
-      target: { value: "round_robin" },
-    });
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenCalledWith(
-        "/api/teams/TEAM/settings",
-        expect.objectContaining({
-          body: JSON.stringify({ autoAssignMode: "round_robin" }),
-        }),
-      ),
-    );
+    const patchCall = vi
+      .mocked(global.fetch)
+      .mock.calls.find(
+        ([url, options]) =>
+          url === "/api/teams/TEAM/settings" && options?.method === "PATCH",
+      );
+    const body = JSON.parse(patchCall?.[1]?.body as string);
+    expect(body.workflowAutomation.gitBranchAutomationEnabled).toBe(true);
+    expect(body.workflowAutomation.autoAssignMode).toBe("round_robin");
   });
 
   it("creates, edits, and deletes a status transition rule", async () => {
     render(<TeamWorkflowsSettingsPage />);
-    await waitFor(() => screen.getByText("Add rule"));
+    await waitFor(() => screen.getByText("Add transition rule"));
 
-    fireEvent.click(screen.getByText("Add rule"));
+    fireEvent.click(screen.getByText("Add transition rule"));
     await waitFor(() =>
-      expect(screen.getByLabelText("Rule name")).toBeInTheDocument(),
-    );
-    expect(global.fetch).toHaveBeenLastCalledWith(
-      "/api/teams/TEAM/settings",
-      expect.objectContaining({
-        method: "PATCH",
-        body: expect.stringContaining("statusTransitionRules"),
-      }),
+      expect(screen.getByLabelText("Rule 1 name")).toBeInTheDocument(),
     );
 
-    fireEvent.change(screen.getByLabelText("Rule trigger"), {
+    fireEvent.change(screen.getByLabelText("Rule 1 trigger"), {
       target: { value: "pr_merged" },
     });
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenLastCalledWith(
-        "/api/teams/TEAM/settings",
-        expect.objectContaining({ body: expect.stringContaining("pr_merged") }),
-      ),
-    );
+    expect(screen.getByLabelText("Rule 1 trigger")).toHaveValue("pr_merged");
 
     fireEvent.click(screen.getByText("Delete rule"));
-    await waitFor(() =>
-      expect(global.fetch).toHaveBeenLastCalledWith(
-        "/api/teams/TEAM/settings",
-        expect.objectContaining({
-          body: JSON.stringify({ statusTransitionRules: [] }),
-        }),
-      ),
+    expect(screen.getByText("No transition rules yet.")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save automation settings" }),
     );
+    await waitFor(() =>
+      expect(
+        screen.getByText("Workflow automation updated"),
+      ).toBeInTheDocument(),
+    );
+    const patchCall = [...vi.mocked(global.fetch).mock.calls]
+      .reverse()
+      .find(
+        ([url, options]) =>
+          url === "/api/teams/TEAM/settings" && options?.method === "PATCH",
+      );
+    const body = JSON.parse(patchCall?.[1]?.body as string);
+    expect(body.workflowAutomation.statusTransitionRules).toEqual([]);
   });
 
   it("handles toggling detailed history and saving", async () => {
@@ -166,19 +171,25 @@ describe("TeamWorkflowsSettingsPage", () => {
     expect(toggle).toHaveAttribute("aria-checked", "false");
 
     fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save automation settings" }),
+    );
 
     await waitFor(() => {
-      expect(screen.getByText("Workflow settings updated")).toBeInTheDocument();
+      expect(
+        screen.getByText("Workflow automation updated"),
+      ).toBeInTheDocument();
     });
 
-    expect(toggle).toHaveAttribute("aria-checked", "true");
-    expect(global.fetch).toHaveBeenCalledWith(
-      "/api/teams/TEAM/settings",
-      expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ detailedHistory: true }),
-      }),
-    );
+    const patchCall = [...vi.mocked(global.fetch).mock.calls]
+      .reverse()
+      .find(
+        ([url, options]) =>
+          url === "/api/teams/TEAM/settings" && options?.method === "PATCH",
+      );
+    const body = JSON.parse(patchCall?.[1]?.body as string);
+    expect(body.detailedHistory).toBe(true);
   });
 
   it("shows error message when save fails", async () => {
@@ -200,10 +211,13 @@ describe("TeamWorkflowsSettingsPage", () => {
 
     render(<TeamWorkflowsSettingsPage />);
     await waitFor(() =>
-      screen.getByLabelText("Enable branch and PR automation"),
+      screen.getByLabelText("Move issue when branch is created"),
     );
 
-    fireEvent.click(screen.getByLabelText("Enable branch and PR automation"));
+    fireEvent.click(screen.getByLabelText("Move issue when branch is created"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save automation settings" }),
+    );
 
     await waitFor(() => {
       expect(

@@ -56,8 +56,7 @@ const recurringRecord = {
   labelIds: [],
   projectId: null,
   // cadenceConfig is the persisted shape: { cadence, interval }. The route's
-  // serializer derives `cadenceLabel` via formatCadence, which returns
-  // "Every week" for {cadence:"weekly", interval:1} — not "Weekly".
+  // serializer derives `cadenceLabel` via formatCadence.
   cadenceConfig: { cadence: "weekly", interval: 1 },
   timezone: "UTC",
   startAt: new Date("2026-05-21T09:00:00.000Z"),
@@ -125,10 +124,9 @@ describe("team recurring issues route", () => {
 
     expect(response.status).toBe(200);
     const payload = await response.json();
-    // formatCadence({cadence:"weekly", interval:1}) returns "Every week".
     expect(payload.recurringIssues[0]).toMatchObject({
       title: "Weekly metrics review",
-      cadenceLabel: "Every week",
+      cadenceLabel: "Weekly",
       enabled: true,
     });
   });

@@ -288,6 +288,17 @@ func prependActivity(settings map[string]any, title string, body *string) {
 	settings["activity"] = activity
 }
 
+func prependProjectUpdate(settings map[string]any, body *string) {
+	activity := []any{map[string]any{"id": randomID(), "createdAt": time.Now().UTC().Format(time.RFC3339Nano), "type": "update", "title": "Project update", "body": body, "actorName": "You", "actorImage": nil}}
+	if existing, ok := settings["activity"].([]any); ok {
+		activity = append(activity, existing...)
+	}
+	if len(activity) > 50 {
+		activity = activity[:50]
+	}
+	settings["activity"] = activity
+}
+
 func record(value any) map[string]any {
 	if item, ok := value.(map[string]any); ok {
 		return item

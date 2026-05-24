@@ -273,8 +273,8 @@ export default function MembersPage() {
 
       setStatusMessage(
         memberEntry.kind === "invitation"
-          ? "Invitation revoked."
-          : "Member removed from workspace.",
+          ? `Revoked invitation to ${memberEntry.email}.`
+          : `Removed ${memberEntry.name || memberEntry.email} from workspace.`,
       );
       await loadMembers();
     } catch {
@@ -291,7 +291,7 @@ export default function MembersPage() {
     setStatusMessage(null);
 
     try {
-      const { error } = await apiClient.POST("/workspaces/members", {
+      const { error } = await apiClient.PATCH("/workspaces/members", {
         body: {
           id: memberEntry.id,
           kind: "invitation",

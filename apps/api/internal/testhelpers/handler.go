@@ -60,7 +60,7 @@ func (h Handler) CreateAuthorizedApplication(w http.ResponseWriter, r *http.Requ
 		scopes = []string{"read", "write"}
 	}
 	raw, _ := json.Marshal(scopes)
-	_, err := h.DB.Exec(r.Context(), `insert into authorized_application_grant (id,user_id,app_id,client_id,name,image_url,scopes,webhooks_enabled) values ($1,$2,$3,$4,$5,null,$6::jsonb,true)`, id, p.UserID, appID, clientID, name, raw)
+	_, err := h.DB.Exec(r.Context(), `insert into authorized_application_grant (id,workspace_id,user_id,app_id,client_id,name,image_url,scopes,webhooks_enabled) values ($1,$2::uuid,$3,$4,$5,$6,null,$7::jsonb,true)`, id, p.WorkspaceID, p.UserID, appID, clientID, name, raw)
 	if err != nil {
 		problem.Write(w, 500, "Create authorized application failed", err.Error())
 		return
@@ -249,7 +249,7 @@ func (h Handler) ensureCanonicalWorkspace(r *http.Request, userID string) (publi
 
 func (h Handler) ensureCanonicalSeeds(r *http.Request, userID, teamID string) error {
 	var stateID string
-	err := h.DB.QueryRow(r.Context(), `select id::text from workflow_state where team_id=$1::uuid and category='backlog' order by position asc limit 1`, teamID).Scan(&stateID)
+	err := h.DB.QueryRow(r.Context(), `select id::text from workflow_state where team_id=$1::uuid and category='triage' order by position asc limit 1`, teamID).Scan(&stateID)
 	if err != nil {
 		err = h.DB.QueryRow(r.Context(), `select id::text from workflow_state where team_id=$1::uuid order by position asc limit 1`, teamID).Scan(&stateID)
 	}
@@ -280,7 +280,8 @@ func (h Handler) ensureCanonicalIssue(r *http.Request, seed canonicalIssueSeed, 
 	var issueID string
 	err := h.DB.QueryRow(r.Context(), `select id::text from issue where team_id=$1::uuid and number=$2 limit 1`, teamID, seed.Number).Scan(&issueID)
 	if err == nil {
-		return issueID, nil
+		_, err = h.DB.Exec(r.Context(), `update issue set identifier=$3,title=$4,description=coalesce(description,'Canonical Forever Browsing seed issue.'),state_id=$5::uuid,assignee_id=$6,creator_id=coalesce(creator_id,$7),priority=$8,created_at=$9,updated_at=greatest(updated_at,$9) where team_id=$1::uuid and number=$2`, teamID, seed.Number, seed.Identifier, seed.Title, stateID, userID, actorID, seed.Priority, seed.CreatedAt)
+		return issueID, err
 	}
 	err = h.DB.QueryRow(r.Context(), `insert into issue (number,identifier,title,description,team_id,state_id,assignee_id,creator_id,priority,created_at,updated_at) values ($1,$2,$3,'Canonical Forever Browsing seed issue.',$4::uuid,$5::uuid,$6,$7,$8,$9,$9) returning id::text`, seed.Number, seed.Identifier, seed.Title, teamID, stateID, userID, actorID, seed.Priority, seed.CreatedAt).Scan(&issueID)
 	return issueID, err

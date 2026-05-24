@@ -555,6 +555,12 @@ export function CommandPalette({
           const result = results[selectedIndex];
           close();
           goTo(getIssueResultPath(result));
+        } else if (selectedIndex >= totalItems && results.length > 0) {
+          // Results can arrive asynchronously while the selected index still
+          // points at a now-filtered command. Keep Enter deterministic by
+          // falling back to the first visible result instead of no-oping.
+          close();
+          goTo(getIssueResultPath(results[0]));
         } else {
           const cmdIndex = selectedIndex - results.length;
           if (cmdIndex < filteredCommands.length) {

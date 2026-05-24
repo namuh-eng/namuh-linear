@@ -80,7 +80,7 @@ func (h Handler) AuthorizeOAuth(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 500, "OAuth authorization failed", err.Error())
 		return
 	}
-	_, _ = h.DB.Exec(r.Context(), `insert into authorized_application_grant (id,user_id,app_id,client_id,name,scopes) values ($1,$2,$3,$4,$5,$6::jsonb) on conflict (user_id,app_id) do update set name=excluded.name, scopes=excluded.scopes, updated_at=now()`, "grant_"+randomHexOAuth(8), p.UserID, asStringOAuth(found.App["id"]), clientID, asStringOAuth(found.App["name"]), mustJSON(scopes))
+	_, _ = h.DB.Exec(r.Context(), `insert into authorized_application_grant (id,workspace_id,user_id,app_id,client_id,name,scopes) values ($1,$2::uuid,$3,$4,$5,$6,$7::jsonb) on conflict (user_id,app_id) do update set workspace_id=excluded.workspace_id, name=excluded.name, scopes=excluded.scopes, updated_at=now()`, "grant_"+randomHexOAuth(8), found.ID, p.UserID, asStringOAuth(found.App["id"]), clientID, asStringOAuth(found.App["name"]), mustJSON(scopes))
 	callback, _ := url.Parse(redirectURI)
 	values := callback.Query()
 	values.Set("code", code)

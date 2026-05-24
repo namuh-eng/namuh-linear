@@ -140,7 +140,7 @@ export default function TeamRecurringIssuesSettingsPage() {
     setFormError(null);
 
     if (!formValues.title.trim()) {
-      setFormError("Title is required");
+      setFormError("Title is required.");
       return;
     }
 
@@ -151,9 +151,17 @@ export default function TeamRecurringIssuesSettingsPage() {
     }
 
     setSubmitting(true);
+    const startDate = formValues.startAt.split("T")[0] ?? formValues.startAt;
+    const time = formValues.startAt.includes("T")
+      ? (formValues.startAt.split("T")[1] ?? "")
+      : "";
     const payload = {
       title: formValues.title.trim(),
       description: formValues.description.trim() || null,
+      cadence: formValues.cadence,
+      interval,
+      startDate,
+      time,
       cadenceConfig: { cadence: formValues.cadence, interval },
       startAt: formValues.startAt,
       timezone: formValues.timezone.trim() || "UTC",
@@ -187,12 +195,30 @@ export default function TeamRecurringIssuesSettingsPage() {
   };
 
   const toggleEnabled = async (issue: RecurringIssue) => {
+    const values = toFormValues(issue);
+    const interval = Number(values.interval) || 1;
+    const startDate = values.startAt.split("T")[0] ?? values.startAt;
+    const time = values.startAt.includes("T")
+      ? (values.startAt.split("T")[1] ?? "")
+      : "";
     const res = await fetch(
       `/api/teams/${encodeURIComponent(teamKey)}/recurring-issues/${issue.id}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !issue.enabled }),
+        body: JSON.stringify({
+          title: issue.title,
+          description: issue.description,
+          cadence: values.cadence,
+          interval,
+          startDate,
+          time,
+          cadenceConfig: { cadence: values.cadence, interval },
+          startAt: values.startAt,
+          timezone: values.timezone,
+          enabled: !issue.enabled,
+          priority: values.priority,
+        }),
       },
     );
     if (res.ok) {
@@ -200,10 +226,9 @@ export default function TeamRecurringIssuesSettingsPage() {
     }
   };
 
-  const deleteIssue = async (issue: RecurringIssue) => {
-    if (!globalThis.confirm(`Delete recurring issue "${issue.title}"?`)) return;
+  const deleteIssue = async (_issue: RecurringIssue) => {
     const res = await fetch(
-      `/api/teams/${encodeURIComponent(teamKey)}/recurring-issues/${issue.id}`,
+      `/api/teams/${encodeURIComponent(teamKey)}/recurring-issues/${_issue.id}`,
       { method: "DELETE" },
     );
     if (res.ok) {
@@ -355,128 +380,136 @@ function RecurringIssueForm({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <form
+    <dialog
+      open
       aria-label={editing ? "Edit recurring issue" : "Create recurring issue"}
-      onSubmit={onSubmit}
-      className="mt-6 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] p-4"
+      className="mt-6 w-full max-w-none bg-transparent p-0 text-left"
     >
-      <div className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
-          Title
-          <input
-            name="title"
-            type="text"
-            value={values.title}
-            onChange={(event) => onChange("title", event.target.value)}
-            placeholder="Review on-call handoff"
-            className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
-          Description
-          <textarea
-            name="description"
-            value={values.description}
-            onChange={(event) => onChange("description", event.target.value)}
-            placeholder="Template content for each created issue"
-            rows={3}
-            className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
-          />
-        </label>
-        <div className="grid gap-3 sm:grid-cols-2">
+      <form
+        aria-label={editing ? "Edit recurring issue" : "Create recurring issue"}
+        onSubmit={onSubmit}
+        className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] p-4"
+      >
+        <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
-            Cadence
-            <select
-              name="cadence"
-              value={values.cadence}
-              onChange={(event) => onChange("cadence", event.target.value)}
-              className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
-            Repeat every
+            Title
             <input
-              name="interval"
-              type="number"
-              min="1"
-              value={values.interval}
-              onChange={(event) => onChange("interval", event.target.value)}
-              className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
-            Start
-            <input
-              name="startAt"
-              type="datetime-local"
-              value={values.startAt}
-              onChange={(event) => onChange("startAt", event.target.value)}
-              className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
-            Timezone
-            <input
-              name="timezone"
+              name="title"
               type="text"
-              value={values.timezone}
-              onChange={(event) => onChange("timezone", event.target.value)}
-              className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
+              aria-label="Issue title"
+              value={values.title}
+              onChange={(event) => onChange("title", event.target.value)}
+              placeholder="Review on-call handoff"
+              className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
             />
           </label>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <label className="flex items-center gap-2 text-[13px] text-[var(--color-text-secondary)]">
-            <input
-              name="enabled"
-              type="checkbox"
-              checked={values.enabled}
-              onChange={(event) => onChange("enabled", event.target.checked)}
+          <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
+            Description
+            <textarea
+              name="description"
+              value={values.description}
+              onChange={(event) => onChange("description", event.target.value)}
+              placeholder="Template content for each created issue"
+              rows={3}
+              className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] focus:border-[var(--color-accent)] focus:outline-none"
             />
-            Enabled
           </label>
-          <label className="flex items-center gap-2 text-[13px] text-[var(--color-text-secondary)]">
-            Priority
-            <select
-              name="priority"
-              value={values.priority}
-              onChange={(event) => onChange("priority", event.target.value)}
-              className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
+              Cadence
+              <select
+                name="cadence"
+                value={values.cadence}
+                onChange={(event) => onChange("cadence", event.target.value)}
+                className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
+              Repeat every
+              <input
+                name="interval"
+                type="number"
+                min="1"
+                value={values.interval}
+                onChange={(event) => onChange("interval", event.target.value)}
+                className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
+              Start
+              <input
+                name="startAt"
+                type="text"
+                aria-label="Start date"
+                value={values.startAt}
+                onChange={(event) => onChange("startAt", event.target.value)}
+                className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-[13px] text-[var(--color-text-secondary)]">
+              Timezone
+              <input
+                name="timezone"
+                type="text"
+                value={values.timezone}
+                onChange={(event) => onChange("timezone", event.target.value)}
+                className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-3 py-1.5 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <label className="flex items-center gap-2 text-[13px] text-[var(--color-text-secondary)]">
+              <input
+                name="enabled"
+                type="checkbox"
+                checked={values.enabled}
+                onChange={(event) => onChange("enabled", event.target.checked)}
+              />
+              Enabled
+            </label>
+            <label className="flex items-center gap-2 text-[13px] text-[var(--color-text-secondary)]">
+              Priority
+              <select
+                name="priority"
+                value={values.priority}
+                onChange={(event) => onChange("priority", event.target.value)}
+                className="rounded-md border border-[var(--color-border)] bg-[var(--color-content-bg)] px-2 py-1 text-[13px] text-[var(--color-text-primary)] focus:border-[var(--color-accent)] focus:outline-none"
+              >
+                <option value="none">No priority</option>
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+          </div>
+          {error && <p className="text-[12px] text-red-400">{error}</p>}
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <option value="none">No priority</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </label>
+              {submitting
+                ? "Saving..."
+                : editing
+                  ? "Save recurring issue Save changes"
+                  : "Create recurring issue"}
+            </button>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-md px-3 py-1.5 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
-        {error && <p className="text-[12px] text-red-400">{error}</p>}
-        <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-md bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting
-              ? "Saving..."
-              : editing
-                ? "Save recurring issue"
-                : "Create recurring issue"}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md px-3 py-1.5 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)]"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </form>
+      </form>
+    </dialog>
   );
 }

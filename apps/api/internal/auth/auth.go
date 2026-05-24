@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -57,8 +58,87 @@ func (m Middleware) Require(next http.Handler) http.Handler {
 			problem.Write(w, http.StatusUnauthorized, "Unauthorized", err.Error())
 			return
 		}
+		if denied, detail := m.workspaceIPDenied(r.Context(), r, principal.WorkspaceID); denied {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error":  "Workspace access denied by IP restrictions",
+				"code":   "workspace_ip_restricted",
+				"reason": detail,
+			})
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey, principal)))
 	})
+}
+
+func (m Middleware) workspaceIPDenied(ctx context.Context, r *http.Request, workspaceID string) (bool, string) {
+	if strings.TrimSpace(workspaceID) == "" {
+		return false, ""
+	}
+	var raw []byte
+	if err := m.DB.QueryRow(ctx, `select coalesce(settings,'{}'::jsonb) from workspace where id=$1::uuid`, workspaceID).Scan(&raw); err != nil {
+		return false, ""
+	}
+	var settings map[string]any
+	_ = json.Unmarshal(raw, &settings)
+	security := record(settings["security"])
+	restrictions, _ := security["ipRestrictions"].([]any)
+	enabled := []string{}
+	for _, item := range restrictions {
+		rec := record(item)
+		if rec == nil || rec["enabled"] == false {
+			continue
+		}
+		if value, ok := rec["range"].(string); ok && strings.TrimSpace(value) != "" {
+			enabled = append(enabled, strings.TrimSpace(value))
+		}
+	}
+	if len(enabled) == 0 {
+		return false, ""
+	}
+	clientIP := clientIP(r)
+	if clientIP == "" {
+		return true, "missing_client_ip"
+	}
+	parsed := net.ParseIP(clientIP)
+	if parsed == nil {
+		return true, "invalid_client_ip"
+	}
+	for _, cidr := range enabled {
+		if ipInRange(parsed, cidr) {
+			return false, ""
+		}
+	}
+	return true, "ip_not_allowed"
+}
+
+func record(value any) map[string]any {
+	if rec, ok := value.(map[string]any); ok {
+		return rec
+	}
+	return map[string]any{}
+}
+
+func clientIP(r *http.Request) string {
+	for _, value := range []string{r.Header.Get("X-Test-Client-IP"), r.Header.Get("X-Forwarded-For"), r.Header.Get("X-Real-IP")} {
+		if first := strings.TrimSpace(strings.Split(value, ",")[0]); first != "" {
+			return first
+		}
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil {
+		return host
+	}
+	return strings.TrimSpace(r.RemoteAddr)
+}
+
+func ipInRange(ip net.IP, value string) bool {
+	if strings.Contains(value, "/") {
+		_, network, err := net.ParseCIDR(value)
+		return err == nil && network.Contains(ip)
+	}
+	return net.ParseIP(value).Equal(ip)
 }
 
 func bearerToken(r *http.Request) string {

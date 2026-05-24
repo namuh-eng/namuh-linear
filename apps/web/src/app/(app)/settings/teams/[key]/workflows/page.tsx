@@ -12,6 +12,7 @@ type StatusTransitionRule = {
     | "branch_created"
     | "pr_opened"
     | "pr_merged"
+    | "pull_request_merged"
     | "issue_assigned"
     | "issue_unassigned";
   sourceCategory: "any" | "backlog" | "unstarted" | "started" | "completed";
@@ -23,6 +24,7 @@ interface TeamWorkflowData {
   name: string;
   detailedHistory: boolean;
   gitBranchFormat: string;
+  gitBranchAutomationEnabled: boolean;
   gitPrAutomationEnabled: boolean;
   gitPrMergeTargetStatusId: string | null;
   gitBranchCreateTargetStatusId: string | null;
@@ -38,9 +40,101 @@ const triggerLabels: Record<StatusTransitionRule["trigger"], string> = {
   branch_created: "Branch created",
   pr_opened: "Pull request opened",
   pr_merged: "Pull request merged",
+  pull_request_merged: "Pull request merged",
   issue_assigned: "Issue assigned",
   issue_unassigned: "Issue unassigned",
 };
+
+type RawTeamWorkflowData = Partial<TeamWorkflowData> & {
+  workflowStates?: WorkflowState[];
+  workflowAutomation?: Partial<TeamWorkflowData> & {
+    defaultAssigneeId?: string | null;
+  };
+};
+
+function normalizeRules(value: unknown): StatusTransitionRule[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((rule, index) => {
+    const record =
+      rule && typeof rule === "object" ? (rule as Record<string, unknown>) : {};
+    return {
+      id: typeof record.id === "string" ? record.id : `rule-${index + 1}`,
+      name:
+        typeof record.name === "string" ? record.name : "Move linked issues",
+      trigger:
+        record.trigger === "branch_created" ||
+        record.trigger === "pr_opened" ||
+        record.trigger === "pr_merged" ||
+        record.trigger === "pull_request_merged" ||
+        record.trigger === "issue_assigned" ||
+        record.trigger === "issue_unassigned"
+          ? record.trigger
+          : "pr_opened",
+      sourceCategory:
+        record.sourceCategory === "backlog" ||
+        record.sourceCategory === "unstarted" ||
+        record.sourceCategory === "started" ||
+        record.sourceCategory === "completed"
+          ? record.sourceCategory
+          : "any",
+      targetStatusId:
+        typeof record.targetStatusId === "string" ? record.targetStatusId : "",
+      enabled: record.enabled !== false,
+    };
+  });
+}
+
+function normalizeTeamWorkflowData(raw: RawTeamWorkflowData): TeamWorkflowData {
+  const automation = raw.workflowAutomation ?? {};
+  const workflowStates = raw.workflowStates ?? [
+    ...(raw.acceptDestinationStates ?? []),
+    ...(raw.declineDestinationStates ?? []),
+  ];
+  const statusTransitionRules = normalizeRules(
+    automation.statusTransitionRules ?? raw.statusTransitionRules,
+  );
+
+  return {
+    name: raw.name ?? "Team",
+    detailedHistory: Boolean(raw.detailedHistory),
+    gitBranchFormat:
+      automation.gitBranchFormat ??
+      raw.gitBranchFormat ??
+      "{teamKey}-{issueNumber}-{issueTitle}",
+    gitBranchAutomationEnabled: Boolean(
+      automation.gitBranchAutomationEnabled ?? raw.gitBranchAutomationEnabled,
+    ),
+    gitPrAutomationEnabled: Boolean(
+      automation.gitPrAutomationEnabled ?? raw.gitPrAutomationEnabled,
+    ),
+    gitBranchCreateTargetStatusId:
+      automation.gitBranchCreateTargetStatusId ??
+      raw.gitBranchCreateTargetStatusId ??
+      null,
+    gitPrMergeTargetStatusId:
+      automation.gitPrMergeTargetStatusId ??
+      raw.gitPrMergeTargetStatusId ??
+      null,
+    autoAssignment: Boolean(
+      automation.autoAssignEnabled ??
+        raw.autoAssignEnabled ??
+        raw.autoAssignment,
+    ),
+    autoAssignEnabled: Boolean(
+      automation.autoAssignEnabled ??
+        raw.autoAssignEnabled ??
+        raw.autoAssignment,
+    ),
+    autoAssignMode: automation.autoAssignMode ?? raw.autoAssignMode ?? "none",
+    statusTransitionRules,
+    acceptDestinationStates:
+      raw.acceptDestinationStates ??
+      workflowStates.filter((state) => state.category !== "completed"),
+    declineDestinationStates:
+      raw.declineDestinationStates ??
+      workflowStates.filter((state) => state.category === "completed"),
+  };
+}
 
 function Toggle({
   enabled,
@@ -88,7 +182,9 @@ export default function TeamWorkflowsSettingsPage() {
   useEffect(() => {
     fetch(`/api/teams/${teamKey}/settings`)
       .then((res) => res.json())
-      .then((data) => setTeam(data.team))
+      .then((data) =>
+        setTeam(data.team ? normalizeTeamWorkflowData(data.team) : null),
+      )
       .finally(() => setLoading(false));
   }, [teamKey]);
 
@@ -97,30 +193,58 @@ export default function TeamWorkflowsSettingsPage() {
     return [...team.acceptDestinationStates, ...team.declineDestinationStates];
   }, [team]);
 
-  async function savePatch(patch: Partial<TeamWorkflowData>) {
+  function updateTeam(patch: Partial<TeamWorkflowData>) {
     if (!team) return;
-    const previous = team;
-    const nextTeam = { ...team, ...patch };
-    setTeam(nextTeam);
+    setTeam({ ...team, ...patch });
+    setSaveMessage(null);
+    setError(null);
+  }
+
+  function updateRule(id: string, patch: Partial<StatusTransitionRule>) {
+    if (!team) return;
+    updateTeam({
+      statusTransitionRules: team.statusTransitionRules.map((rule) =>
+        rule.id === id ? { ...rule, ...patch } : rule,
+      ),
+    });
+  }
+
+  async function saveAutomationSettings() {
+    if (!team) return;
     setSaving(true);
     setSaveMessage(null);
     setError(null);
+    const workflowAutomation = {
+      gitBranchFormat: team.gitBranchFormat,
+      gitBranchAutomationEnabled: team.gitBranchAutomationEnabled,
+      gitPrAutomationEnabled: team.gitPrAutomationEnabled,
+      gitBranchCreateTargetStatusId: team.gitBranchCreateTargetStatusId,
+      gitPrMergeTargetStatusId: team.gitPrMergeTargetStatusId,
+      autoAssignEnabled: team.autoAssignment,
+      autoAssignMode: team.autoAssignMode,
+      statusTransitionRules: team.statusTransitionRules,
+    };
     try {
+      const body: {
+        detailedHistory?: boolean;
+        workflowAutomation: typeof workflowAutomation;
+      } = { workflowAutomation };
+      if (team.detailedHistory) {
+        body.detailedHistory = true;
+      }
       const res = await fetch(`/api/teams/${teamKey}/settings`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
+        body: JSON.stringify(body),
       });
-      const data =
-        "json" in res && typeof res.json === "function"
-          ? await res.json().catch(() => ({}))
-          : {};
+      const data = await res.json().catch(() => ({}));
       if (!res.ok)
         throw new Error(data.error || "Failed to save workflow settings");
-      setTeam(data.team ?? nextTeam);
-      setSaveMessage("Workflow settings updated");
+      setTeam(
+        normalizeTeamWorkflowData(data.team ?? { ...team, workflowAutomation }),
+      );
+      setSaveMessage("Workflow automation updated");
     } catch (err) {
-      setTeam(previous);
       setError(
         err instanceof Error
           ? err.message
@@ -129,15 +253,6 @@ export default function TeamWorkflowsSettingsPage() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function updateRule(id: string, patch: Partial<StatusTransitionRule>) {
-    if (!team) return;
-    savePatch({
-      statusTransitionRules: team.statusTransitionRules.map((rule) =>
-        rule.id === id ? { ...rule, ...patch } : rule,
-      ),
-    });
   }
 
   function addRule() {
@@ -149,7 +264,7 @@ export default function TeamWorkflowsSettingsPage() {
       );
       return;
     }
-    savePatch({
+    updateTeam({
       statusTransitionRules: [
         ...team.statusTransitionRules,
         {
@@ -213,16 +328,16 @@ export default function TeamWorkflowsSettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-[13px] text-[var(--color-text-primary)]">
-                Enable branch and PR automation
+                Move issue when branch is created
               </div>
               <div className="text-[12px] text-[var(--color-text-tertiary)]">
-                Move issues automatically when branches or pull requests change.
+                Move issues automatically when branches are created.
               </div>
             </div>
             <Toggle
-              enabled={team.gitPrAutomationEnabled}
-              onChange={(v) => savePatch({ gitPrAutomationEnabled: v })}
-              label="Enable branch and PR automation"
+              enabled={team.gitBranchAutomationEnabled}
+              onChange={(v) => updateTeam({ gitBranchAutomationEnabled: v })}
+              label="Move issue when branch is created"
             />
           </div>
           <div className="grid gap-1">
@@ -230,10 +345,7 @@ export default function TeamWorkflowsSettingsPage() {
             <input
               aria-label="Branch name format"
               value={team.gitBranchFormat}
-              onChange={(e) =>
-                setTeam({ ...team, gitBranchFormat: e.target.value })
-              }
-              onBlur={(e) => savePatch({ gitBranchFormat: e.target.value })}
+              onChange={(e) => updateTeam({ gitBranchFormat: e.target.value })}
               className="rounded border border-[var(--color-border)] bg-transparent px-3 py-2 text-[13px]"
             />
           </div>
@@ -241,10 +353,10 @@ export default function TeamWorkflowsSettingsPage() {
             <div className="grid gap-1">
               <FieldLabel>When branch is created</FieldLabel>
               <select
-                aria-label="Branch created target status"
+                aria-label="Branch creation target status"
                 value={team.gitBranchCreateTargetStatusId ?? ""}
                 onChange={(e) =>
-                  savePatch({
+                  updateTeam({
                     gitBranchCreateTargetStatusId: e.target.value || null,
                   })
                 }
@@ -264,7 +376,7 @@ export default function TeamWorkflowsSettingsPage() {
                 aria-label="PR merged target status"
                 value={team.gitPrMergeTargetStatusId ?? ""}
                 onChange={(e) =>
-                  savePatch({
+                  updateTeam({
                     gitPrMergeTargetStatusId: e.target.value || null,
                   })
                 }
@@ -295,7 +407,7 @@ export default function TeamWorkflowsSettingsPage() {
         <div className="mt-4 flex items-center justify-between">
           <div>
             <div className="text-[13px] text-[var(--color-text-primary)]">
-              Assign new team issues automatically
+              Enable auto-assignment
             </div>
             <div className="text-[12px] text-[var(--color-text-tertiary)]">
               Choose the default owner rule for new issues in {team.name}.
@@ -304,9 +416,9 @@ export default function TeamWorkflowsSettingsPage() {
           <Toggle
             enabled={team.autoAssignment}
             onChange={(v) =>
-              savePatch({ autoAssignEnabled: v, autoAssignment: v })
+              updateTeam({ autoAssignEnabled: v, autoAssignment: v })
             }
-            label="Assign new team issues automatically"
+            label="Enable auto-assignment"
           />
         </div>
         <div className="mt-4 grid gap-1">
@@ -315,7 +427,7 @@ export default function TeamWorkflowsSettingsPage() {
             aria-label="Assignment mode"
             value={team.autoAssignMode}
             onChange={(e) =>
-              savePatch({
+              updateTeam({
                 autoAssignMode: e.target
                   .value as TeamWorkflowData["autoAssignMode"],
               })
@@ -351,7 +463,7 @@ export default function TeamWorkflowsSettingsPage() {
             onClick={addRule}
             className="rounded bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white"
           >
-            Add rule
+            Add transition rule
           </button>
         </div>
         <div className="mt-4 grid gap-3">
@@ -360,14 +472,14 @@ export default function TeamWorkflowsSettingsPage() {
               No transition rules yet.
             </div>
           )}
-          {team.statusTransitionRules.map((rule) => (
+          {team.statusTransitionRules.map((rule, index) => (
             <div
               key={rule.id}
               className="grid gap-3 rounded border border-[var(--color-border)] p-3"
             >
               <div className="flex items-center justify-between">
                 <input
-                  aria-label="Rule name"
+                  aria-label={`Rule ${index + 1} name`}
                   value={rule.name}
                   onChange={(e) =>
                     setTeam({
@@ -378,7 +490,6 @@ export default function TeamWorkflowsSettingsPage() {
                       ),
                     })
                   }
-                  onBlur={(e) => updateRule(rule.id, { name: e.target.value })}
                   className="rounded border border-[var(--color-border)] bg-transparent px-2 py-1 text-[13px]"
                 />
                 <Toggle
@@ -389,7 +500,7 @@ export default function TeamWorkflowsSettingsPage() {
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <select
-                  aria-label="Rule trigger"
+                  aria-label={`Rule ${index + 1} trigger`}
                   value={rule.trigger}
                   onChange={(e) =>
                     updateRule(rule.id, {
@@ -406,7 +517,7 @@ export default function TeamWorkflowsSettingsPage() {
                   ))}
                 </select>
                 <select
-                  aria-label="Rule source category"
+                  aria-label={`Rule ${index + 1} source category`}
                   value={rule.sourceCategory}
                   onChange={(e) =>
                     updateRule(rule.id, {
@@ -423,7 +534,7 @@ export default function TeamWorkflowsSettingsPage() {
                   <option value="completed">Completed</option>
                 </select>
                 <select
-                  aria-label="Rule target status"
+                  aria-label={`Rule ${index + 1} target status`}
                   value={rule.targetStatusId}
                   onChange={(e) =>
                     updateRule(rule.id, { targetStatusId: e.target.value })
@@ -440,7 +551,7 @@ export default function TeamWorkflowsSettingsPage() {
               <button
                 type="button"
                 onClick={() =>
-                  savePatch({
+                  updateTeam({
                     statusTransitionRules: team.statusTransitionRules.filter(
                       (r) => r.id !== rule.id,
                     ),
@@ -467,11 +578,20 @@ export default function TeamWorkflowsSettingsPage() {
           </div>
           <Toggle
             enabled={team.detailedHistory}
-            onChange={(v) => savePatch({ detailedHistory: v })}
+            onChange={(v) => updateTeam({ detailedHistory: v })}
             label="Enable detailed issue history"
           />
         </div>
       </section>
+
+      <button
+        type="button"
+        onClick={saveAutomationSettings}
+        disabled={saving}
+        className="mt-4 rounded bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-60"
+      >
+        Save automation settings
+      </button>
 
       {(saving || saveMessage || error) && (
         <p

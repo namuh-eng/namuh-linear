@@ -88,9 +88,12 @@ describe("TeamRecurringIssuesSettingsPage component", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Create recurring issue" }),
     );
-    expect(screen.getByText("Title is required")).toBeDefined();
+    expect(screen.getByText("Title is required.")).toBeDefined();
 
-    await userEvent.type(screen.getByLabelText("Title"), "Weekly metrics");
+    await userEvent.type(
+      screen.getByLabelText("Issue title"),
+      "Weekly metrics",
+    );
     await userEvent.selectOptions(screen.getByLabelText("Cadence"), "weekly");
     await userEvent.click(
       screen.getByRole("button", { name: "Create recurring issue" }),
@@ -135,10 +138,13 @@ describe("TeamRecurringIssuesSettingsPage component", () => {
     expect(await screen.findByText("Weekly triage")).toBeDefined();
 
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
-    await userEvent.clear(screen.getByLabelText("Title"));
-    await userEvent.type(screen.getByLabelText("Title"), "Updated triage");
+    await userEvent.clear(screen.getByLabelText("Issue title"));
+    await userEvent.type(
+      screen.getByLabelText("Issue title"),
+      "Updated triage",
+    );
     await userEvent.click(
-      screen.getByRole("button", { name: "Save recurring issue" }),
+      screen.getByRole("button", { name: /Save recurring issue/ }),
     );
     expect(await screen.findByText("Updated triage")).toBeDefined();
 

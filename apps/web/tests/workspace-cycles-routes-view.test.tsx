@@ -119,18 +119,37 @@ describe("workspace-prefixed cycles pages", () => {
     cleanup();
   });
 
-  it("redirects /:workspaceSlug/cycles to the canonical team cycles route", async () => {
+  it("renders /:workspaceSlug/cycles with the active workspace team without redirecting", async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            team: {
+              id: "team-1",
+              name: "Engineering",
+              key: "ENG",
+              cyclesEnabled: true,
+              cycleStartDay: 1,
+              cycleDurationWeeks: 2,
+              timezone: "UTC",
+            },
+            cycles: [],
+          }),
+      } as Response),
+    );
+    vi.stubGlobal("fetch", fetchMock);
     const { default: WorkspaceCyclesPage } = await import(
       "@/app/(app)/[workspaceSlug]/cycles/page"
     );
 
-    await WorkspaceCyclesPage({
-      params: Promise.resolve({ workspaceSlug: "foreverbrowsing" }),
-    });
+    render(<WorkspaceCyclesPage />);
 
-    expect(redirectMock).toHaveBeenCalledWith(
-      "/foreverbrowsing/team/ENG/cycles",
-    );
+    await expect(
+      screen.findByRole("heading", { name: "Cycles" }),
+    ).resolves.toBeVisible();
+    expect(fetchMock).toHaveBeenCalledWith("/api/teams/ENG/cycles");
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 
   it("preserves the workspace slug from /:workspaceSlug/team/:key/cycles detail navigation", async () => {

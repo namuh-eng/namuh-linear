@@ -4,6 +4,8 @@ test.describe("Agent dashboard", () => {
   test("opens from sidebar More, creates a mock run, and reviews suggestions", async ({
     page,
   }) => {
+    const runTitle = `Audit agent sidebar route ${Date.now().toString(36)}`;
+
     await page.goto("/foreverbrowsing/my-issues/assigned");
 
     await page.getByRole("button", { name: "More" }).click();
@@ -26,7 +28,7 @@ test.describe("Agent dashboard", () => {
       page.getByRole("link", { name: "Workspace AI settings" }),
     ).toHaveAttribute("href", "/foreverbrowsing/settings/ai");
 
-    await page.getByLabel("Task title").fill("Audit agent sidebar route");
+    await page.getByLabel("Task title").fill(runTitle);
     await page.getByLabel("Issue, PR, or project context").fill("EXP-300");
     await page
       .getByLabel("Instructions")
@@ -34,7 +36,7 @@ test.describe("Agent dashboard", () => {
     await page.getByRole("button", { name: "Start mock agent run" }).click();
 
     await expect(
-      page.getByRole("button", { name: /Audit agent sidebar route/ }),
+      page.getByRole("button", { name: new RegExp(runTitle) }),
     ).toBeVisible();
     await expect(page.getByText("Mock agent run queued")).toBeVisible();
     await expect(

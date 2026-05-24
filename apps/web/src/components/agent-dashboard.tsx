@@ -218,12 +218,12 @@ export function AgentDashboard() {
       <header className="border-b border-[var(--color-border)] px-6 py-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-[12px] font-medium uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
+            <h1 className="text-[12px] font-medium uppercase tracking-[0.18em] text-[var(--color-text-tertiary)]">
               Agent
-            </p>
-            <h1 className="mt-1 text-[24px] font-semibold text-[var(--color-text-primary)]">
-              Agent workspace
             </h1>
+            <h2 className="mt-1 text-[24px] font-semibold text-[var(--color-text-primary)]">
+              Agent workspace
+            </h2>
             <p className="mt-2 max-w-[760px] text-[13px] leading-5 text-[var(--color-text-secondary)]">
               Start deterministic agent runs, review history, and accept or
               decline suggested actions from the current workspace context.

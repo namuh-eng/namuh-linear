@@ -146,6 +146,7 @@ export const authorizedApplicationGrant = pgTable(
   "authorized_application_grant",
   {
     id: text("id").primaryKey(),
+    workspaceId: uuid("workspace_id"),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -159,6 +160,7 @@ export const authorizedApplicationGrant = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [
+    index("authorized_application_grant_workspace_idx").on(t.workspaceId),
     index("authorized_application_grant_user_idx").on(t.userId),
     uniqueIndex("authorized_application_grant_user_app_idx").on(
       t.userId,

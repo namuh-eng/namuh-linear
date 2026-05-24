@@ -253,6 +253,12 @@ func (h Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if behaviorSet {
+		existingBehavior := statusBehaviorFor(team.Settings, id)
+		if behavior["slaBehavior"] == "inherit" {
+			if existingSLA, ok := existingBehavior["slaBehavior"].(string); ok && existingSLA != "" && existingSLA != "inherit" {
+				behavior["slaBehavior"] = existingSLA
+			}
+		}
 		team.Settings = setStatusBehavior(team.Settings, id, behavior)
 		if err := h.saveTeamSettings(r, team.ID, team.Settings); err != nil {
 			problem.Write(w, 500, "Update status failed", err.Error())

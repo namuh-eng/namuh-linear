@@ -93,10 +93,15 @@ export async function DELETE(_request: Request, context: Params) {
       member,
       and(
         eq(member.userId, authorizedApplicationGrant.userId),
-        eq(member.workspaceId, access.workspaceId),
+        eq(member.workspaceId, authorizedApplicationGrant.workspaceId),
       ),
     )
-    .where(eq(authorizedApplicationGrant.id, id))
+    .where(
+      and(
+        eq(authorizedApplicationGrant.workspaceId, access.workspaceId),
+        eq(authorizedApplicationGrant.id, id),
+      ),
+    )
     .limit(1);
 
   if (!grant)

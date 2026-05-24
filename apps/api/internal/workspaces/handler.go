@@ -745,8 +745,9 @@ func (h Handler) ListApplications(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.DB.Query(r.Context(), `
 		select g.id, g.app_id, g.client_id, g.name, g.image_url, g.scopes, g.webhooks_enabled, g.created_at, g.updated_at, u.name, u.email, u.image
 		from authorized_application_grant g
-		join member m on m.user_id=g.user_id and m.workspace_id=$1::uuid
+		join member m on m.user_id=g.user_id and m.workspace_id=g.workspace_id
 		join "user" u on u.id=g.user_id
+		where g.workspace_id=$1::uuid
 		order by g.updated_at desc`, p.WorkspaceID)
 	if err != nil {
 		problem.Write(w, 500, "List applications failed", err.Error())
@@ -789,8 +790,8 @@ func (h Handler) DeleteApplication(w http.ResponseWriter, r *http.Request) {
 	var found string
 	err := h.DB.QueryRow(r.Context(), `
 		select g.id from authorized_application_grant g
-		join member m on m.user_id=g.user_id and m.workspace_id=$1::uuid
-		where g.id=$2 limit 1`, p.WorkspaceID, id).Scan(&found)
+		join member m on m.user_id=g.user_id and m.workspace_id=g.workspace_id
+		where g.workspace_id=$1::uuid and g.id=$2 limit 1`, p.WorkspaceID, id).Scan(&found)
 	if errors.Is(err, pgx.ErrNoRows) {
 		problem.Write(w, 404, "Application not found", "")
 		return

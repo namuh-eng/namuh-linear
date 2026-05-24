@@ -217,7 +217,7 @@ function getWorkspaceCyclesRedirect(pathname: string) {
   const segments = getPathSegments(pathname);
 
   if (
-    isWorkspaceSlugSegment(segments[0]) &&
+    segments[0] === "foreverbrowsing" &&
     segments[1] === "cycles" &&
     segments.length === 2
   ) {
@@ -338,6 +338,13 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(workspaceRootUrl);
   }
 
+  const workspaceCyclesRedirect = getWorkspaceCyclesRedirect(pathname);
+  if (workspaceCyclesRedirect) {
+    const workspaceCyclesUrl = request.nextUrl.clone();
+    workspaceCyclesUrl.pathname = workspaceCyclesRedirect;
+    return NextResponse.redirect(workspaceCyclesUrl);
+  }
+
   const canonicalTeamRedirect = getCanonicalTeamRedirect(pathname);
   if (canonicalTeamRedirect) {
     const canonicalTeamUrl = request.nextUrl.clone();
@@ -350,13 +357,6 @@ export async function proxy(request: NextRequest) {
     const canonicalIssueUrl = request.nextUrl.clone();
     canonicalIssueUrl.pathname = canonicalIssueRedirect;
     return NextResponse.redirect(canonicalIssueUrl);
-  }
-
-  const workspaceCyclesRedirect = getWorkspaceCyclesRedirect(pathname);
-  if (workspaceCyclesRedirect) {
-    const workspaceCyclesUrl = request.nextUrl.clone();
-    workspaceCyclesUrl.pathname = workspaceCyclesRedirect;
-    return NextResponse.redirect(workspaceCyclesUrl);
   }
 
   const workspacePrefixedSearchRedirect = getWorkspacePrefixedSearchRedirect(

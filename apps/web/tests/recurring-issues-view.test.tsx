@@ -60,7 +60,7 @@ describe("TeamRecurringIssuesSettingsPage", () => {
     expect(
       screen.getByRole("form", { name: "Create recurring issue" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Title")).toBeInTheDocument();
+    expect(screen.getByLabelText("Issue title")).toBeInTheDocument();
     expect(screen.getByLabelText("Cadence")).toBeInTheDocument();
   });
 
@@ -102,8 +102,12 @@ describe("TeamRecurringIssuesSettingsPage", () => {
             json: async () => ({ recurringIssue: resp }),
           });
         }
-        // Toggle enabled (toggle sends only { enabled } with no other keys)
-        if ("enabled" in body && Object.keys(body).length === 1) {
+        // Toggle enabled sends the full recurring issue payload for API parity.
+        if (
+          "enabled" in body &&
+          body.enabled === false &&
+          body.title === savedIssue.title
+        ) {
           const toggled = { ...savedIssue, enabled: Boolean(body.enabled) };
           const idx = issueList.findIndex((i) => i.id === savedIssue.id);
           if (idx >= 0) issueList[idx] = toggled;
@@ -156,9 +160,9 @@ describe("TeamRecurringIssuesSettingsPage", () => {
         screen.getByRole("form", { name: "Create recurring issue" }),
       ).getByRole("button", { name: "Create recurring issue" }),
     );
-    expect(await screen.findByText("Title is required")).toBeInTheDocument();
+    expect(await screen.findByText("Title is required.")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Title"), {
+    fireEvent.change(screen.getByLabelText("Issue title"), {
       target: { value: "Weekly metrics review" },
     });
     fireEvent.change(screen.getByLabelText("Description"), {
@@ -167,7 +171,7 @@ describe("TeamRecurringIssuesSettingsPage", () => {
     fireEvent.change(screen.getByLabelText("Cadence"), {
       target: { value: "weekly" },
     });
-    fireEvent.change(screen.getByLabelText("Start"), {
+    fireEvent.change(screen.getByLabelText("Start date"), {
       target: { value: "2026-05-21" },
     });
     fireEvent.click(
@@ -179,27 +183,27 @@ describe("TeamRecurringIssuesSettingsPage", () => {
     expect(
       await screen.findByText("Weekly metrics review"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Every week")).toBeInTheDocument();
+    expect(screen.getByText("Weekly")).toBeInTheDocument();
     expect(screen.getByText("Enabled")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Disable" }));
     expect(await screen.findByText("Disabled")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-    fireEvent.change(screen.getByLabelText("Title"), {
+    fireEvent.change(screen.getByLabelText("Issue title"), {
       target: { value: "Monthly metrics review" },
     });
     fireEvent.change(screen.getByLabelText("Cadence"), {
       target: { value: "monthly" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Save recurring issue" }),
+      screen.getByRole("button", { name: /Save recurring issue/ }),
     );
 
     expect(
       await screen.findByText("Monthly metrics review"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Every month")).toBeInTheDocument();
+    expect(screen.getByText("Monthly")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() =>

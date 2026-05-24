@@ -291,6 +291,7 @@ function KratosAuthPage({ mode }: { mode: AuthMode }) {
   const [flow, setFlow] = useState<KratosFlow | null>(null);
   const [loading, setLoading] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [samlAvailable, setSamlAvailable] = useState(false);
   const [error, setError] = useState("");
 
   async function getFlow() {
@@ -348,6 +349,39 @@ function KratosAuthPage({ mode }: { mode: AuthMode }) {
         "Authentication failed. Check your details and try again.",
     );
   }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadProviderCapabilities() {
+      try {
+        const callbackPath = getSafeCallbackPath();
+        const capabilitiesUrl = new URL(
+          "/api/auth/provider-capabilities",
+          window.location.origin,
+        );
+        if (callbackPath !== "/") {
+          capabilitiesUrl.searchParams.set("callbackUrl", callbackPath);
+        }
+        const response = await fetch(
+          `${capabilitiesUrl.pathname}${capabilitiesUrl.search}`,
+          { cache: "no-store", signal: controller.signal },
+        );
+        if (!response.ok) return;
+        const data = (await response.json()) as ProviderCapabilities;
+        setSamlAvailable(
+          data.providers?.googleAllowed === false &&
+            data.providers?.emailPasskey === false &&
+            data.providers?.passkey === false,
+        );
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setSamlAvailable(false);
+        }
+      }
+    }
+    void loadProviderCapabilities();
+    return () => controller.abort();
+  }, []);
 
   async function handlePasswordSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -458,15 +492,25 @@ function KratosAuthPage({ mode }: { mode: AuthMode }) {
           </button>
         </form>
         {mode === "login" ? (
-          <form onSubmit={handleMagicLink} className="mt-3">
-            <button
-              type="submit"
-              disabled={loading || !email.trim()}
-              className="h-11 w-full rounded-md border border-[var(--auth-border)] bg-transparent text-[14px] font-medium text-[var(--auth-text)] transition-colors hover:bg-white/5 disabled:opacity-60"
-            >
-              Send magic link instead
-            </button>
-          </form>
+          <>
+            <form onSubmit={handleMagicLink} className="mt-3">
+              <button
+                type="submit"
+                disabled={loading || !email.trim()}
+                className="h-11 w-full rounded-md border border-[var(--auth-border)] bg-transparent text-[14px] font-medium text-[var(--auth-text)] transition-colors hover:bg-white/5 disabled:opacity-60"
+              >
+                Send magic link instead
+              </button>
+            </form>
+            {samlAvailable ? (
+              <button
+                type="button"
+                className="mt-3 h-11 w-full rounded-md border border-[var(--auth-border)] bg-transparent text-[14px] font-medium text-[var(--auth-text)] transition-colors hover:bg-white/5"
+              >
+                Continue with SAML SSO
+              </button>
+            ) : null}
+          </>
         ) : null}
         <FooterLinks mode={mode} />
       </div>

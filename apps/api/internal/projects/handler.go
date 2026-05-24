@@ -91,18 +91,19 @@ type createRequest struct {
 }
 
 type updateRequest struct {
-	Name        *string  `json:"name"`
-	Description *string  `json:"description"`
-	Icon        *string  `json:"icon"`
-	Slug        *string  `json:"slug"`
-	Status      *string  `json:"status"`
-	Priority    *string  `json:"priority"`
-	LeadID      *string  `json:"lead_id"`
-	StartDate   *string  `json:"start_date"`
-	TargetDate  *string  `json:"target_date"`
-	TeamIDs     []string `json:"team_ids"`
-	TeamKeys    []string `json:"team_keys"`
-	TeamKey     *string  `json:"teamKey"`
+	Name          *string  `json:"name"`
+	Description   *string  `json:"description"`
+	Icon          *string  `json:"icon"`
+	Slug          *string  `json:"slug"`
+	Status        *string  `json:"status"`
+	Priority      *string  `json:"priority"`
+	LeadID        *string  `json:"lead_id"`
+	StartDate     *string  `json:"start_date"`
+	TargetDate    *string  `json:"target_date"`
+	TeamIDs       []string `json:"team_ids"`
+	TeamKeys      []string `json:"team_keys"`
+	TeamKey       *string  `json:"teamKey"`
+	ProjectUpdate *string  `json:"projectUpdate"`
 }
 
 func (h Handler) Routes() chi.Router {
@@ -409,6 +410,19 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 			settings["projectStatusKey"] = strings.TrimSpace(*input.Status)
 			updated.Status = strings.TrimSpace(*input.Status)
 		}
+		if err := h.saveProjectSettings(r.Context(), tx, updated.ID, settings); err != nil {
+			problem.Write(w, 500, "Update project failed", err.Error())
+			return
+		}
+	}
+	if input.ProjectUpdate != nil && strings.TrimSpace(*input.ProjectUpdate) != "" {
+		settings, err := h.projectSettings(r.Context(), tx, updated.ID)
+		if err != nil {
+			problem.Write(w, 500, "Update project failed", err.Error())
+			return
+		}
+		body := strings.TrimSpace(*input.ProjectUpdate)
+		prependProjectUpdate(settings, &body)
 		if err := h.saveProjectSettings(r.Context(), tx, updated.ID, settings); err != nil {
 			problem.Write(w, 500, "Update project failed", err.Error())
 			return

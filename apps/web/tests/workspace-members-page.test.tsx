@@ -240,7 +240,7 @@ describe("MembersPage component", () => {
     await expectApiCall("DELETE", { id: "m2", kind: "member" });
 
     await userEvent.click(screen.getByRole("button", { name: "Resend" }));
-    await expectApiCall("POST", {
+    await expectApiCall("PATCH", {
       id: "m3",
       kind: "invitation",
       action: "resend",

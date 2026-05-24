@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -160,6 +161,8 @@ type SearchResult struct {
 	AssigneeName  *string `json:"assigneeName"`
 	AssigneeImage *string `json:"assigneeImage"`
 	CreatedAt     string  `json:"createdAt"`
+	TeamKey       string  `json:"teamKey,omitempty"`
+	Path          string  `json:"path,omitempty"`
 }
 
 type subscriptionSummary struct {
@@ -252,7 +255,7 @@ func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
 		workspaceID = requestedWorkspaceID
 	}
 	rows, err := h.DB.Query(r.Context(), `
-		select i.id::text, i.identifier, i.title, i.priority::text, ws.name, ws.category::text, ws.color, u.name, u.image, i.created_at
+		select i.id::text, i.identifier, i.title, i.priority::text, ws.name, ws.category::text, ws.color, u.name, u.image, i.created_at, t.key
 		from issue i
 		join team t on t.id=i.team_id
 		join workflow_state ws on ws.id=i.state_id
@@ -272,11 +275,14 @@ func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var result SearchResult
 		var createdAt time.Time
-		if err := rows.Scan(&result.ID, &result.Identifier, &result.Title, &result.Priority, &result.StateName, &result.StateCategory, &result.StateColor, &result.AssigneeName, &result.AssigneeImage, &createdAt); err != nil {
+		if err := rows.Scan(&result.ID, &result.Identifier, &result.Title, &result.Priority, &result.StateName, &result.StateCategory, &result.StateColor, &result.AssigneeName, &result.AssigneeImage, &createdAt, &result.TeamKey); err != nil {
 			problem.Write(w, 500, "Search issues failed", err.Error())
 			return
 		}
 		result.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+		if result.TeamKey != "" {
+			result.Path = fmt.Sprintf("/team/%s/issue/%s", url.PathEscape(result.TeamKey), url.PathEscape(result.Identifier))
+		}
 		results = append(results, result)
 	}
 	if err := rows.Err(); err != nil {

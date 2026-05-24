@@ -9,7 +9,21 @@ async function expectPaletteOpen(page: import("@playwright/test").Page) {
   await expect(dialog(page)).toBeVisible();
   await expect(searchInput(page)).toBeVisible();
   await expect(searchInput(page)).toBeFocused();
-  await expect(page.getByText("Navigation")).toBeVisible();
+  await expect(
+    dialog(page).getByText("Navigation", { exact: true }),
+  ).toBeVisible();
+}
+
+async function openPaletteFromSidebar(page: import("@playwright/test").Page) {
+  await expect(page.getByLabel("Search")).toBeVisible();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+  await page.getByLabel("Search").click();
+  await expectPaletteOpen(page);
 }
 
 async function gotoProjectsWithShortcutReady(
@@ -205,7 +219,7 @@ test.describe("Command Palette", () => {
     });
 
     await page.goto("/foreverbrowsing/team/ENG/all");
-    await page.getByLabel("Search").click();
+    await openPaletteFromSidebar(page);
 
     await searchInput(page).fill("ENG-179");
     await expect(
@@ -220,7 +234,7 @@ test.describe("Command Palette", () => {
     );
 
     await page.goto("/foreverbrowsing/team/ENG/all");
-    await page.getByLabel("Search").click();
+    await openPaletteFromSidebar(page);
     await searchInput(page).fill("ENG-179");
 
     await dialog(page)

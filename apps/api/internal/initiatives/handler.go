@@ -60,6 +60,13 @@ type Initiative struct {
 	UpdatedAt                 string           `json:"updatedAt"`
 }
 
+type activeProjectHealthRollup struct {
+	Total          int `json:"total"`
+	WithUpdates    int `json:"withUpdates"`
+	WithoutUpdates int `json:"withoutUpdates"`
+	Paused         int `json:"paused"`
+}
+
 type miniInitiative struct {
 	ID                 string  `json:"id"`
 	Name               string  `json:"name"`
@@ -651,6 +658,9 @@ func (h Handler) enrichListItem(ctx context.Context, item *Initiative) error {
 			item.CompletedProjectCount++
 		}
 	}
+	if rollup, err := h.activeProjectRollup(ctx, item.ID); err == nil {
+		item.ActiveProjectHealthRollup = rollup
+	}
 	updates, _, _ := settingsArrays(item.Settings)
 	if len(updates) > 0 {
 		item.LatestUpdate = updates[0]
@@ -751,6 +761,30 @@ func (h Handler) initiativeProjects(ctx context.Context, id string, withCounts b
 	}
 	return out, rows.Err()
 }
+
+func (h Handler) activeProjectRollup(ctx context.Context, id string) (*activeProjectHealthRollup, error) {
+	var total, withUpdates, paused int
+	err := h.DB.QueryRow(ctx, `
+		select
+			count(*) filter (where p.status in ('started','paused'))::int,
+			count(*) filter (
+				where p.status in ('started','paused')
+				and exists (
+					select 1
+					from jsonb_array_elements(case when jsonb_typeof(p.settings->'activity') = 'array' then p.settings->'activity' else '[]'::jsonb end) entry
+					where entry->>'type' = 'update'
+				)
+			)::int,
+			count(*) filter (where p.status = 'paused')::int
+		from initiative_project ip
+		join project p on p.id=ip.project_id
+		where ip.initiative_id=$1::uuid`, id).Scan(&total, &withUpdates, &paused)
+	if err != nil {
+		return nil, err
+	}
+	return &activeProjectHealthRollup{Total: total, WithUpdates: withUpdates, WithoutUpdates: total - withUpdates, Paused: paused}, nil
+}
+
 func (h Handler) issueCounts(ctx context.Context, projectID string) (int32, int32) {
 	var total, done int32
 	_ = h.DB.QueryRow(ctx, `select count(*)::int, count(*) filter (where ws.category='completed')::int from issue i left join workflow_state ws on ws.id=i.state_id where i.project_id=$1::uuid`, projectID).Scan(&total, &done)

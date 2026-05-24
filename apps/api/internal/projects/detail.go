@@ -83,8 +83,8 @@ func (h Handler) projectDetail(ctx context.Context, workspaceID, workspaceSlug s
 		"availableStatuses": statuses,
 		"slackChannel":      nil,
 		"projectStatuses":   statuses,
-		"resources":         []any{},
-		"activity":          []any{},
+		"resources":         sliceDetail(settings["resources"]),
+		"activity":          sliceDetail(settings["activity"]),
 		"milestones":        milestones,
 		"issueGroups":       groups,
 		"progress": map[string]any{

@@ -167,6 +167,7 @@ export async function GET(request: Request) {
     .insert(authorizedApplicationGrant)
     .values({
       id: `grant_${randomBytes(8).toString("hex")}`,
+      workspaceId: found.workspaceId,
       userId: session.user.id,
       appId: found.application.id,
       clientId,
@@ -178,7 +179,12 @@ export async function GET(request: Request) {
         authorizedApplicationGrant.userId,
         authorizedApplicationGrant.appId,
       ],
-      set: { name: found.application.name, scopes, updatedAt: new Date() },
+      set: {
+        workspaceId: found.workspaceId,
+        name: found.application.name,
+        scopes,
+        updatedAt: new Date(),
+      },
     });
 
   const callback = new URL(redirectUri);

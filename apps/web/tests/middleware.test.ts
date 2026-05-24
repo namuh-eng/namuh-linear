@@ -299,9 +299,6 @@ describe("Auth proxy", () => {
     "/foreverbrowsing/projects/all",
     "/foreverbrowsing/project/roadmap",
     "/foreverbrowsing/project/roadmap/overview",
-    // NOTE: /foreverbrowsing/cycles is intentionally NOT in this list — the
-    // proxy redirects it to /foreverbrowsing/team/ENG/cycles. See the
-    // "redirects workspace cycles shortcut" test below for that path.
     "/foreverbrowsing/team/ENG/cycles",
     "/foreverbrowsing/team/ENG/cycles/cycle-1",
     "/foreverbrowsing/team/ENG/projects",
@@ -430,7 +427,7 @@ describe("Auth proxy", () => {
     );
   });
 
-  it("redirects workspace cycles shortcut to the canonical workspace team cycles route", async () => {
+  it("redirects the canonical workspace cycles shortcut to the canonical workspace team cycles route", async () => {
     mockRedirect.mockClear();
     mockRewrite.mockClear();
     const { proxy } = await import("@/proxy");

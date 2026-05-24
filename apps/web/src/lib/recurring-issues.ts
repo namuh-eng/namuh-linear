@@ -79,7 +79,9 @@ export function computeNextRunAt(
 export function formatCadence(config: RecurringIssueCadenceConfig) {
   const unit = config.cadence.slice(0, -2);
   if (config.interval === 1) {
-    return config.cadence === "daily" ? "Daily" : `Every ${unit}`;
+    if (config.cadence === "daily") return "Daily";
+    if (config.cadence === "weekly") return "Weekly";
+    return "Monthly";
   }
 
   return `Every ${config.interval} ${config.cadence === "daily" ? "days" : `${unit}s`}`;

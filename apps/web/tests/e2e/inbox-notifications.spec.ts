@@ -1,10 +1,38 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
+
+async function markAllNotificationsRead(page: Page) {
+  await page.evaluate(async () => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await fetch("/api/notifications", {
+        credentials: "include",
+      });
+      const payload = (await response.json()) as {
+        notifications: Array<{ id: string; readAt: string | null }>;
+        unreadCount: number;
+      };
+      const unread = payload.notifications.filter((item) => !item.readAt);
+      if (unread.length === 0 && payload.unreadCount === 0) {
+        return;
+      }
+      await Promise.all(
+        unread.map((item) =>
+          fetch(`/api/notifications/${item.id}/read`, {
+            method: "PATCH",
+            credentials: "include",
+          }),
+        ),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  });
+}
 
 test.describe("Canonical inbox notifications", () => {
   test("API returns seeded read notification history for the test session", async ({
     page,
   }) => {
     await page.goto("/foreverbrowsing/inbox");
+    await markAllNotificationsRead(page);
 
     const payload = await page.evaluate(async () => {
       const response = await fetch("/api/notifications", {
@@ -48,6 +76,8 @@ test.describe("Canonical inbox notifications", () => {
     page,
   }) => {
     await page.goto("/foreverbrowsing/inbox");
+    await markAllNotificationsRead(page);
+    await page.reload();
 
     await expect(page.getByText("You're all caught up")).not.toBeVisible();
     await expect(page.getByText("ENG-179").first()).toBeVisible();

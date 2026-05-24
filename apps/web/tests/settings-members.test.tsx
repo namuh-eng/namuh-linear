@@ -348,7 +348,7 @@ describe("Members Admin Page", () => {
     });
     await waitFor(() => {
       expect(
-        screen.getByText("Member removed from workspace."),
+        screen.getByText("Removed Bob Jones from workspace."),
       ).toBeInTheDocument();
     });
   });
@@ -370,7 +370,7 @@ describe("Members Admin Page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Resend" }));
 
     await waitFor(async () => {
-      await expectJsonRequest(1, "/api/workspaces/members", "POST", {
+      await expectJsonRequest(1, "/api/workspaces/members", "PATCH", {
         id: "invite-1",
         kind: "invitation",
         action: "resend",
@@ -391,7 +391,9 @@ describe("Members Admin Page", () => {
       });
     });
     await waitFor(() => {
-      expect(screen.getByText("Invitation revoked.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Revoked invitation to charlie@acme.com."),
+      ).toBeInTheDocument();
     });
   });
 
