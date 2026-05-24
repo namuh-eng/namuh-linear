@@ -164,17 +164,30 @@ function ImportModal({
     setFileName(file.name);
     setCsvText(text);
     setHeaders(parsedHeaders);
-    setMapping(guessMapping(parsedHeaders));
-    setStep("map");
+    const nextMapping = guessMapping(parsedHeaders);
+    setMapping(nextMapping);
+    if (nextMapping.title && teamId) {
+      await validateCsv(text, nextMapping, teamId);
+    } else {
+      setStep("map");
+    }
   };
 
-  const validate = async () => {
+  const validateCsv = async (
+    nextCsvText = csvText,
+    nextMapping = mapping,
+    nextTeamId = teamId,
+  ) => {
     setBusy(true);
     setError("");
     const res = await fetch("/api/workspaces/imports/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ csv: csvText, mapping, teamId }),
+      body: JSON.stringify({
+        csv: nextCsvText,
+        mapping: nextMapping,
+        teamId: nextTeamId,
+      }),
     });
     const data = await res.json();
     setBusy(false);
@@ -184,6 +197,10 @@ function ImportModal({
     }
     setPreview(data.preview ?? []);
     setStep("preview");
+  };
+
+  const validate = async () => {
+    await validateCsv();
   };
 
   const startImport = async () => {
@@ -201,6 +218,10 @@ function ImportModal({
       setPreview(data.preview ?? preview);
       return;
     }
+    setMessage(
+      data.import?.message ??
+        `CSV import completed with ${data.import?.importedCount ?? 0} issues created.`,
+    );
     setStep("complete");
     onComplete();
   };
@@ -408,9 +429,9 @@ function ImportModal({
               <>
                 <h3 className="font-medium">Preview validation</h3>
                 <p className="mt-1 text-[13px] text-[var(--color-text-secondary)]">
-                  {preview.filter((r) => r.errors.length === 0).length} valid
-                  rows, {preview.filter((r) => r.errors.length > 0).length} rows
-                  with errors.
+                  Preview: {preview.filter((r) => r.errors.length === 0).length}{" "}
+                  valid, {preview.filter((r) => r.errors.length > 0).length}{" "}
+                  with errors, {preview.length} total
                 </p>
                 <div className="mt-3 max-h-64 overflow-auto rounded border border-[var(--color-border)]">
                   <table className="w-full text-left text-[12px]">
@@ -456,7 +477,8 @@ function ImportModal({
               <>
                 <h3 className="font-medium text-green-400">Import complete</h3>
                 <p className="mt-2 text-[13px]">
-                  Issues were created and the import job was saved to history.
+                  {message ||
+                    "Issues were created and the import job was saved to history."}
                 </p>
               </>
             )}
@@ -513,7 +535,9 @@ export default function ImportExportPage() {
         return;
       }
       setExports(data.exports ?? [data.export]);
-      setMessage("Workspace export is ready to download.");
+      setMessage(
+        data.export?.message ?? "Workspace export is ready to download.",
+      );
     } finally {
       setBusy(false);
     }

@@ -197,7 +197,7 @@ func (h Handler) CreateLegacyImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	job := map[string]any{"id": importExportJobID("import"), "provider": "csv", "status": "complete", "createdAt": now, "completedAt": now, "fileName": stringOr(body["fileName"], "import.csv"), "importedCount": len(created), "errorCount": 0, "errors": []any{}}
+	job := map[string]any{"id": importExportJobID("import"), "provider": "csv", "status": "complete", "createdAt": now, "completedAt": now, "fileName": stringOr(body["fileName"], "import.csv"), "message": "CSV import completed with " + strconv.Itoa(len(created)) + " issues created.", "importedCount": len(created), "errorCount": 0, "errors": []any{}}
 	state := readImportExportStateGo(current.Settings)
 	state.Imports = prependJob(job, state.Imports, 10)
 	if err := h.saveImportExportState(r.Context(), current, state); err != nil {
@@ -862,7 +862,10 @@ func publicLegacyExports(jobs []map[string]any) []map[string]any {
 
 func publicLegacyExport(job map[string]any) map[string]any {
 	id := asStringValue(job["id"])
-	return map[string]any{"id": id, "status": stringOr(job["status"], "complete"), "createdAt": asStringValue(job["createdAt"]), "completedAt": asStringValue(job["completedAt"]), "counts": recordFromAny(job["counts"]), "downloadUrl": "/api/workspaces/exports?id=" + id + "&download=1"}
+	counts := recordFromAny(job["counts"])
+	issueCount := intFromAny(counts["issues"])
+	message := stringOr(job["message"], "Workspace export completed with "+strconv.Itoa(issueCount)+" issues.")
+	return map[string]any{"id": id, "status": stringOr(job["status"], "complete"), "createdAt": asStringValue(job["createdAt"]), "completedAt": asStringValue(job["completedAt"]), "message": message, "counts": counts, "downloadUrl": "/api/workspaces/exports?id=" + id + "&download=1"}
 }
 
 func importExportJobID(prefix string) string {
@@ -889,4 +892,22 @@ func stringOr(value any, fallback string) string {
 		return s
 	}
 	return fallback
+}
+
+func intFromAny(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int32:
+		return int(typed)
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case json.Number:
+		n, _ := typed.Int64()
+		return int(n)
+	default:
+		return 0
+	}
 }
