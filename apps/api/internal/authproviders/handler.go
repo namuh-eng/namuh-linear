@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/namuh-eng/exponential/apps/api/internal/auth"
 	"github.com/namuh-eng/exponential/apps/api/internal/problem"
 )
 
@@ -40,9 +41,21 @@ type capabilitiesResponse struct {
 
 func (h Handler) Routes() chi.Router {
 	r := chi.NewRouter()
+	r.Get("/get-session", h.GetSession)
 	r.Get("/provider-capabilities", h.ProviderCapabilities)
 	r.Post("/saml/discovery", h.SAMLDiscovery)
 	return r
+}
+
+func (h Handler) GetSession(w http.ResponseWriter, r *http.Request) {
+	if auth.TestMode() {
+		session, _, err := (auth.Middleware{DB: h.DB}).TestBrowserSession(r.Context(), r)
+		if err == nil {
+			problem.JSON(w, 200, session)
+			return
+		}
+	}
+	problem.JSON(w, 200, nil)
 }
 
 func (h Handler) ProviderCapabilities(w http.ResponseWriter, r *http.Request) {

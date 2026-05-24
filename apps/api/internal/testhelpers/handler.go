@@ -174,6 +174,7 @@ func setBrowserSessionCookies(w http.ResponseWriter, r *http.Request, workspace 
 	for _, cookie := range []*http.Cookie{
 		{Name: "activeWorkspaceId", Value: workspace.ID, Path: "/", SameSite: http.SameSiteLaxMode, Secure: secure},
 		{Name: "activeWorkspaceSlug", Value: workspace.URLSlug, Path: "/", SameSite: http.SameSiteLaxMode, Secure: secure},
+		{Name: "ory_kratos_session", Value: signedToken, Path: "/", Expires: expires, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secure},
 		{Name: "better-auth.session_token", Value: signedToken, Path: "/", Expires: expires, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secure},
 		{Name: "better-auth.session-token", Value: signedToken, Path: "/", Expires: expires, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secure},
 	} {

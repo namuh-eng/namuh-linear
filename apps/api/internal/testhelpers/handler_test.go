@@ -18,7 +18,7 @@ func TestSetBrowserSessionCookies(t *testing.T) {
 	for _, cookie := range response.Result().Cookies() {
 		cookies[cookie.Name] = cookie
 	}
-	for _, name := range []string{"activeWorkspaceId", "activeWorkspaceSlug", "better-auth.session_token", "better-auth.session-token"} {
+	for _, name := range []string{"activeWorkspaceId", "activeWorkspaceSlug", "ory_kratos_session", "better-auth.session_token", "better-auth.session-token"} {
 		if cookies[name] == nil {
 			t.Fatalf("missing cookie %s in %#v", name, cookies)
 		}

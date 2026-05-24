@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -23,6 +25,17 @@ type Principal struct {
 	WorkspaceID string
 	Role        string
 	APIKeyID    string
+}
+
+type BrowserSession struct {
+	User BrowserSessionUser `json:"user"`
+}
+
+type BrowserSessionUser struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Email string  `json:"email"`
+	Image *string `json:"image"`
 }
 
 func FromContext(ctx context.Context) (Principal, bool) {
@@ -60,6 +73,12 @@ func bearerToken(r *http.Request) string {
 func (m Middleware) authenticate(ctx context.Context, r *http.Request) (Principal, error) {
 	token := bearerToken(r)
 	if token == "" {
+		if TestMode() {
+			_, principal, err := m.TestBrowserSession(ctx, r)
+			if err == nil {
+				return principal, nil
+			}
+		}
 		return m.authenticateKratosSession(ctx, r)
 	}
 	if !(strings.HasPrefix(token, "lin_api_") || strings.HasPrefix(token, "pat_")) {
@@ -117,6 +136,74 @@ func (m Middleware) authenticateKratosSession(ctx context.Context, r *http.Reque
 		return Principal{}, errUnauthorized("kratos identity missing email")
 	}
 	return m.authenticateKratosEmail(ctx, email, requestedWorkspaceID(r))
+}
+
+func TestMode() bool {
+	return os.Getenv("NODE_ENV") == "test" || os.Getenv("PLAYWRIGHT_TEST") == "true"
+}
+
+func BetterAuthSecret() string {
+	if s := os.Getenv("BETTER_AUTH_SECRET"); s != "" {
+		return s
+	}
+	return "dev-only-better-auth-secret-not-for-production"
+}
+
+func signedBrowserSessionCookie(r *http.Request) string {
+	for _, name := range []string{"ory_kratos_session", "better-auth.session_token", "better-auth.session-token"} {
+		cookie, err := r.Cookie(name)
+		if err == nil && strings.TrimSpace(cookie.Value) != "" {
+			return strings.TrimSpace(cookie.Value)
+		}
+	}
+	return ""
+}
+
+func VerifySignedSessionToken(value string) (string, bool) {
+	raw, sig, ok := strings.Cut(strings.TrimSpace(value), ".")
+	if !ok || raw == "" || sig == "" {
+		return "", false
+	}
+	mac := hmac.New(sha256.New, []byte(BetterAuthSecret()))
+	mac.Write([]byte(raw))
+	expected := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(sig), []byte(expected)) {
+		return "", false
+	}
+	return raw, true
+}
+
+func (m Middleware) TestBrowserSession(ctx context.Context, r *http.Request) (BrowserSession, Principal, error) {
+	if !TestMode() {
+		return BrowserSession{}, Principal{}, errUnauthorized("test sessions are disabled")
+	}
+	rawToken, ok := VerifySignedSessionToken(signedBrowserSessionCookie(r))
+	if !ok {
+		return BrowserSession{}, Principal{}, errUnauthorized("invalid test session")
+	}
+	var session BrowserSession
+	var principal Principal
+	err := m.DB.QueryRow(ctx, `
+		select u.id, u.name, u.email, u.image, m.workspace_id::text, m.role::text
+		from session s
+		join "user" u on u.id = s.user_id
+		join member m on m.user_id = u.id
+		where s.token = $1 and s.expires_at > now()
+		order by m.created_at desc
+		limit 1`, rawToken).Scan(
+		&session.User.ID,
+		&session.User.Name,
+		&session.User.Email,
+		&session.User.Image,
+		&principal.WorkspaceID,
+		&principal.Role,
+	)
+	if err != nil {
+		return BrowserSession{}, Principal{}, errUnauthorized("test session not found")
+	}
+	principal.UserID = session.User.ID
+	principal.APIKeyID = "playwright_test_session"
+	return session, principal, nil
 }
 
 func (m Middleware) authenticateKratosEmail(ctx context.Context, email string, workspaceID string) (Principal, error) {

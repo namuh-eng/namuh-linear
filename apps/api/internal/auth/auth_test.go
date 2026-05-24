@@ -1,6 +1,9 @@
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"net/http/httptest"
 	"testing"
 )
@@ -33,5 +36,20 @@ func TestRequestedWorkspaceID(t *testing.T) {
 	req.Header.Set("X-Workspace-Id", "header-workspace")
 	if got := requestedWorkspaceID(req); got != "header-workspace" {
 		t.Fatalf("workspace id = %q", got)
+	}
+}
+
+func TestVerifySignedSessionToken(t *testing.T) {
+	t.Setenv("BETTER_AUTH_SECRET", "test-secret")
+	raw := "session-token"
+	mac := hmac.New(sha256.New, []byte("test-secret"))
+	mac.Write([]byte(raw))
+	signed := raw + "." + base64.StdEncoding.EncodeToString(mac.Sum(nil))
+	got, ok := VerifySignedSessionToken(signed)
+	if !ok || got != raw {
+		t.Fatalf("VerifySignedSessionToken() = %q, %v", got, ok)
+	}
+	if _, ok := VerifySignedSessionToken(raw + ".bad"); ok {
+		t.Fatal("invalid signature verified")
 	}
 }

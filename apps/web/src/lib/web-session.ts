@@ -1,5 +1,6 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
-import { user } from "@/lib/db/schema";
+import { session as authSession, user } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 type KratosWhoami = {
@@ -62,9 +63,77 @@ export async function getKratosSession(
   return record ? { user: record } : null;
 }
 
+function testSessionEnabled() {
+  return (
+    process.env.NODE_ENV === "test" || process.env.PLAYWRIGHT_TEST === "true"
+  );
+}
+
+function betterAuthSecret() {
+  return (
+    process.env.BETTER_AUTH_SECRET ??
+    "dev-only-better-auth-secret-not-for-production"
+  );
+}
+
+function signedSessionCookie(headerList: Headers) {
+  const cookieHeader = headerList.get("cookie") ?? "";
+  const cookies = cookieHeader.split(";").map((part) => part.trim());
+  for (const name of [
+    "ory_kratos_session",
+    "better-auth.session_token",
+    "better-auth.session-token",
+  ]) {
+    const prefix = `${name}=`;
+    const found = cookies.find((cookie) => cookie.startsWith(prefix));
+    if (found) return decodeURIComponent(found.slice(prefix.length));
+  }
+  return "";
+}
+
+function verifySignedSessionToken(value: string) {
+  const dot = value.indexOf(".");
+  if (dot <= 0 || dot === value.length - 1) return null;
+  const rawToken = value.slice(0, dot);
+  const signature = value.slice(dot + 1);
+  const expected = createHmac("sha256", betterAuthSecret())
+    .update(rawToken)
+    .digest("base64");
+  const signatureBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (
+    signatureBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(signatureBuffer, expectedBuffer)
+  ) {
+    return null;
+  }
+  return rawToken;
+}
+
+async function getTestSession(headerList: Headers): Promise<WebSession | null> {
+  if (!testSessionEnabled()) return null;
+  const rawToken = verifySignedSessionToken(signedSessionCookie(headerList));
+  if (!rawToken) return null;
+  const [record] = await db
+    .select({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+    })
+    .from(authSession)
+    .innerJoin(user, eq(user.id, authSession.userId))
+    .where(eq(authSession.token, rawToken))
+    .limit(1);
+  return record ? { user: record } : null;
+}
+
 export async function getWebSession(headerList: Headers) {
   const kratosSession = await getKratosSession(headerList);
   if (kratosSession) return kratosSession;
+
+  const testSession = await getTestSession(headerList);
+  if (testSession) return testSession;
 
   if (process.env.NODE_ENV === "test") {
     const { auth } = await import("test-auth");
