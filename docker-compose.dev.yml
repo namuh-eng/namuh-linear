@@ -103,6 +103,7 @@ services:
       NEXT_PUBLIC_APP_URL: http://localhost:3015
       BETTER_AUTH_URL: http://localhost:3015
       EXPONENTIAL_API_URL: http://api:3016/v1
+      EXPONENTIAL_HEADLESS_DIRECT_API_REWRITE: "true"
       EXPONENTIAL_KRATOS_PUBLIC_URL: http://kratos:4433
       EXPONENTIAL_HEADLESS_ISSUES: "true"
       EXPONENTIAL_HEADLESS_ISSUE_BULK: "true"
