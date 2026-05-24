@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const userLimitMock = vi.fn();
 const insertReturningMock = vi.fn();
 const createSessionMock = vi.fn();
-const makeSignatureMock = vi.fn();
 const ensureCanonicalWorkspaceForUserMock = vi.fn();
 
 vi.mock("@/lib/canonical-workspace", () => ({
@@ -20,17 +19,12 @@ vi.mock("@/lib/auth", () => ({
       secret: "test-secret",
       authCookies: {
         sessionToken: {
-          name: "better-auth.session-token",
+          name: "ory_kratos_session",
           attributes: { httpOnly: true, path: "/", sameSite: "lax" },
         },
       },
     }),
   },
-}));
-
-vi.mock("better-auth/crypto", () => ({
-  makeSignature: (token: string, secret: string) =>
-    makeSignatureMock(token, secret),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -67,7 +61,6 @@ describe("test create session route", () => {
       token: "session-token",
       expiresAt: new Date(Date.now() + 3600000),
     });
-    makeSignatureMock.mockResolvedValue("signature");
     ensureCanonicalWorkspaceForUserMock.mockResolvedValue({
       workspace: {
         id: "workspace-foreverbrowsing",
@@ -95,7 +88,7 @@ describe("test create session route", () => {
     expect(response.status).toBe(200);
     const payload = await response.json();
     expect(payload.success).toBe(true);
-    expect(payload.sessionToken).toBe("session-token.signature");
+    expect(payload.sessionToken).toMatch(/^session-token\.[A-Za-z0-9_-]+$/);
     expect(payload.workspace.urlSlug).toBe("foreverbrowsing");
     expect(payload.team.key).toBe("ENG");
     expect(ensureCanonicalWorkspaceForUserMock).toHaveBeenCalledWith("user-1");

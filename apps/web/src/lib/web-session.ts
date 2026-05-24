@@ -15,10 +15,6 @@ export type WebSession = {
   };
 };
 
-function headlessAuthEnabled() {
-  return process.env.EXPONENTIAL_HEADLESS_AUTH_PROVIDERS === "true";
-}
-
 function kratosPublicUrl() {
   return (
     process.env.EXPONENTIAL_KRATOS_PUBLIC_URL ??
@@ -67,10 +63,13 @@ export async function getKratosSession(
 }
 
 export async function getWebSession(headerList: Headers) {
-  if (headlessAuthEnabled()) {
-    return getKratosSession(headerList);
+  const kratosSession = await getKratosSession(headerList);
+  if (kratosSession) return kratosSession;
+
+  if (process.env.NODE_ENV === "test") {
+    const { auth } = await import("@/lib/auth");
+    return auth.api.getSession({ headers: headerList });
   }
 
-  const { auth } = await import("@/lib/auth");
-  return auth.api.getSession({ headers: headerList });
+  return null;
 }

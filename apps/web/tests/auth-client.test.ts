@@ -1,94 +1,108 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const createAuthClientMock = vi.hoisted(() => vi.fn());
-const signInPasskeyMock = vi.hoisted(() => vi.fn());
-const magicLinkClientMock = vi.hoisted(() =>
-  vi.fn(() => ({ id: "magic-link" })),
-);
-const passkeyClientMock = vi.hoisted(() => vi.fn(() => ({ id: "passkey" })));
+const fetchMock = vi.fn();
+const assignMock = vi.fn();
 
-vi.mock("better-auth/react", () => ({
-  createAuthClient: createAuthClientMock,
-}));
+vi.stubGlobal("fetch", fetchMock);
+vi.stubGlobal("location", {
+  ...window.location,
+  origin: "http://localhost:3015",
+  assign: assignMock,
+});
 
-vi.mock("better-auth/client/plugins", () => ({
-  magicLinkClient: magicLinkClientMock,
-}));
+function mockKratosFlow() {
+  fetchMock
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        ui: {
+          action: "http://localhost:4433/self-service/login?flow=abc",
+          nodes: [{ attributes: { name: "csrf_token", value: "csrf" } }],
+        },
+      }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ redirect_browser_to: "http://localhost:3015/" }),
+    });
+}
 
-vi.mock("@better-auth/passkey/client", () => ({
-  passkeyClient: passkeyClientMock,
-}));
-
-describe("auth client origin", () => {
+describe("headless auth client", () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.unstubAllEnvs();
-    createAuthClientMock.mockReset();
-    createAuthClientMock.mockReturnValue({
-      signIn: {
-        social: vi.fn(),
-        magicLink: vi.fn(),
-        passkey: signInPasskeyMock,
-      },
-      passkey: { addPasskey: vi.fn() },
-      signOut: vi.fn(),
-      useSession: vi.fn(),
-    });
-    magicLinkClientMock.mockClear();
-    signInPasskeyMock.mockReset();
-  });
-
-  it("uses same-origin auth requests when NEXT_PUBLIC_APP_URL is unset", async () => {
-    await import("@/lib/auth-client");
-
-    expect(createAuthClientMock).toHaveBeenCalledWith({
-      plugins: [{ id: "magic-link" }, { id: "passkey" }],
-    });
-  });
-
-  it("honors NEXT_PUBLIC_APP_URL as an explicit auth origin override", async () => {
-    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://whetline.example");
-
-    await import("@/lib/auth-client");
-
-    expect(createAuthClientMock).toHaveBeenCalledWith({
-      baseURL: "https://whetline.example",
-      plugins: [{ id: "magic-link" }, { id: "passkey" }],
-    });
-  });
-
-  it("starts Better Auth passkey sign-in and maps user cancellation", async () => {
+    vi.clearAllMocks();
     Object.defineProperty(globalThis, "PublicKeyCredential", {
-      value: function PublicKeyCredential() {},
+      value: undefined,
       configurable: true,
     });
     Object.defineProperty(window.navigator, "credentials", {
-      value: { get: vi.fn(), create: vi.fn() },
+      value: undefined,
       configurable: true,
     });
-    signInPasskeyMock.mockResolvedValueOnce({
-      data: null,
-      error: { code: "AUTH_CANCELLED" },
+  });
+
+  it("starts a Kratos OIDC login through the same-origin proxy", async () => {
+    mockKratosFlow();
+    const { signIn } = await import("@/lib/auth-client");
+
+    const result = await signIn.social({
+      provider: "google",
+      callbackURL: "http://localhost:3015/team/ABC",
     });
 
+    expect(result?.data?.url).toBe("http://localhost:3015/");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/auth/kratos/self-service/login/browser?return_to=http%3A%2F%2Flocalhost%3A3015%2Fteam%2FABC",
+      expect.objectContaining({ credentials: "include" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/auth/kratos/self-service/login?flow=abc",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          method: "oidc",
+          provider: "google",
+          csrf_token: "csrf",
+        }),
+      }),
+    );
+  });
+
+  it("starts a Kratos magic-link login through the same-origin proxy", async () => {
+    mockKratosFlow();
+    const { signIn } = await import("@/lib/auth-client");
+
+    await signIn.magicLink({
+      email: "person@example.com",
+      callbackURL: "http://localhost:3015/",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/auth/kratos/self-service/login?flow=abc",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          method: "link",
+          identifier: "person@example.com",
+          csrf_token: "csrf",
+        }),
+      }),
+    );
+  });
+
+  it("reports unsupported passkey sign-in before calling Kratos", async () => {
     const { signInWithPasskey } = await import("@/lib/auth-client");
 
     await expect(
-      signInWithPasskey({ callbackURL: "http://localhost:3015/team/ABC" }),
-    ).rejects.toMatchObject({
-      code: "CANCELED",
-      message: "Passkey sign-in was canceled. Try again.",
-    });
-    expect(signInPasskeyMock).toHaveBeenCalledWith({
-      fetchOptions: {
-        headers: {
-          "x-workspace-callback-url": "http://localhost:3015/team/ABC",
-        },
-      },
-    });
+      signInWithPasskey({ callbackURL: "http://localhost:3015/" }),
+    ).rejects.toMatchObject({ code: "BROWSER_UNSUPPORTED" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("maps thrown WebAuthn AbortError to a retryable cancellation", async () => {
+  it("maps configured-browser passkey sign-in to a Kratos-not-configured error", async () => {
     Object.defineProperty(globalThis, "PublicKeyCredential", {
       value: function PublicKeyCredential() {},
       configurable: true,
@@ -97,18 +111,11 @@ describe("auth client origin", () => {
       value: { get: vi.fn(), create: vi.fn() },
       configurable: true,
     });
-    signInPasskeyMock.mockRejectedValueOnce(
-      new DOMException("The operation was aborted.", "AbortError"),
-    );
 
     const { signInWithPasskey } = await import("@/lib/auth-client");
 
     await expect(
       signInWithPasskey({ callbackURL: "http://localhost:3015/" }),
-    ).rejects.toMatchObject({
-      code: "CANCELED",
-      message: "Passkey sign-in was canceled. Try again.",
-    });
-    expect(signInPasskeyMock).toHaveBeenCalledTimes(1);
+    ).rejects.toMatchObject({ code: "NOT_CONFIGURED" });
   });
 });

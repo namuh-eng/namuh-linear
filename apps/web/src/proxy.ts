@@ -27,10 +27,6 @@ const publicPaths = [
   "/api/account",
 ];
 
-function headlessAuthEnabled() {
-  return process.env.EXPONENTIAL_HEADLESS_AUTH_PROVIDERS === "true";
-}
-
 function isPublicPath(pathname: string): boolean {
   return publicPaths.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
@@ -316,15 +312,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const kratosSessionToken =
+  const sessionToken =
     request.cookies.get("ory_kratos_session")?.value ??
     request.cookies.get("ory_kratos_continuity")?.value;
-  const betterAuthSessionToken =
-    request.cookies.get("better-auth.session_token")?.value ??
-    request.cookies.get("__Secure-better-auth.session_token")?.value;
-  const sessionToken = headlessAuthEnabled()
-    ? kratosSessionToken
-    : betterAuthSessionToken;
 
   if (!sessionToken) {
     const callbackUrl = `${pathname}${search}`;

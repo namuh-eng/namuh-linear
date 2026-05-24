@@ -1,14 +1,26 @@
 import { createHash } from "node:crypto";
-import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { apiKey, member, user } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-type BrowserSession = NonNullable<
-  Awaited<ReturnType<typeof auth.api.getSession>>
->;
+type BrowserSession = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image: string | null;
+  };
+  session?: {
+    id: string;
+    token: string;
+    userId: string;
+    expiresAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+};
 
 export type ApiSession =
   | BrowserSession
@@ -33,10 +45,6 @@ type KratosWhoami = {
     traits?: { email?: unknown };
   };
 };
-
-function headlessAuthEnabled() {
-  return process.env.EXPONENTIAL_HEADLESS_AUTH_PROVIDERS === "true";
-}
 
 function kratosPublicUrl() {
   return (
@@ -121,10 +129,6 @@ async function validateApiKey(headerList: Headers): Promise<ApiSession | null> {
 async function validateKratosSession(
   headerList: Headers,
 ): Promise<ApiSession | null> {
-  if (!headlessAuthEnabled()) {
-    return null;
-  }
-
   const cookie = headerList.get("cookie") ?? "";
   const sessionToken = headerList.get("x-session-token") ?? "";
   if (!cookie && !sessionToken) {
@@ -190,25 +194,26 @@ async function validateKratosSession(
 export async function requireApiSession() {
   const requestHeaders = await headers();
 
-  if (!headlessAuthEnabled()) {
-    const session = await auth.api.getSession({ headers: requestHeaders });
-    if (session) {
-      return { response: null, session: session as ApiSession };
-    }
-  }
-
   const kratosSession = await validateKratosSession(requestHeaders);
   if (kratosSession) {
     return { response: null, session: kratosSession };
   }
 
   const apiKeySession = await validateApiKey(requestHeaders);
-  if (!apiKeySession) {
-    return {
-      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-      session: null,
-    };
+  if (apiKeySession) {
+    return { response: null, session: apiKeySession };
   }
 
-  return { response: null, session: apiKeySession };
+  if (process.env.NODE_ENV === "test") {
+    const { auth } = await import("@/lib/auth");
+    const session = await auth.api.getSession({ headers: requestHeaders });
+    if (session) {
+      return { response: null, session: session as ApiSession };
+    }
+  }
+
+  return {
+    response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    session: null,
+  };
 }

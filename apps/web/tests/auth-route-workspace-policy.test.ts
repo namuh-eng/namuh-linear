@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const authPostMock = vi.hoisted(() => vi.fn());
-const authGetMock = vi.hoisted(() => vi.fn());
 const resolveWorkspaceAuthPolicyMock = vi.hoisted(() => vi.fn());
 const isWorkspaceAuthMethodAllowedMock = vi.hoisted(() => vi.fn());
 const verificationLimitMock = vi.hoisted(() => vi.fn());
@@ -11,10 +9,6 @@ const verificationLimitMock = vi.hoisted(() => vi.fn());
 // the real WorkspaceAuthPolicy shape — only to be identifiable in assertions.
 const SENTINEL_POLICY = { __policy: "sentinel" };
 
-vi.mock("@/lib/auth", () => ({ auth: {} }));
-vi.mock("better-auth/next-js", () => ({
-  toNextJsHandler: vi.fn(() => ({ GET: authGetMock, POST: authPostMock })),
-}));
 vi.mock("@/lib/workspace-auth-methods", () => ({
   resolveWorkspaceAuthPolicy: resolveWorkspaceAuthPolicyMock,
   isWorkspaceAuthMethodAllowed: isWorkspaceAuthMethodAllowedMock,
@@ -33,8 +27,6 @@ describe("auth catch-all workspace policy", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    authPostMock.mockResolvedValue(new Response(JSON.stringify({ ok: true })));
-    authGetMock.mockResolvedValue(new Response(null, { status: 302 }));
     // Default: a workspace policy exists and allows everything. Individual
     // tests flip isWorkspaceAuthMethodAllowed to false to assert the 403 path.
     resolveWorkspaceAuthPolicyMock.mockResolvedValue(SENTINEL_POLICY);
@@ -69,10 +61,9 @@ describe("auth catch-all workspace policy", () => {
       SENTINEL_POLICY,
       "emailPasskey",
     );
-    expect(authPostMock).not.toHaveBeenCalled();
   });
 
-  it("delegates direct magic-link requests when the role is exempt", async () => {
+  it("returns the removed Better Auth response when a legacy magic-link request is otherwise allowed", async () => {
     isWorkspaceAuthMethodAllowedMock.mockReturnValue(true);
     const { POST } = await import("legacy-api/auth/[...all]/route");
     const request = new Request(
@@ -88,8 +79,10 @@ describe("auth catch-all workspace policy", () => {
 
     const response = await POST(request);
 
-    expect(response.status).toBe(200);
-    expect(authPostMock).toHaveBeenCalledWith(request);
+    expect(response.status).toBe(410);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Better Auth has been removed. Use Ory Kratos endpoints.",
+    });
   });
 
   it("rejects direct Google id-token sign-in when Google is disabled for a member", async () => {
@@ -119,7 +112,6 @@ describe("auth catch-all workspace policy", () => {
       SENTINEL_POLICY,
       "google",
     );
-    expect(authPostMock).not.toHaveBeenCalled();
   });
 
   it("rejects magic-link verification when the stored email is no longer allowed", async () => {
@@ -145,6 +137,5 @@ describe("auth catch-all workspace policy", () => {
       SENTINEL_POLICY,
       "emailPasskey",
     );
-    expect(authGetMock).not.toHaveBeenCalled();
   });
 });

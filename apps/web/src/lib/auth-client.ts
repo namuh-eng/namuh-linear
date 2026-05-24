@@ -1,17 +1,17 @@
-import { passkeyClient } from "@better-auth/passkey/client";
-import { magicLinkClient } from "better-auth/client/plugins";
-import { createAuthClient } from "better-auth/react";
-
-const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL;
-
-export const authClient = createAuthClient({
-  ...(configuredAppUrl ? { baseURL: configuredAppUrl } : {}),
-  plugins: [magicLinkClient(), passkeyClient()],
-});
-
-export const { signIn, signOut, useSession } = authClient;
-
 type SocialLinkProvider = "google" | "github" | "gitlab" | "slack";
+
+type SocialSignInOptions = {
+  provider: SocialLinkProvider;
+  callbackURL: string;
+  errorCallbackURL?: string;
+};
+
+type MagicLinkOptions = {
+  email: string;
+  callbackURL: string;
+  errorCallbackURL?: string;
+  fetchOptions?: { headers?: Record<string, string> };
+};
 
 type LinkSocialAccountOptions = {
   provider: SocialLinkProvider;
@@ -35,26 +35,13 @@ type UnlinkSocialAccountResult = {
   error?: { code?: string; status?: number; message?: string };
 };
 
-type AuthClientWithSocialAccounts = typeof authClient & {
-  linkSocial: (
-    options: LinkSocialAccountOptions,
-  ) => Promise<LinkSocialAccountResult>;
-  unlinkAccount: (
-    options: UnlinkSocialAccountOptions,
-  ) => Promise<UnlinkSocialAccountResult>;
+type KratosFlow = {
+  ui?: {
+    action?: string;
+    nodes?: Array<{ attributes?: { name?: string; value?: string } }>;
+  };
+  redirect_browser_to?: string;
 };
-
-export async function linkSocialAccount(
-  options: LinkSocialAccountOptions,
-): Promise<LinkSocialAccountResult> {
-  return (authClient as AuthClientWithSocialAccounts).linkSocial(options);
-}
-
-export async function unlinkSocialAccount(
-  options: UnlinkSocialAccountOptions,
-): Promise<UnlinkSocialAccountResult> {
-  return (authClient as AuthClientWithSocialAccounts).unlinkAccount(options);
-}
 
 type PasskeySignInOptions = {
   callbackURL: string;
@@ -63,10 +50,6 @@ type PasskeySignInOptions = {
 type PasskeySignInResult = {
   redirectTo?: string;
 };
-
-type PasskeyOperationResult<T> =
-  | { data: T; error: null }
-  | { data: null; error: { code?: string; message?: string; status?: number } };
 
 type PasskeyRecord = {
   id: string;
@@ -102,6 +85,139 @@ export class PasskeyRegistrationError extends Error {
   }
 }
 
+function kratosBrowserUrl(kind: "login" | "registration", returnTo: string) {
+  const params = new URLSearchParams({ return_to: returnTo });
+  return `/api/auth/kratos/self-service/${kind}/browser?${params.toString()}`;
+}
+
+function kratosProxyAction(action: string) {
+  const url = new URL(action, window.location.origin);
+  return `/api/auth/kratos${url.pathname}${url.search}`;
+}
+
+function csrfToken(flow: KratosFlow | null) {
+  return flow?.ui?.nodes?.find((node) => node.attributes?.name === "csrf_token")
+    ?.attributes?.value;
+}
+
+async function startKratosFlow(
+  kind: "login" | "registration",
+  returnTo: string,
+) {
+  const response = await fetch(kratosBrowserUrl(kind, returnTo), {
+    credentials: "include",
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error("Unable to start the Kratos authentication flow.");
+  }
+  return (await response.json()) as KratosFlow;
+}
+
+async function submitKratosFlow(
+  flow: KratosFlow,
+  body: Record<string, unknown>,
+): Promise<LinkSocialAccountResult> {
+  const action = flow.ui?.action;
+  if (!action) {
+    throw new Error("Kratos flow is missing a submit action.");
+  }
+
+  const token = csrfToken(flow);
+  const response = await fetch(kratosProxyAction(action), {
+    method: "POST",
+    credentials: "include",
+    headers: { accept: "application/json", "content-type": "application/json" },
+    body: JSON.stringify(token ? { ...body, csrf_token: token } : body),
+  });
+  const payload = (await response
+    .json()
+    .catch(() => null)) as KratosFlow | null;
+  if (!response.ok) {
+    return {
+      error: {
+        status: response.status,
+        message: "Kratos authentication flow failed.",
+      },
+    };
+  }
+
+  const redirect = payload?.redirect_browser_to;
+  return {
+    data: { url: redirect, redirect: Boolean(redirect) },
+    url: redirect,
+  };
+}
+
+export const signIn = {
+  async social(options: SocialSignInOptions) {
+    const flow = await startKratosFlow("login", options.callbackURL);
+    return submitKratosFlow(flow, {
+      method: "oidc",
+      provider: options.provider,
+    });
+  },
+  async magicLink(options: MagicLinkOptions): Promise<unknown> {
+    const flow = await startKratosFlow("login", options.callbackURL);
+    return submitKratosFlow(flow, {
+      method: "link",
+      identifier: options.email,
+      ...(options.fetchOptions?.headers?.["x-captcha-response"]
+        ? {
+            captcha_response:
+              options.fetchOptions.headers["x-captcha-response"],
+          }
+        : {}),
+    });
+  },
+};
+
+export async function signOut() {
+  const flow = await fetch("/api/auth/kratos/self-service/logout/browser", {
+    credentials: "include",
+    headers: { accept: "application/json" },
+  });
+  const payload = (await flow.json().catch(() => null)) as {
+    logout_url?: string;
+  } | null;
+  if (payload?.logout_url) {
+    window.location.assign(kratosProxyAction(payload.logout_url));
+  }
+}
+
+export function useSession() {
+  return { data: null, isPending: false };
+}
+
+export const authClient = { signIn, signOut, useSession };
+
+export async function linkSocialAccount(
+  options: LinkSocialAccountOptions,
+): Promise<LinkSocialAccountResult> {
+  const flow = await startKratosFlow("login", options.callbackURL);
+  return submitKratosFlow(flow, { method: "oidc", provider: options.provider });
+}
+
+export async function unlinkSocialAccount(
+  options: UnlinkSocialAccountOptions,
+): Promise<UnlinkSocialAccountResult> {
+  const response = await fetch("/api/account/connections", {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(options),
+  });
+  if (!response.ok) {
+    return {
+      error: {
+        status: response.status,
+        message: "Unable to disconnect this account.",
+      },
+    };
+  }
+  return { data: { status: true } };
+}
+
 export function browserSupportsPasskeys() {
   return (
     typeof window !== "undefined" &&
@@ -111,51 +227,8 @@ export function browserSupportsPasskeys() {
   );
 }
 
-function mapPasskeyErrorCode(code: string | undefined) {
-  if (
-    code === "AUTH_CANCELLED" ||
-    code === "REGISTRATION_CANCELLED" ||
-    code === "ERROR_CEREMONY_ABORTED"
-  ) {
-    return "CANCELED" as const;
-  }
-  if (code === "NOT_FOUND" || code === "PASSKEY_NOT_FOUND") {
-    return "NOT_CONFIGURED" as const;
-  }
-  return "FAILED" as const;
-}
-
-function isCanceledPasskeyException(error: unknown) {
-  return (
-    error instanceof DOMException &&
-    (error.name === "AbortError" || error.name === "NotAllowedError")
-  );
-}
-
-function passkeySignInMessage(code: PasskeySignInError["code"]) {
-  if (code === "BROWSER_UNSUPPORTED") {
-    return "This browser doesn't support passkeys. Use email or Google to log in.";
-  }
-  if (code === "CANCELED") {
-    return "Passkey sign-in was canceled. Try again.";
-  }
-  if (code === "NOT_CONFIGURED") {
-    return "No matching passkey was found. Use email or Google to log in, then add a passkey in Security & access.";
-  }
-  return "Passkey sign-in failed. Try again or use another method.";
-}
-
-function passkeyRegistrationMessage(code: PasskeyRegistrationError["code"]) {
-  if (code === "BROWSER_UNSUPPORTED") {
-    return "This browser doesn't support passkey enrollment. Use a browser with WebAuthn support.";
-  }
-  if (code === "CANCELED") {
-    return "Passkey enrollment was canceled. Try again when you're ready.";
-  }
-  if (code === "NOT_CONFIGURED") {
-    return "Passkey enrollment isn't configured for this environment.";
-  }
-  return "Passkey enrollment failed. Try again or use another browser.";
+function passkeyUnavailableMessage() {
+  return "Passkey authentication has moved to Kratos and is not configured in this environment.";
 }
 
 export async function signInWithPasskey({
@@ -163,62 +236,22 @@ export async function signInWithPasskey({
 }: PasskeySignInOptions): Promise<PasskeySignInResult> {
   if (!browserSupportsPasskeys()) {
     throw new PasskeySignInError(
-      passkeySignInMessage("BROWSER_UNSUPPORTED"),
+      "This browser doesn't support passkeys. Use email or Google to log in.",
       "BROWSER_UNSUPPORTED",
     );
   }
-
-  let result: PasskeyOperationResult<{
-    session: unknown;
-  }>;
-  try {
-    result = (await authClient.signIn.passkey({
-      fetchOptions: {
-        headers: { "x-workspace-callback-url": callbackURL },
-      },
-    })) as PasskeyOperationResult<{
-      session: unknown;
-    }>;
-  } catch (error) {
-    if (isCanceledPasskeyException(error)) {
-      throw new PasskeySignInError(
-        passkeySignInMessage("CANCELED"),
-        "CANCELED",
-      );
-    }
-    throw new PasskeySignInError(passkeySignInMessage("FAILED"), "FAILED");
-  }
-
-  if (result.error) {
-    const code = mapPasskeyErrorCode(result.error.code);
-    throw new PasskeySignInError(
-      result.error.message ?? passkeySignInMessage(code),
-      code,
-    );
-  }
-
-  return { redirectTo: callbackURL };
+  throw new PasskeySignInError(passkeyUnavailableMessage(), "NOT_CONFIGURED");
 }
 
-export async function enrollPasskey(name: string): Promise<PasskeyRecord> {
+export async function enrollPasskey(_name: string): Promise<PasskeyRecord> {
   if (!browserSupportsPasskeys()) {
     throw new PasskeyRegistrationError(
-      passkeyRegistrationMessage("BROWSER_UNSUPPORTED"),
+      "This browser doesn't support passkey enrollment. Use a browser with WebAuthn support.",
       "BROWSER_UNSUPPORTED",
     );
   }
-
-  const result = (await authClient.passkey.addPasskey({
-    name,
-  })) as PasskeyOperationResult<PasskeyRecord>;
-
-  if (result.error) {
-    const code = mapPasskeyErrorCode(result.error.code);
-    throw new PasskeyRegistrationError(
-      result.error.message ?? passkeyRegistrationMessage(code),
-      code,
-    );
-  }
-
-  return result.data;
+  throw new PasskeyRegistrationError(
+    passkeyUnavailableMessage(),
+    "NOT_CONFIGURED",
+  );
 }

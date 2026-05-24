@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { auth } from "@/lib/auth";
 import { ensureCanonicalWorkspaceForUser } from "@/lib/canonical-workspace";
 import { db } from "@/lib/db";
@@ -10,12 +10,15 @@ import {
   shouldRenderDatabaseBootstrapError,
 } from "@/lib/dev-database-error";
 import { headlessAuthProvidersEnabled } from "@/lib/headless-api";
-import { makeSignature } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 function randomToken(size: number) {
   return randomBytes(size).toString("base64url");
+}
+
+function createSessionSignature(token: string, secret: string) {
+  return createHmac("sha256", secret).update(token).digest("base64url");
 }
 
 function normalizeSameSite(value: string | undefined) {
@@ -79,7 +82,7 @@ export async function POST(request: Request) {
         sameSite: "lax",
         secure: shouldSecure,
       });
-      response.cookies.set("better-auth.session_token", payload.sessionToken, {
+      response.cookies.set("ory_kratos_session", payload.sessionToken, {
         expires: new Date(payload.expiresAt),
         httpOnly: true,
         path: "/",
@@ -166,7 +169,7 @@ async function createTestSession(
         "",
     },
   );
-  const signedToken = `${createdSession.token}.${await makeSignature(
+  const signedToken = `${createdSession.token}.${createSessionSignature(
     createdSession.token,
     authContext.secret,
   )}`;

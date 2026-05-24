@@ -1,49 +1,51 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const betterAuthMock = vi.hoisted(() => vi.fn((config) => ({ config })));
+const fetchMock = vi.fn();
 
-vi.mock("@/lib/db", () => ({ db: {} }));
-vi.mock("@/lib/email", () => ({
-  sendMagicLinkEmail: vi.fn(() => Promise.resolve()),
-}));
-vi.mock("better-auth", () => ({ betterAuth: betterAuthMock }));
-vi.mock("better-auth/adapters/drizzle", () => ({
-  drizzleAdapter: vi.fn(() => ({ type: "drizzle" })),
-}));
-vi.mock("better-auth/plugins", () => ({
-  magicLink: vi.fn((options) => ({ id: "magic-link", options })),
-}));
+vi.stubGlobal("fetch", fetchMock);
+vi.stubGlobal("location", {
+  ...window.location,
+  origin: "http://localhost:3015",
+  assign: vi.fn(),
+});
 
-describe("Better Auth server URL", () => {
+describe("Kratos auth proxy origin", () => {
   beforeEach(() => {
     vi.resetModules();
-    vi.unstubAllEnvs();
-    betterAuthMock.mockClear();
-    vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
-    vi.stubEnv("DATABASE_URL", "postgresql://test@localhost/test");
+    vi.clearAllMocks();
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          ui: {
+            action: "http://localhost:4433/self-service/login?flow=abc",
+            nodes: [{ attributes: { name: "csrf_token", value: "csrf" } }],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ redirect_browser_to: "http://localhost:3015/" }),
+      });
   });
 
-  it("defaults Better Auth base URL and trusted origin to dev port 3015", async () => {
-    await import("@/lib/auth");
+  it("uses same-origin Kratos proxy requests for browser sign-in", async () => {
+    const { signIn } = await import("@/lib/auth-client");
 
-    expect(betterAuthMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        baseURL: "http://localhost:3015",
-        trustedOrigins: ["http://localhost:3015"],
-      }),
+    await signIn.social({
+      provider: "google",
+      callbackURL: "http://localhost:3015/team/ABC",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/auth/kratos/self-service/login/browser?return_to=http%3A%2F%2Flocalhost%3A3015%2Fteam%2FABC",
+      expect.objectContaining({ credentials: "include" }),
     );
-  });
-
-  it("preserves explicit NEXT_PUBLIC_APP_URL override", async () => {
-    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://staging.example");
-
-    await import("@/lib/auth");
-
-    expect(betterAuthMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        baseURL: "https://staging.example",
-        trustedOrigins: ["https://staging.example"],
-      }),
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/auth/kratos/self-service/login?flow=abc",
+      expect.objectContaining({ method: "POST", credentials: "include" }),
     );
   });
 });

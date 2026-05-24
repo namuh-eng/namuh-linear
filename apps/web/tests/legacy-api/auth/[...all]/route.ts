@@ -1,14 +1,22 @@
-import { auth } from "@/lib/auth";
 import { headlessAuthProvidersEnabled } from "@/lib/headless-api";
 import {
   type WorkspaceAuthMethod,
   isWorkspaceAuthMethodAllowed,
   resolveWorkspaceAuthPolicy,
 } from "@/lib/workspace-auth-methods";
-import { toNextJsHandler } from "better-auth/next-js";
 import { NextResponse } from "next/server";
 
-const authHandlers = toNextJsHandler(auth);
+function removedBetterAuthResponse(_request?: Request) {
+  return NextResponse.json(
+    { error: "Better Auth has been removed. Use Ory Kratos endpoints." },
+    { status: 410 },
+  );
+}
+
+const authHandlers = {
+  GET: removedBetterAuthResponse,
+  POST: removedBetterAuthResponse,
+};
 
 function kratosPublicUrl() {
   return (

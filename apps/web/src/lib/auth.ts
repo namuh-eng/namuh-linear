@@ -1,98 +1,72 @@
-import { randomInt } from "node:crypto";
-import { getConfiguredAppUrl } from "@/lib/app-url";
-import {
-  getGitHubOAuthConfig,
-  getGitLabOAuthConfig,
-  getGoogleOAuthConfig,
-  getSlackOAuthConfig,
-} from "@/lib/auth-providers";
-import { db } from "@/lib/db";
-import { sendMagicLinkEmail } from "@/lib/email";
-import {
-  getPasskeyOrigin,
-  getPasskeyRpID,
-  isPasskeyAuthEnabled,
-} from "@/lib/passkeys";
-import { passkey } from "@better-auth/passkey";
-import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { magicLink } from "better-auth/plugins";
+type LegacyAuthSession = {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image: string | null;
+  };
+};
 
-const PRODUCTION_BUILD_PHASE = "phase-production-build";
+type LegacyAuthContext = {
+  internalAdapter: {
+    createSession: (
+      userId: string,
+      rememberMe: boolean,
+      metadata: { userAgent?: string; ipAddress?: string },
+    ) => Promise<{ token: string; expiresAt: Date }>;
+  };
+  secret: string;
+  authCookies: {
+    sessionToken: {
+      name: string;
+      attributes: {
+        httpOnly?: boolean;
+        path?: string;
+        sameSite?: string;
+        secure?: boolean;
+      };
+    };
+  };
+};
 
-function getBetterAuthUrl() {
-  return getConfiguredAppUrl();
-}
-
-function getBetterAuthSecret() {
-  if (process.env.BETTER_AUTH_SECRET) {
-    return process.env.BETTER_AUTH_SECRET;
-  }
-
-  if (
-    process.env.NODE_ENV === "production" &&
-    process.env.NEXT_PHASE !== PRODUCTION_BUILD_PHASE
-  ) {
-    throw new Error("BETTER_AUTH_SECRET must be set in production");
-  }
-
-  return "dev-only-better-auth-secret-not-for-production";
-}
-
-function getSocialProviders() {
-  const providers: Record<string, { clientId: string; clientSecret: string }> =
-    {};
-  const google = getGoogleOAuthConfig();
-  const github = getGitHubOAuthConfig();
-  const gitlab = getGitLabOAuthConfig();
-  const slack = getSlackOAuthConfig();
-
-  if (google) {
-    providers.google = google;
-  }
-  if (github) {
-    providers.github = github;
-  }
-  if (gitlab) {
-    providers.gitlab = gitlab;
-  }
-  if (slack) {
-    providers.slack = slack;
-  }
-
-  return providers;
-}
-
-export const auth = betterAuth({
-  baseURL: getBetterAuthUrl(),
-  secret: getBetterAuthSecret(),
-  database: drizzleAdapter(db, { provider: "pg" }),
-  emailAndPassword: { enabled: false },
-  socialProviders: getSocialProviders(),
-  plugins: [
-    magicLink({
-      generateToken: async () =>
-        randomInt(0, 1_000_000).toString().padStart(6, "0"),
-      sendMagicLink: async ({ email, url, token }) => {
-        await sendMagicLinkEmail(email, token, url);
-      },
-      expiresIn: 600, // 10 minutes
-    }),
-    ...(isPasskeyAuthEnabled()
-      ? [
-          passkey({
-            rpID: getPasskeyRpID(),
-            rpName: "Whetline",
-            origin: getPasskeyOrigin(),
-          }),
-        ]
-      : []),
-  ],
-  session: {
-    cookieCache: {
-      enabled: true,
-      maxAge: 60 * 5,
+/**
+ * Deprecated Better Auth compatibility shim.
+ *
+ * Runtime authentication is handled by Ory Kratos in the headless split. This
+ * module remains only so legacy route tests can keep importing `@/lib/auth`
+ * while those test fixtures are migrated to Go/API coverage.
+ */
+export const auth: {
+  api: { getSession: (_args?: unknown) => Promise<LegacyAuthSession | null> };
+  handler: (_request?: Request) => Promise<Response>;
+  $context: Promise<LegacyAuthContext>;
+} = {
+  api: {
+    async getSession() {
+      return null;
     },
   },
-  trustedOrigins: [getBetterAuthUrl()],
-});
+  async handler() {
+    return new Response(
+      JSON.stringify({ error: "Better Auth has been removed" }),
+      {
+        status: 410,
+        headers: { "content-type": "application/json" },
+      },
+    );
+  },
+  $context: Promise.resolve({
+    internalAdapter: {
+      async createSession() {
+        throw new Error("Better Auth session creation has been removed");
+      },
+    },
+    secret: "kratos-auth-shim",
+    authCookies: {
+      sessionToken: {
+        name: "ory_kratos_session",
+        attributes: { httpOnly: true, path: "/", sameSite: "lax" },
+      },
+    },
+  } satisfies LegacyAuthContext),
+};

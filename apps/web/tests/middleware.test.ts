@@ -122,7 +122,7 @@ describe("Auth proxy", () => {
     mockRewrite.mockClear();
     const { proxy } = await import("@/proxy");
     const req = createMockRequest("/foreverbrowsing?view=list", {
-      "better-auth.session_token": "valid-session-token",
+      ory_kratos_session: "valid-session-token",
     });
     await proxy(req as never);
     expect(mockRewrite).not.toHaveBeenCalled();
@@ -183,7 +183,7 @@ describe("Auth proxy", () => {
     mockRedirect.mockClear();
     const { proxy } = await import("@/proxy");
     const req = createMockRequest("/settings/account/connected?tab=auth", {
-      "better-auth.session_token": "valid-session-token",
+      ory_kratos_session: "valid-session-token",
     });
     await proxy(req as never);
     expect(mockRedirect).toHaveBeenCalled();
@@ -198,7 +198,7 @@ describe("Auth proxy", () => {
     const req = createMockRequest(
       "/foreverbrowsing/settings/account/connected",
       {
-        "better-auth.session_token": "valid-session-token",
+        ory_kratos_session: "valid-session-token",
       },
     );
     await proxy(req as never);
@@ -213,7 +213,7 @@ describe("Auth proxy", () => {
     mockNext.mockClear();
     const { proxy } = await import("@/proxy");
     const req = createMockRequest("/inbox", {
-      "better-auth.session_token": "valid-session-token",
+      ory_kratos_session: "valid-session-token",
     });
     await proxy(req as never);
     expect(mockNext).toHaveBeenCalled();
@@ -230,7 +230,7 @@ describe("Auth proxy", () => {
       mockRedirect.mockClear();
       const { proxy } = await import("@/proxy");
       const req = createMockRequest(`${sourcePath}?view=list`, {
-        "better-auth.session_token": "valid-session-token",
+        ory_kratos_session: "valid-session-token",
       });
       await proxy(req as never);
       expect(mockRedirect).not.toHaveBeenCalled();
@@ -258,7 +258,7 @@ describe("Auth proxy", () => {
       const req = createMockRequest(
         `/foreverbrowsing/team/ENG${teamRoute}?group=status`,
         {
-          "better-auth.session_token": "valid-session-token",
+          ory_kratos_session: "valid-session-token",
         },
       );
       await proxy(req as never);
@@ -279,7 +279,7 @@ describe("Auth proxy", () => {
     const req = createMockRequest(
       "/foreverbrowsing/settings/project-updates?tab=reminders",
       {
-        "better-auth.session_token": "valid-session-token",
+        ory_kratos_session: "valid-session-token",
       },
     );
     await proxy(req as never);
@@ -324,7 +324,7 @@ describe("Auth proxy", () => {
       mockNext.mockClear();
       const { proxy } = await import("@/proxy");
       const req = createMockRequest(`${path}?view=list`, {
-        "better-auth.session_token": "valid-session-token",
+        ory_kratos_session: "valid-session-token",
       });
       await proxy(req as never);
       expect(mockRedirect).not.toHaveBeenCalled();
@@ -344,7 +344,7 @@ describe("Auth proxy", () => {
     mockNext.mockClear();
     const { proxy } = await import("@/proxy");
     const req = createMockRequest("/settings/teams/ENG/general", {
-      "better-auth.session_token": "valid-session-token",
+      ory_kratos_session: "valid-session-token",
     });
     await proxy(req as never);
     expect(mockRewrite).not.toHaveBeenCalled();
@@ -355,7 +355,7 @@ describe("Auth proxy", () => {
     mockRedirect.mockClear();
     const { proxy } = await import("@/proxy");
     const req = createMockRequest("/issue/ENG-1?focusedComment=c-1", {
-      "__Secure-better-auth.session_token": "valid-session-token",
+      ory_kratos_session: "valid-session-token",
     });
     await proxy(req as never);
     expect(mockRedirect).toHaveBeenCalled();
@@ -368,7 +368,7 @@ describe("Auth proxy", () => {
     mockRedirect.mockClear();
     const { proxy } = await import("@/proxy");
     const req = createMockRequest("/search?q=cycle", {
-      "__Secure-better-auth.session_token": "valid-session-token",
+      ory_kratos_session: "valid-session-token",
       activeWorkspaceSlug: "foreverbrowsing",
     });
     await proxy(req as never);
@@ -398,7 +398,7 @@ describe("Auth proxy", () => {
       mockRedirect.mockClear();
       const { proxy } = await import("@/proxy");
       const req = createMockRequest(`/team/ENG${teamRoute}?view=list`, {
-        "__Secure-better-auth.session_token": "valid-session-token",
+        ory_kratos_session: "valid-session-token",
       });
       await proxy(req as never);
       expect(mockRedirect).toHaveBeenCalled();
@@ -435,7 +435,7 @@ describe("Auth proxy", () => {
     mockRewrite.mockClear();
     const { proxy } = await import("@/proxy");
     const req = createMockRequest("/foreverbrowsing/cycles?view=list", {
-      "better-auth.session_token": "valid-session-token",
+      ory_kratos_session: "valid-session-token",
     });
     await proxy(req as never);
     expect(mockRewrite).not.toHaveBeenCalled();
@@ -453,7 +453,7 @@ describe("Auth proxy", () => {
 });
 
 describe("Auth proxy headless auth mode", () => {
-  it("requires Kratos cookies instead of Better Auth cookies when headless auth is enabled", async () => {
+  it("rejects non-Kratos legacy session cookies", async () => {
     vi.resetModules();
     vi.stubEnv("EXPONENTIAL_HEADLESS_AUTH_PROVIDERS", "true");
     mockRedirect.mockClear();
@@ -462,7 +462,7 @@ describe("Auth proxy headless auth mode", () => {
 
     const { proxy } = await import("@/proxy");
     const req = createMockRequest("/inbox", {
-      "better-auth.session_token": "legacy-session-token",
+      legacy_session_token: "legacy-session-token",
     });
     await proxy(req as never);
 
