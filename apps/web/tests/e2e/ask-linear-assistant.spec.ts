@@ -5,7 +5,9 @@ async function expectAskLinearWorks(page: import("@playwright/test").Page) {
   await expect(launcher).toBeVisible();
 
   await launcher.click();
-  await expect(page.getByLabel("Ask Linear assistant")).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Ask Linear assistant" }),
+  ).toBeVisible();
   await expect(page.getByLabel("Ask Linear prompt")).toBeFocused();
 
   await page.getByLabel("Ask Linear prompt").fill("Summarize this workspace");
@@ -17,7 +19,9 @@ async function expectAskLinearWorks(page: import("@playwright/test").Page) {
   await expect(page.getByText(/I can help with foreverbrowsing/)).toBeVisible();
 
   await page.keyboard.press("Escape");
-  await expect(page.getByLabel("Ask Linear assistant")).not.toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Ask Linear assistant" }),
+  ).not.toBeVisible();
 }
 
 test("global Ask Linear launcher works on an app route", async ({ page }) => {
@@ -42,5 +46,7 @@ test("command palette Ask Linear action opens the assistant", async ({
     .getByRole("dialog", { name: "Command palette" })
     .getByRole("button", { name: /Ask Linear/i })
     .click();
-  await expect(page.getByLabel("Ask Linear assistant")).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "Ask Linear assistant" }),
+  ).toBeVisible();
 });
