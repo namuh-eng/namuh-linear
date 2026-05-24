@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -63,7 +64,7 @@ func migrate(ctx context.Context, databaseURL string, kratosAdminURL string) err
 
 func upsertIdentity(ctx context.Context, client *http.Client, adminURL string, user userRow) error {
 	// Idempotency: first search by email. If Kratos already has the identity, leave it untouched.
-	searchURL := fmt.Sprintf("%s/admin/identities?credentials_identifier=%s", adminURL, user.Email)
+	searchURL := fmt.Sprintf("%s/admin/identities?credentials_identifier=%s", adminURL, url.QueryEscape(user.Email))
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, searchURL, nil)
 	if err != nil {
 		return err
