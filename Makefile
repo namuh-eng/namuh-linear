@@ -1,4 +1,4 @@
-.PHONY: check test test-e2e typecheck lint format fix all dev build clean cpd api-build api-test api-dockerfile ecs-task-definitions openapi-coverage web-api-empty
+.PHONY: check test test-e2e typecheck lint format fix all dev build clean cpd api-build api-test api-dockerfile ecs-task-definitions ecs-render deploy-scripts openapi-coverage web-api-empty
 .PHONY: check-header test-header check-verbose test-verbose
 .PHONY: dev-services dev-services-down
 
@@ -6,7 +6,7 @@
 all: check test
 
 # Static analysis: typecheck + lint/format
-check: check-header typecheck lint api-build api-dockerfile ecs-task-definitions openapi-coverage web-api-empty
+check: check-header typecheck lint api-build api-dockerfile ecs-task-definitions ecs-render deploy-scripts openapi-coverage web-api-empty
 
 # TypeScript type checking
 typecheck:
@@ -37,6 +37,16 @@ api-dockerfile:
 ecs-task-definitions:
 	@. ./hack/run_silent.sh && \
 	run_silent "ECS task definitions are split and CloudWatch-ready" "node scripts/check-ecs-task-definitions.mjs"
+
+# ECS task rendering
+ecs-render:
+	@. ./hack/run_silent.sh && \
+	run_silent "ECS task definition rendering works" "node scripts/render-ecs-task-definitions.test.mjs"
+
+# Deploy script syntax
+deploy-scripts:
+	@. ./hack/run_silent.sh && \
+	run_silent "Deploy scripts are syntactically valid" "sh -n scripts/deploy-ecs.sh"
 
 # OpenAPI coverage
 openapi-coverage:
