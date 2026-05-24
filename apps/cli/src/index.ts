@@ -15,6 +15,53 @@ const apiToken = token;
 const client = createExponentialClient({ token: apiToken, baseUrl });
 const idempotencyKey = readOption(args, "idempotency-key");
 
+type MinimalWebSocket = {
+  addEventListener: (
+    type: "open" | "message" | "error" | "close",
+    listener: (event: { data?: string | ArrayBuffer | Uint8Array }) => void,
+  ) => void;
+  close: () => void;
+};
+
+type MinimalWebSocketConstructor = new (url: string) => MinimalWebSocket;
+
+async function streamSyncWatch(input: { version: number; once: boolean }) {
+  const WebSocketCtor = (
+    globalThis as { WebSocket?: MinimalWebSocketConstructor }
+  ).WebSocket;
+  if (!WebSocketCtor) {
+    throw new Error("WebSocket runtime unavailable; use Node 22+ or Bun.");
+  }
+
+  const socket = new WebSocketCtor(
+    syncWebSocketUrl({ baseUrl, token: apiToken, version: input.version }),
+  );
+
+  await new Promise<void>((resolve, reject) => {
+    socket.addEventListener("message", (event) => {
+      const data = event.data;
+      if (typeof data === "string") {
+        process.stdout.write(`${data}
+`);
+      } else if (data instanceof ArrayBuffer) {
+        process.stdout.write(`${Buffer.from(data).toString("utf8")}
+`);
+      } else if (data) {
+        process.stdout.write(`${Buffer.from(data).toString("utf8")}
+`);
+      }
+      if (input.once) {
+        socket.close();
+        resolve();
+      }
+    });
+    socket.addEventListener("error", () =>
+      reject(new Error("Sync watch failed")),
+    );
+    socket.addEventListener("close", () => resolve());
+  });
+}
+
 async function main() {
   if (resource === "workspaces") {
     await workspaceCommand();
@@ -208,17 +255,12 @@ async function main() {
   }
 
   if (action === "watch") {
-    console.log(
-      JSON.stringify({
-        url: syncWebSocketUrl({
-          baseUrl,
-          token: apiToken,
-          version: readOption(args, "version")
-            ? Number(readOption(args, "version"))
-            : 0,
-        }),
-      }),
-    );
+    await streamSyncWatch({
+      version: readOption(args, "version")
+        ? Number(readOption(args, "version"))
+        : 0,
+      once: readOption(args, "once") === "true" || args.includes("--once"),
+    });
     return;
   }
 
