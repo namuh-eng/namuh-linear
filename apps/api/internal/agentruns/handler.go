@@ -17,7 +17,11 @@ import (
 
 type Handler struct{ DB *pgxpool.Pool }
 
-type GuidanceEntry struct{ Source, Label, Instructions string }
+type GuidanceEntry struct {
+	Source       string `json:"source"`
+	Label        string `json:"label"`
+	Instructions string `json:"instructions"`
+}
 type Guidance struct {
 	Entries               []GuidanceEntry `json:"entries"`
 	EffectiveInstructions string          `json:"effectiveInstructions"`

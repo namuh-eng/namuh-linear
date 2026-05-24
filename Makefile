@@ -1,4 +1,4 @@
-.PHONY: check test test-e2e typecheck lint format fix all dev build clean cpd api-build api-test api-dockerfile ecs-task-definitions ecs-render deploy-scripts smoke-script openapi-coverage web-api-empty
+.PHONY: check test test-e2e typecheck lint format fix all dev build clean cpd api-build api-test api-dockerfile ecs-task-definitions ecs-render deploy-scripts smoke-script openapi-coverage web-api-empty web-sdk-usage
 .PHONY: check-header test-header check-verbose test-verbose
 .PHONY: dev-services dev-services-down
 
@@ -6,7 +6,7 @@
 all: check test
 
 # Static analysis: typecheck + lint/format
-check: check-header typecheck lint api-build api-dockerfile ecs-task-definitions ecs-render deploy-scripts smoke-script openapi-coverage web-api-empty
+check: check-header typecheck lint api-build api-dockerfile ecs-task-definitions ecs-render deploy-scripts smoke-script openapi-coverage web-api-empty web-sdk-usage
 
 # TypeScript type checking
 typecheck:
@@ -62,6 +62,12 @@ openapi-coverage:
 web-api-empty:
 	@. ./hack/run_silent.sh && \
 	run_silent "Web API route directory is empty" "pnpm web-api-empty"
+
+# Ensure migrated web runtime slices consume the generated SDK instead of
+# hard-coded endpoint fetches.
+web-sdk-usage:
+	@. ./hack/run_silent.sh && \
+	run_silent "Web runtime SDK usage passed" "node scripts/check-web-sdk-usage.mjs"
 
 # Auto-fix lint and format issues
 fix:

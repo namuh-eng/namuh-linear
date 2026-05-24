@@ -1,11 +1,33 @@
 package agentruns
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
 
 func TestBuildGuidanceMergesSources(t *testing.T) {
 	guidance := buildGuidance("Workspace: cite evidence.", "Account: small diffs.", "ENG: test plan.", true, "eng")
 	if len(guidance.Entries) != 3 || guidance.EffectiveInstructions == "" || !guidance.AutoFixEnabled || guidance.TeamKey == nil || *guidance.TeamKey != "ENG" {
 		t.Fatalf("guidance = %#v", guidance)
+	}
+}
+
+func TestGuidanceEntryJSONMatchesOpenAPIContract(t *testing.T) {
+	payload, err := json.Marshal(buildGuidance("Workspace: cite evidence.", "", "", false, "eng"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(payload)
+	for _, field := range []string{`"source"`, `"label"`, `"instructions"`} {
+		if !strings.Contains(body, field) {
+			t.Fatalf("guidance payload missing %s: %s", field, body)
+		}
+	}
+	for _, field := range []string{`"Source"`, `"Label"`, `"Instructions"`} {
+		if strings.Contains(body, field) {
+			t.Fatalf("guidance payload leaked Go field %s: %s", field, body)
+		}
 	}
 }
 

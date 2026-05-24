@@ -2163,9 +2163,9 @@ export interface components {
       authentication: components["schemas"]["WorkspaceAuthenticationSettings"];
     };
     AgentGuidanceEntry: {
-      Source: string;
-      Label: string;
-      Instructions: string;
+      source: string;
+      label: string;
+      instructions: string;
     };
     AgentGuidance: {
       entries: components["schemas"]["AgentGuidanceEntry"][];

@@ -3491,11 +3491,11 @@ components:
         authentication: { $ref: '#/components/schemas/WorkspaceAuthenticationSettings' }
     AgentGuidanceEntry:
       type: object
-      required: [Source, Label, Instructions]
+      required: [source, label, instructions]
       properties:
-        Source: { type: string }
-        Label: { type: string }
-        Instructions: { type: string }
+        source: { type: string }
+        label: { type: string }
+        instructions: { type: string }
     AgentGuidance:
       type: object
       required: [entries, effectiveInstructions, autoFixEnabled]

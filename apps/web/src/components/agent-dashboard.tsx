@@ -6,6 +6,7 @@ import type {
   AgentSuggestion,
   AgentSuggestionStatus,
 } from "@/lib/agent-runs";
+import { createBrowserApiClient } from "@/lib/browser-api-client";
 import { withWorkspaceSlug } from "@/lib/workspace-paths";
 import Link from "next/link";
 import {
@@ -19,8 +20,19 @@ import {
 interface AgentRunsResponse {
   runs: AgentRun[];
   canCreateRuns: boolean;
-  error?: string;
 }
+
+function apiErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    if (typeof record.error === "string") return record.error;
+    if (typeof record.detail === "string") return record.detail;
+    if (typeof record.title === "string") return record.title;
+  }
+  return fallback;
+}
+
+const apiClient = createBrowserApiClient();
 
 const statusLabels: Record<AgentRun["status"], string> = {
   queued: "Queued",
@@ -114,19 +126,15 @@ export function AgentDashboard() {
     setLoading(true);
     setLoadError(null);
     try {
-      const response = await fetch("/api/agent/runs", {
-        credentials: "include",
-      });
-      const data = (await response
-        .json()
-        .catch(() => null)) as AgentRunsResponse | null;
-      if (!response.ok) {
-        throw new Error(data?.error ?? "Unable to load agent runs");
+      const { data, error } = await apiClient.GET("/agent/runs");
+      if (error) {
+        throw new Error(apiErrorMessage(error, "Unable to load agent runs"));
       }
 
-      const nextRuns = data?.runs ?? [];
+      const response = data as AgentRunsResponse | undefined;
+      const nextRuns = response?.runs ?? [];
       setRuns(nextRuns);
-      setCanCreateRuns(data?.canCreateRuns ?? false);
+      setCanCreateRuns(response?.canCreateRuns ?? false);
       setSelectedRunId((current) =>
         current && nextRuns.some((run) => run.id === current)
           ? current
@@ -162,22 +170,16 @@ export function AgentDashboard() {
 
     setCreating(true);
     try {
-      const response = await fetch("/api/agent/runs", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, prompt, teamKey, context }),
+      const { data, error } = await apiClient.POST("/agent/runs", {
+        body: { title, prompt, teamKey, context },
       });
-      const data = (await response.json().catch(() => null)) as {
-        run?: AgentRun;
-        error?: string;
-      } | null;
-      if (!response.ok || !data?.run) {
-        throw new Error(data?.error ?? "Unable to create agent run");
+      if (error || !data?.run) {
+        throw new Error(apiErrorMessage(error, "Unable to create agent run"));
       }
 
-      setRuns((current) => [data.run as AgentRun, ...current]);
-      setSelectedRunId(data.run.id);
+      const run = data.run as AgentRun;
+      setRuns((current) => [run, ...current]);
+      setSelectedRunId(run.id);
       setTitle("Follow up on agent output");
       setPrompt(
         "Review the previous run output and prepare the next concrete action.",
@@ -198,29 +200,19 @@ export function AgentDashboard() {
   ) {
     setLoadError(null);
     try {
-      const response = await fetch(
-        `/api/agent/runs/${encodeURIComponent(runId)}`,
-        {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ suggestionId, status }),
-        },
-      );
-      const data = (await response.json().catch(() => null)) as {
-        run?: AgentRun;
-        error?: string;
-      } | null;
-      if (!response.ok || !data?.run) {
-        throw new Error(data?.error ?? "Unable to update suggestion");
+      const { data, error } = await apiClient.PATCH("/agent/runs/{id}", {
+        params: { path: { id: runId } },
+        body: { suggestionId, status },
+      });
+      if (error || !data?.run) {
+        throw new Error(apiErrorMessage(error, "Unable to update suggestion"));
       }
 
+      const updatedRun = data.run as AgentRun;
       setRuns((current) =>
-        current.map((run) =>
-          run.id === data.run?.id ? (data.run as AgentRun) : run,
-        ),
+        current.map((run) => (run.id === updatedRun.id ? updatedRun : run)),
       );
-      setSelectedRunId(data.run.id);
+      setSelectedRunId(updatedRun.id);
     } catch (error) {
       setLoadError(
         error instanceof Error ? error.message : "Unable to update suggestion",
