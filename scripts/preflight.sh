@@ -174,6 +174,11 @@ for PORT in 3000 3015 3016 4433; do
   aws ec2 authorize-security-group-ingress --group-id $APP_SG \
     --protocol tcp --port $PORT --source-group $ALB_SG --region $REGION 2>/dev/null || true
 done
+# Allow Fargate services to call each other on private service ports.
+for PORT in 3016 4433; do
+  aws ec2 authorize-security-group-ingress --group-id $APP_SG \
+    --protocol tcp --port $PORT --source-group $APP_SG --region $REGION 2>/dev/null || true
+done
 # Allow Fargate → RDS
 aws ec2 authorize-security-group-ingress --group-id $DB_SG \
   --protocol tcp --port 5432 --source-group $APP_SG --region $REGION 2>/dev/null || true
