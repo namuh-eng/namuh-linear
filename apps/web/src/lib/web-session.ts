@@ -67,7 +67,7 @@ export async function getWebSession(headerList: Headers) {
   if (kratosSession) return kratosSession;
 
   if (process.env.NODE_ENV === "test") {
-    const { auth } = await import("@/lib/auth");
+    const { auth } = await import("test-auth");
     return auth.api.getSession({ headers: headerList });
   }
 

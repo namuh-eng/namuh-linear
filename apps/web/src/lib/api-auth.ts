@@ -205,7 +205,7 @@ export async function requireApiSession() {
   }
 
   if (process.env.NODE_ENV === "test") {
-    const { auth } = await import("@/lib/auth");
+    const { auth } = await import("test-auth");
     const session = await auth.api.getSession({ headers: requestHeaders });
     if (session) {
       return { response: null, session: session as ApiSession };
