@@ -1,9 +1,9 @@
-import { POST as createIssue } from "@/legacy-api/issues/route";
-import { POST as updateTeamLifecycle } from "@/legacy-api/teams/[key]/settings/route";
 import { db } from "@/lib/db";
 import { member, team, teamMember, user, workspace } from "@/lib/db/schema";
 import { TEAM_RESTORATION_WINDOW_MS } from "@/lib/team-lifecycle";
 import { and, eq } from "drizzle-orm";
+import { POST as createIssue } from "legacy-api/issues/route";
+import { POST as updateTeamLifecycle } from "legacy-api/teams/[key]/settings/route";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { describeDb } from "./_helpers/db-integration";
 

@@ -44,7 +44,7 @@ describe("auth catch-all workspace policy", () => {
 
   it("rejects direct magic-link requests when email/passkey is disabled for a member", async () => {
     isWorkspaceAuthMethodAllowedMock.mockReturnValue(false);
-    const { POST } = await import("@/legacy-api/auth/[...all]/route");
+    const { POST } = await import("legacy-api/auth/[...all]/route");
 
     const response = await POST(
       new Request("https://app.test/api/auth/sign-in/magic-link", {
@@ -74,7 +74,7 @@ describe("auth catch-all workspace policy", () => {
 
   it("delegates direct magic-link requests when the role is exempt", async () => {
     isWorkspaceAuthMethodAllowedMock.mockReturnValue(true);
-    const { POST } = await import("@/legacy-api/auth/[...all]/route");
+    const { POST } = await import("legacy-api/auth/[...all]/route");
     const request = new Request(
       "https://app.test/api/auth/sign-in/magic-link",
       {
@@ -94,7 +94,7 @@ describe("auth catch-all workspace policy", () => {
 
   it("rejects direct Google id-token sign-in when Google is disabled for a member", async () => {
     isWorkspaceAuthMethodAllowedMock.mockReturnValue(false);
-    const { POST } = await import("@/legacy-api/auth/[...all]/route");
+    const { POST } = await import("legacy-api/auth/[...all]/route");
 
     const response = await POST(
       new Request("https://app.test/api/auth/sign-in/social", {
@@ -127,7 +127,7 @@ describe("auth catch-all workspace policy", () => {
       { value: JSON.stringify({ email: "member@example.com" }) },
     ]);
     isWorkspaceAuthMethodAllowedMock.mockReturnValue(false);
-    const { GET } = await import("@/legacy-api/auth/[...all]/route");
+    const { GET } = await import("legacy-api/auth/[...all]/route");
 
     const response = await GET(
       new Request(

@@ -262,7 +262,7 @@ describe("My Issues API route", () => {
   it("selects the most recent workspace membership for the current session", async () => {
     const fs = await import("node:fs");
     const content = fs.readFileSync(
-      "src/legacy-api/my-issues/route.ts",
+      "tests/legacy-api/my-issues/route.ts",
       "utf-8",
     );
     expect(content).toContain(".orderBy(desc(member.createdAt))");
@@ -271,7 +271,7 @@ describe("My Issues API route", () => {
   it("includes commenter-derived issues for subscribed and activity tabs", async () => {
     const fs = await import("node:fs");
     const content = fs.readFileSync(
-      "src/legacy-api/my-issues/route.ts",
+      "tests/legacy-api/my-issues/route.ts",
       "utf-8",
     );
     expect(content).toContain("fetchIssuesByCommenter");
@@ -281,7 +281,7 @@ describe("My Issues API route", () => {
   it("deduplicates cross-team status filters by grouped status key", async () => {
     const fs = await import("node:fs");
     const content = fs.readFileSync(
-      "src/legacy-api/my-issues/route.ts",
+      "tests/legacy-api/my-issues/route.ts",
       "utf-8",
     );
     expect(content).toContain("stateId: groupKey");

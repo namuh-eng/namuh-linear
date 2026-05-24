@@ -1,7 +1,7 @@
-import { GET, PATCH } from "@/legacy-api/workspaces/current/ai-settings/route";
 import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { GET, PATCH } from "legacy-api/workspaces/current/ai-settings/route";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { describeDb } from "./_helpers/db-integration";
 

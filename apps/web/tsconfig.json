@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "legacy-api/*": ["./tests/legacy-api/*"]
     }
   },
   "include": [

@@ -1,4 +1,3 @@
-import { GET, POST } from "@/legacy-api/teams/route";
 import { db } from "@/lib/db";
 import {
   member,
@@ -9,6 +8,7 @@ import {
   workspace,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { GET, POST } from "legacy-api/teams/route";
 import {
   afterAll,
   beforeAll,

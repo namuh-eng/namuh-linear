@@ -1,9 +1,3 @@
-import {
-  DELETE,
-  GET,
-  PATCH,
-  POST,
-} from "@/legacy-api/teams/[key]/statuses/route";
 import { db } from "@/lib/db";
 import {
   issue,
@@ -14,6 +8,12 @@ import {
   workspace,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import {
+  DELETE,
+  GET,
+  PATCH,
+  POST,
+} from "legacy-api/teams/[key]/statuses/route";
 import {
   afterAll,
   beforeAll,

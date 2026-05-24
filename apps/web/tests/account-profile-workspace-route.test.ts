@@ -1,7 +1,7 @@
-import { DELETE } from "@/legacy-api/account/profile/workspace/route";
 import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { DELETE } from "legacy-api/account/profile/workspace/route";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { describeDb } from "./_helpers/db-integration";
 

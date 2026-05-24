@@ -1,8 +1,8 @@
-import { DELETE } from "@/legacy-api/custom-emojis/[id]/route";
-import { GET, POST } from "@/legacy-api/custom-emojis/route";
 import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { DELETE } from "legacy-api/custom-emojis/[id]/route";
+import { GET, POST } from "legacy-api/custom-emojis/route";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { describeDb } from "./_helpers/db-integration";
 

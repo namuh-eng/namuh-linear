@@ -1,8 +1,8 @@
-import { POST as authPOST } from "@/legacy-api/auth/[...all]/route";
-import { GET as capabilitiesGET } from "@/legacy-api/auth/provider-capabilities/route";
 import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { POST as authPOST } from "legacy-api/auth/[...all]/route";
+import { GET as capabilitiesGET } from "legacy-api/auth/provider-capabilities/route";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { describeDb } from "./_helpers/db-integration";
 

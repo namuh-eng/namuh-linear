@@ -1,7 +1,3 @@
-import {
-  type IssueTemplateSettings,
-  normalizeIssueTemplateSettings,
-} from "@/legacy-api/issue-templates/route";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issueTemplate } from "@/lib/db/schema";
@@ -12,6 +8,10 @@ import {
 } from "@/lib/headless-api";
 import { findAccessibleTeam } from "@/lib/teams";
 import { and, desc, eq } from "drizzle-orm";
+import {
+  type IssueTemplateSettings,
+  normalizeIssueTemplateSettings,
+} from "legacy-api/issue-templates/route";
 import { NextResponse } from "next/server";
 
 type TemplatePayload = typeof issueTemplate.$inferSelect;

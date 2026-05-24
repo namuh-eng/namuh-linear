@@ -1,7 +1,7 @@
-import { POST } from "@/legacy-api/auth/saml/discovery/route";
 import { db } from "@/lib/db";
 import { workspace } from "@/lib/db/schema";
 import { inArray } from "drizzle-orm";
+import { POST } from "legacy-api/auth/saml/discovery/route";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { describeDb } from "./_helpers/db-integration";
 

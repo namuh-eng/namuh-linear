@@ -1,7 +1,7 @@
-import { GET, PATCH } from "@/legacy-api/account/notifications/route";
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { GET, PATCH } from "legacy-api/account/notifications/route";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { describeDb } from "./_helpers/db-integration";
 

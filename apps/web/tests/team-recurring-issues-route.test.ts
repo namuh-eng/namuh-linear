@@ -1,8 +1,3 @@
-import {
-  DELETE,
-  PATCH,
-} from "@/legacy-api/teams/[key]/recurring-issues/[id]/route";
-import { GET, POST } from "@/legacy-api/teams/[key]/recurring-issues/route";
 import { db } from "@/lib/db";
 import {
   member,
@@ -14,6 +9,11 @@ import {
   workspace,
 } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import {
+  DELETE,
+  PATCH,
+} from "legacy-api/teams/[key]/recurring-issues/[id]/route";
+import { GET, POST } from "legacy-api/teams/[key]/recurring-issues/route";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { describeDb } from "./_helpers/db-integration";
 

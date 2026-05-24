@@ -1,7 +1,7 @@
-import { GET, POST } from "@/legacy-api/agent/runs/route";
 import { db } from "@/lib/db";
 import { member, team, teamMember, user, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { GET, POST } from "legacy-api/agent/runs/route";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { describeDb } from "./_helpers/db-integration";
 

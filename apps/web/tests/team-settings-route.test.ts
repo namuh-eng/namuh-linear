@@ -1,4 +1,3 @@
-import { GET, PATCH, POST } from "@/legacy-api/teams/[key]/settings/route";
 import { db } from "@/lib/db";
 import {
   member,
@@ -9,6 +8,7 @@ import {
   workspace,
 } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { GET, PATCH, POST } from "legacy-api/teams/[key]/settings/route";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { describeDb } from "./_helpers/db-integration";
 

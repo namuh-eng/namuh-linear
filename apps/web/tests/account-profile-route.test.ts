@@ -1,7 +1,7 @@
-import { GET, PATCH } from "@/legacy-api/account/profile/route";
 import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { GET, PATCH } from "legacy-api/account/profile/route";
 import { NextResponse } from "next/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { describeDb } from "./_helpers/db-integration";

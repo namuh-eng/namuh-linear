@@ -38,9 +38,7 @@ describe("provider capabilities route", () => {
     resolveWorkspaceAuthPolicyMock.mockResolvedValue(null);
     isWorkspaceAuthMethodAllowedMock.mockReturnValue(true);
 
-    const { GET } = await import(
-      "@/legacy-api/auth/provider-capabilities/route"
-    );
+    const { GET } = await import("legacy-api/auth/provider-capabilities/route");
     const response = await GET(
       new Request("http://localhost/api/auth/provider-capabilities"),
     );
@@ -82,9 +80,7 @@ describe("provider capabilities route", () => {
       },
     );
 
-    const { GET } = await import(
-      "@/legacy-api/auth/provider-capabilities/route"
-    );
+    const { GET } = await import("legacy-api/auth/provider-capabilities/route");
     const response = await GET(
       new Request(
         "http://localhost/api/auth/provider-capabilities?callbackUrl=%2Fforeverbrowsing%2Fsettings%2Fsecurity",

@@ -81,7 +81,7 @@ describe("workspace security route", () => {
     ]);
 
     const { GET } = await import(
-      "@/legacy-api/workspaces/current/security/route"
+      "legacy-api/workspaces/current/security/route"
     );
     const response = await GET(
       new Request("http://localhost:3000/api/workspaces/current/security"),
@@ -144,7 +144,7 @@ describe("workspace security route", () => {
     ]);
 
     const { PATCH } = await import(
-      "@/legacy-api/workspaces/current/security/route"
+      "legacy-api/workspaces/current/security/route"
     );
     const response = await PATCH(
       new Request("http://localhost:3000/api/workspaces/current/security", {

@@ -1,9 +1,3 @@
-import {
-  DELETE,
-  GET,
-  PATCH,
-  POST,
-} from "@/legacy-api/teams/[key]/members/route";
 import { db } from "@/lib/db";
 import {
   member,
@@ -15,6 +9,7 @@ import {
 } from "@/lib/db/schema";
 import { verifyInviteToken } from "@/lib/invite-tokens";
 import { and, eq } from "drizzle-orm";
+import { DELETE, GET, PATCH, POST } from "legacy-api/teams/[key]/members/route";
 import {
   afterAll,
   beforeAll,

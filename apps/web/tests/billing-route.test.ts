@@ -1,7 +1,7 @@
-import { GET, PATCH } from "@/legacy-api/workspaces/current/billing/route";
 import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
+import { GET, PATCH } from "legacy-api/workspaces/current/billing/route";
 import {
   afterAll,
   beforeAll,

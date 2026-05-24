@@ -193,7 +193,7 @@ describe("current workspace api actions route", () => {
   });
 
   it("requires an action", async () => {
-    const { POST } = await import("@/legacy-api/workspaces/current/api/route");
+    const { POST } = await import("legacy-api/workspaces/current/api/route");
 
     const response = await POST(
       new Request("http://localhost/api/workspaces/current/api", {
@@ -254,9 +254,7 @@ describe("current workspace api actions route", () => {
   ])(
     "rejects unsafe OAuth redirect URL: %s",
     async (_caseName, redirectUrl, error) => {
-      const { POST } = await import(
-        "@/legacy-api/workspaces/current/api/route"
-      );
+      const { POST } = await import("legacy-api/workspaces/current/api/route");
 
       const response = await POST(
         new Request("http://localhost/api/workspaces/current/api", {
@@ -277,7 +275,7 @@ describe("current workspace api actions route", () => {
   );
 
   it("rejects OAuth application creation without a name", async () => {
-    const { POST } = await import("@/legacy-api/workspaces/current/api/route");
+    const { POST } = await import("legacy-api/workspaces/current/api/route");
 
     const response = await POST(
       new Request("http://localhost/api/workspaces/current/api", {
@@ -298,7 +296,7 @@ describe("current workspace api actions route", () => {
   });
 
   it("creates an oauth application for managers", async () => {
-    const { POST } = await import("@/legacy-api/workspaces/current/api/route");
+    const { POST } = await import("legacy-api/workspaces/current/api/route");
 
     const response = await POST(
       new Request("http://localhost/api/workspaces/current/api", {
@@ -324,7 +322,7 @@ describe("current workspace api actions route", () => {
   });
 
   it("rejects invalid webhook payloads", async () => {
-    const { POST } = await import("@/legacy-api/workspaces/current/api/route");
+    const { POST } = await import("legacy-api/workspaces/current/api/route");
 
     const response = await POST(
       new Request("http://localhost/api/workspaces/current/api", {
@@ -348,7 +346,7 @@ describe("current workspace api actions route", () => {
   });
 
   it("creates a webhook for managers", async () => {
-    const { POST } = await import("@/legacy-api/workspaces/current/api/route");
+    const { POST } = await import("legacy-api/workspaces/current/api/route");
 
     const response = await POST(
       new Request("http://localhost/api/workspaces/current/api", {
@@ -385,7 +383,7 @@ describe("current workspace api actions route", () => {
         memberRole: "member",
       },
     ]);
-    const { POST } = await import("@/legacy-api/workspaces/current/api/route");
+    const { POST } = await import("legacy-api/workspaces/current/api/route");
 
     const response = await POST(
       new Request("http://localhost/api/workspaces/current/api", {
@@ -411,7 +409,7 @@ describe("current workspace api actions route", () => {
         memberRole: "member",
       },
     ]);
-    const { POST } = await import("@/legacy-api/workspaces/current/api/route");
+    const { POST } = await import("legacy-api/workspaces/current/api/route");
 
     const response = await POST(
       new Request("http://localhost/api/workspaces/current/api", {
