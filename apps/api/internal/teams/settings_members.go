@@ -3,6 +3,7 @@ package teams
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,12 +14,18 @@ import (
 )
 
 type teamRecord struct {
-	ID          string
-	WorkspaceID string
-	Name        string
-	Key         string
-	Icon        *string
-	Settings    map[string]any
+	ID                 string
+	WorkspaceID        string
+	Name               string
+	Key                string
+	Icon               *string
+	Timezone           *string
+	EstimateType       *string
+	TriageEnabled      *bool
+	CyclesEnabled      *bool
+	CycleStartDay      *int
+	CycleDurationWeeks *int
+	Settings           map[string]any
 }
 
 type teamMemberEntry struct {
@@ -191,6 +198,40 @@ func (h Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	name := stringFromAny(body["name"], team.Name)
 	key := strings.ToUpper(stringFromAny(body["key"], team.Key))
 	icon := stringFromAny(body["icon"], stringPtrVal(team.Icon, "•"))
+	timezone := team.Timezone
+	if raw, ok := body["timezone"]; ok {
+		next := strings.TrimSpace(stringFromAny(raw, ""))
+		timezone = nullIfEmpty(next)
+	}
+	estimateType := stringPtrVal(team.EstimateType, "not_in_use")
+	if raw, ok := body["estimateType"]; ok {
+		estimateType = strings.TrimSpace(stringFromAny(raw, estimateType))
+		if estimateType == "none" {
+			estimateType = "not_in_use"
+		}
+	}
+	if !validEstimateType(estimateType) {
+		problem.Write(w, 400, "Estimate type is invalid", "")
+		return
+	}
+	triageEnabled := boolFromAny(body["triageEnabled"], boolPtrVal(team.TriageEnabled, true))
+	cyclesEnabled := boolFromAny(body["cyclesEnabled"], boolPtrVal(team.CyclesEnabled, false))
+	var cycleStartDay *int
+	var cycleDurationWeeks *int
+	if cyclesEnabled {
+		startDay := intFromAny(body["cycleStartDay"], intPtrVal(team.CycleStartDay, 1))
+		if startDay < 1 || startDay > 7 {
+			problem.Write(w, 400, "Cycle start day must be between 1 and 7", "")
+			return
+		}
+		durationWeeks := intFromAny(body["cycleDurationWeeks"], intPtrVal(team.CycleDurationWeeks, 2))
+		if durationWeeks < 1 || durationWeeks > 8 {
+			problem.Write(w, 400, "Cycle duration must be between 1 and 8 weeks", "")
+			return
+		}
+		cycleStartDay = &startDay
+		cycleDurationWeeks = &durationWeeks
+	}
 	if strings.TrimSpace(name) == "" {
 		problem.Write(w, 400, "Name is required", "")
 		return
@@ -208,7 +249,7 @@ func (h Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 			settings[k] = v
 		}
 	}
-	_, err := h.DB.Exec(r.Context(), `update team set name=$1,key=$2,icon=$3,settings=$4,updated_at=now() where id=$5::uuid and workspace_id=$6::uuid`, strings.TrimSpace(name), key, icon, settings, team.ID, team.WorkspaceID)
+	_, err := h.DB.Exec(r.Context(), `update team set name=$1,key=$2,icon=$3,timezone=$4,estimate_type=$5,triage_enabled=$6,cycles_enabled=$7,cycle_start_day=$8,cycle_duration_weeks=$9,settings=$10,updated_at=now() where id=$11::uuid and workspace_id=$12::uuid`, strings.TrimSpace(name), key, icon, timezone, estimateType, triageEnabled, cyclesEnabled, cycleStartDay, cycleDurationWeeks, settings, team.ID, team.WorkspaceID)
 	if err != nil {
 		problem.Write(w, 500, "Update team settings failed", err.Error())
 		return
@@ -284,12 +325,12 @@ func (h Handler) findTeam(r *http.Request, key string, includeDeleted bool) (tea
 	p, _ := auth.FromContext(r.Context())
 	var t teamRecord
 	var raw []byte
-	q := `select id::text,workspace_id::text,name,key,icon,coalesce(settings,'{}'::jsonb) from team where workspace_id=$1::uuid and key=$2`
+	q := `select id::text,workspace_id::text,name,key,icon,timezone,estimate_type,triage_enabled,cycles_enabled,cycle_start_day,cycle_duration_weeks,coalesce(settings,'{}'::jsonb) from team where workspace_id=$1::uuid and key=$2`
 	if !includeDeleted {
 		q += ` and deleted_at is null`
 	}
 	q += ` limit 1`
-	err := h.DB.QueryRow(r.Context(), q, p.WorkspaceID, strings.ToUpper(key)).Scan(&t.ID, &t.WorkspaceID, &t.Name, &t.Key, &t.Icon, &raw)
+	err := h.DB.QueryRow(r.Context(), q, p.WorkspaceID, strings.ToUpper(key)).Scan(&t.ID, &t.WorkspaceID, &t.Name, &t.Key, &t.Icon, &t.Timezone, &t.EstimateType, &t.TriageEnabled, &t.CyclesEnabled, &t.CycleStartDay, &t.CycleDurationWeeks, &raw)
 	_ = json.Unmarshal(raw, &t.Settings)
 	return t, err
 }
@@ -340,7 +381,11 @@ func (h Handler) teamSettingsResponse(r *http.Request, team teamRecord, userID s
 	_ = h.DB.QueryRow(r.Context(), `select count(*)::int from team_member where team_id=$1::uuid`, team.ID).Scan(&memberCount)
 	_ = h.DB.QueryRow(r.Context(), `select count(*)::int from label where team_id=$1::uuid`, team.ID).Scan(&labelCount)
 	_ = h.DB.QueryRow(r.Context(), `select count(*)::int from workflow_state where team_id=$1::uuid`, team.ID).Scan(&statusCount)
-	return map[string]any{"id": team.ID, "name": team.Name, "key": team.Key, "icon": stringPtrVal(team.Icon, "•"), "memberCount": memberCount, "labelCount": labelCount, "statusCount": statusCount, "settings": team.Settings, "emailEnabled": team.Settings["emailEnabled"], "detailedHistory": team.Settings["detailedHistory"], "agentGuidance": team.Settings["agentGuidance"]}
+	estimateType := stringPtrVal(team.EstimateType, "not_in_use")
+	if estimateType == "not_in_use" {
+		estimateType = "none"
+	}
+	return map[string]any{"id": team.ID, "name": team.Name, "key": team.Key, "icon": stringPtrVal(team.Icon, "•"), "timezone": stringPtrVal(team.Timezone, ""), "estimateType": estimateType, "triageEnabled": boolPtrVal(team.TriageEnabled, true), "cyclesEnabled": boolPtrVal(team.CyclesEnabled, false), "cycleStartDay": intPtrVal(team.CycleStartDay, 1), "cycleDurationWeeks": intPtrVal(team.CycleDurationWeeks, 2), "memberCount": memberCount, "labelCount": labelCount, "statusCount": statusCount, "settings": team.Settings, "emailEnabled": team.Settings["emailEnabled"], "detailedHistory": team.Settings["detailedHistory"], "agentGuidance": team.Settings["agentGuidance"]}
 }
 func uniqueStringsLocal(in []string) []string {
 	seen := map[string]bool{}
@@ -365,4 +410,53 @@ func stringPtrVal(v *string, fallback string) string {
 		return fallback
 	}
 	return *v
+}
+func boolFromAny(v any, fallback bool) bool {
+	if b, ok := v.(bool); ok {
+		return b
+	}
+	return fallback
+}
+func boolPtrVal(v *bool, fallback bool) bool {
+	if v == nil {
+		return fallback
+	}
+	return *v
+}
+func intFromAny(v any, fallback int) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case int32:
+		return int(n)
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	case json.Number:
+		i, err := strconv.Atoi(n.String())
+		if err == nil {
+			return i
+		}
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(n))
+		if err == nil {
+			return i
+		}
+	}
+	return fallback
+}
+func intPtrVal(v *int, fallback int) int {
+	if v == nil {
+		return fallback
+	}
+	return *v
+}
+func validEstimateType(value string) bool {
+	switch value {
+	case "not_in_use", "linear", "exponential", "tshirt":
+		return true
+	default:
+		return false
+	}
 }
