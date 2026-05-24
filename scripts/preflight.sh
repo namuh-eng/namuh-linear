@@ -310,12 +310,16 @@ if [ "$ALB_ARN" = "None" ] || [ -z "$ALB_ARN" ]; then
   echo "ALB created: $ALB_ARN"
 else
   echo "ALB exists: $ALB_ARN"
+  aws elbv2 set-security-groups --load-balancer-arn "$ALB_ARN" \
+    --security-groups "$ALB_SG" \
+    --region $REGION >/dev/null
 fi
 
 create_target_group() {
   local name="$1"
   local port="$2"
   local health_path="$3"
+  local matcher="${4:-200}"
   local arn
   arn=$(aws elbv2 describe-target-groups --names "$name" --region $REGION \
     --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || true)
@@ -324,19 +328,24 @@ create_target_group() {
       --protocol HTTP --port "$port" --vpc-id $VPC_ID \
       --target-type ip \
       --health-check-path "$health_path" \
+      --matcher "HttpCode=$matcher" \
       --health-check-interval-seconds 30 \
       --region $REGION \
       --query 'TargetGroups[0].TargetGroupArn' --output text)
     echo "Target group created: $name ($arn)" >&2
   else
     echo "Target group exists: $name ($arn)" >&2
+    aws elbv2 modify-target-group --target-group-arn "$arn" \
+      --health-check-path "$health_path" \
+      --matcher "HttpCode=$matcher" \
+      --region $REGION >/dev/null
   fi
   printf '%s' "$arn"
 }
 
-WEB_TG_ARN=$(create_target_group "${APP_NAME}-web-tg" 3000 "/")
-API_TG_ARN=$(create_target_group "${APP_NAME}-api-tg" 3016 "/healthz")
-KRATOS_TG_ARN=$(create_target_group "${APP_NAME}-kratos-tg" 4433 "/health/ready")
+WEB_TG_ARN=$(create_target_group "${APP_NAME}-web-tg" 3000 "/" "200-399")
+API_TG_ARN=$(create_target_group "${APP_NAME}-api-tg" 3016 "/healthz" "200")
+KRATOS_TG_ARN=$(create_target_group "${APP_NAME}-kratos-tg" 4433 "/health/ready" "200")
 
 # HTTP listener: default web, /api/* to Go API, /auth/* to Kratos.
 LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn $ALB_ARN --region $REGION \
