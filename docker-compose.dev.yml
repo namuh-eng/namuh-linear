@@ -35,8 +35,18 @@ services:
       retries: 5
       start_period: 5s
 
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+
   kratos-migrate:
     image: oryd/kratos:v1.3.1
+    environment:
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dev-google-client-id}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dev-google-client-secret}
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,9 +56,14 @@ services:
 
   kratos:
     image: oryd/kratos:v1.3.1
+    environment:
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dev-google-client-id}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dev-google-client-secret}
     depends_on:
       kratos-migrate:
         condition: service_completed_successfully
+      mailhog:
+        condition: service_started
     ports:
       - "4433:4433"
       - "4434:4434"

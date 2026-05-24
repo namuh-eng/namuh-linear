@@ -22,7 +22,17 @@ selfservice:
     link:
       enabled: true
     oidc:
-      enabled: false
+      enabled: true
+      config:
+        providers:
+          - id: google
+            provider: google
+            client_id: ${GOOGLE_CLIENT_ID}
+            client_secret: ${GOOGLE_CLIENT_SECRET}
+            mapper_url: file:///etc/config/kratos/oidc.google.jsonnet
+            scope:
+              - email
+              - profile
   flows:
     error:
       ui_url: http://localhost:3015/login
@@ -63,4 +73,4 @@ identity:
 
 courier:
   smtp:
-    connection_uri: smtps://test:test@mailhog:1025/?skip_ssl_verify=true
+    connection_uri: smtp://test:test@mailhog:1025/?disable_starttls=true
