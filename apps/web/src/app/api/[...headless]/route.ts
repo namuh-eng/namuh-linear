@@ -29,7 +29,8 @@ function publicHeadlessPath(path: string) {
   return (
     path === "auth/provider-capabilities" ||
     path === "auth/saml/discovery" ||
-    path === "oauth/token"
+    path === "oauth/token" ||
+    path === "test/create-session"
   );
 }
 

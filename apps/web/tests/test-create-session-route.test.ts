@@ -79,7 +79,7 @@ describe("test create session route", () => {
   });
 
   it("returns 200 and session when in test mode", async () => {
-    const { POST } = await import("@/app/api/test/create-session/route");
+    const { POST } = await import("@/legacy-api/test/create-session/route");
 
     const response = await POST(
       new Request("http://localhost", {
@@ -114,7 +114,7 @@ describe("test create session route", () => {
         code: "ECONNREFUSED",
       });
     });
-    const { POST } = await import("@/app/api/test/create-session/route");
+    const { POST } = await import("@/legacy-api/test/create-session/route");
 
     const response = await POST(
       new Request("http://localhost", {
@@ -135,7 +135,7 @@ describe("test create session route", () => {
         code: "42P01",
       });
     });
-    const { POST } = await import("@/app/api/test/create-session/route");
+    const { POST } = await import("@/legacy-api/test/create-session/route");
 
     const response = await POST(
       new Request("http://localhost", {
