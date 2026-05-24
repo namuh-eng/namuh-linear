@@ -56,15 +56,23 @@ type createRequest struct {
 	Title              string   `json:"title"`
 	Description        *string  `json:"description"`
 	TeamID             string   `json:"team_id"`
+	TeamIDCamel        string   `json:"teamId"`
 	StateID            *string  `json:"state_id"`
+	StateIDCamel       *string  `json:"stateId"`
 	Priority           *string  `json:"priority"`
 	AssigneeID         *string  `json:"assignee_id"`
+	AssigneeIDCamel    *string  `json:"assigneeId"`
 	ProjectID          *string  `json:"project_id"`
+	ProjectIDCamel     *string  `json:"projectId"`
 	ProjectMilestoneID *string  `json:"project_milestone_id"`
+	MilestoneIDCamel   *string  `json:"projectMilestoneId"`
 	CycleID            *string  `json:"cycle_id"`
+	CycleIDCamel       *string  `json:"cycleId"`
 	ParentIssueID      *string  `json:"parent_issue_id"`
+	ParentIssueIDCamel *string  `json:"parentIssueId"`
 	Estimate           *float32 `json:"estimate"`
 	DueDate            *string  `json:"due_date"`
+	DueDateCamel       *string  `json:"dueDate"`
 }
 
 type updateRequest struct {
@@ -81,6 +89,33 @@ type updateRequest struct {
 	DueDate            *string  `json:"due_date"`
 	SortOrder          *float32 `json:"sort_order"`
 	Archive            *bool    `json:"archive"`
+}
+
+func (r *createRequest) normalize() {
+	if r.TeamID == "" {
+		r.TeamID = r.TeamIDCamel
+	}
+	if r.StateID == nil {
+		r.StateID = r.StateIDCamel
+	}
+	if r.AssigneeID == nil {
+		r.AssigneeID = r.AssigneeIDCamel
+	}
+	if r.ProjectID == nil {
+		r.ProjectID = r.ProjectIDCamel
+	}
+	if r.ProjectMilestoneID == nil {
+		r.ProjectMilestoneID = r.MilestoneIDCamel
+	}
+	if r.CycleID == nil {
+		r.CycleID = r.CycleIDCamel
+	}
+	if r.ParentIssueID == nil {
+		r.ParentIssueID = r.ParentIssueIDCamel
+	}
+	if r.DueDate == nil {
+		r.DueDate = r.DueDateCamel
+	}
 }
 
 type SearchResult struct {
@@ -330,6 +365,7 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, http.StatusBadRequest, "Invalid JSON", err.Error())
 		return
 	}
+	input.normalize()
 	input.Title = strings.TrimSpace(input.Title)
 	if input.Title == "" || input.TeamID == "" {
 		problem.Write(w, http.StatusBadRequest, "Invalid issue", "title and team_id are required")
@@ -383,7 +419,7 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 	issue, err := scanIssue(tx.QueryRow(r.Context(), `
 		insert into issue (number, identifier, title, description, team_id, state_id, assignee_id, creator_id, priority, estimate, parent_issue_id, project_id, project_milestone_id, cycle_id, due_date)
 		values ($1,$2,$3,$4,$5::uuid,$6::uuid,$7,$8,$9,$10,$11::uuid,$12::uuid,$13::uuid,$14::uuid,$15)
-		returning `+issueColumns(), nextNumber, identifier, input.Title, input.Description, input.TeamID, stateID, input.AssigneeID, p.UserID, priority, input.Estimate, input.ParentIssueID, input.ProjectID, input.ProjectMilestoneID, input.CycleID, dueDate))
+		returning `+issueReturningColumns(), nextNumber, identifier, input.Title, input.Description, input.TeamID, stateID, input.AssigneeID, p.UserID, priority, input.Estimate, input.ParentIssueID, input.ProjectID, input.ProjectMilestoneID, input.CycleID, dueDate))
 	if err != nil {
 		problem.Write(w, 500, "Create issue failed", err.Error())
 		return
@@ -493,7 +529,7 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = tx.Rollback(r.Context()) }()
 	args = append(args, existing.ID)
-	updated, err := scanIssue(tx.QueryRow(r.Context(), `update issue set `+strings.Join(sets, ", ")+fmt.Sprintf(" where id = $%d::uuid returning ", len(args))+issueColumns(), args...))
+	updated, err := scanIssue(tx.QueryRow(r.Context(), `update issue set `+strings.Join(sets, ", ")+fmt.Sprintf(" where id = $%d::uuid returning ", len(args))+issueReturningColumns(), args...))
 	if err != nil {
 		problem.Write(w, 500, "Update issue failed", err.Error())
 		return
@@ -557,7 +593,15 @@ func (h Handler) findIssue(ctx context.Context, id string, workspaceID string) (
 }
 
 func issueColumns() string {
-	return `i.id::text, i.number, i.identifier, i.title, i.description, i.team_id::text, i.state_id::text, i.assignee_id, i.creator_id, i.priority::text, i.estimate, i.parent_issue_id::text, i.project_id::text, i.project_milestone_id::text, i.cycle_id::text, i.due_date, i.sort_order, i.created_at, i.updated_at, i.archived_at, i.canceled_at, i.completed_at`
+	return issueColumnsWithPrefix("i.")
+}
+
+func issueReturningColumns() string {
+	return issueColumnsWithPrefix("")
+}
+
+func issueColumnsWithPrefix(prefix string) string {
+	return prefix + `id::text, ` + prefix + `number, ` + prefix + `identifier, ` + prefix + `title, ` + prefix + `description, ` + prefix + `team_id::text, ` + prefix + `state_id::text, ` + prefix + `assignee_id, ` + prefix + `creator_id, ` + prefix + `priority::text, ` + prefix + `estimate, ` + prefix + `parent_issue_id::text, ` + prefix + `project_id::text, ` + prefix + `project_milestone_id::text, ` + prefix + `cycle_id::text, ` + prefix + `due_date, ` + prefix + `sort_order, ` + prefix + `created_at, ` + prefix + `updated_at, ` + prefix + `archived_at, ` + prefix + `canceled_at, ` + prefix + `completed_at`
 }
 
 type rowScanner interface{ Scan(dest ...any) error }
