@@ -37,6 +37,12 @@ interface ProjectData {
   createdAt: string;
 }
 
+type ApiProjectData = Partial<Omit<ProjectData, "progress">> & {
+  progress?: number | { percentage?: number | null } | null;
+  target_date?: string | null;
+  created_at?: string;
+};
+
 type ProjectStatus = ProjectData["status"];
 type StatusFilter =
   | "all"
@@ -122,7 +128,7 @@ export function ProjectsPage({
       const res = await fetch("/api/projects");
       if (res.ok) {
         const data = await res.json();
-        setProjects(data.projects ?? []);
+        setProjects((data.projects ?? []).map(normalizeProjectData));
         const [labelsRes, templatesRes] = await Promise.all([
           fetch("/api/project-labels"),
           fetch("/api/project-templates"),
@@ -610,4 +616,31 @@ export function ProjectsPage({
       </div>
     </div>
   );
+}
+
+function normalizeProjectData(project: ApiProjectData): ProjectData {
+  const progress =
+    typeof project.progress === "number"
+      ? project.progress
+      : (project.progress?.percentage ?? 0);
+
+  return {
+    id: project.id ?? "",
+    name: project.name ?? "Untitled project",
+    icon: project.icon ?? null,
+    slug: project.slug ?? "",
+    status: project.status ?? "planned",
+    statusLabel: project.statusLabel,
+    statusColor: project.statusColor,
+    statusIcon: project.statusIcon,
+    priority: project.priority ?? "none",
+    health: project.health ?? "unknown",
+    lead: project.lead ?? null,
+    teams: project.teams ?? [],
+    labels: project.labels ?? [],
+    targetDate: project.targetDate ?? project.target_date ?? null,
+    progress,
+    createdAt:
+      project.createdAt ?? project.created_at ?? new Date(0).toISOString(),
+  };
 }
