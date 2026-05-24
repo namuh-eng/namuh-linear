@@ -1809,6 +1809,72 @@ export interface paths {
     patch: operations["updateWorkspaceMemberOrInvitation"];
     trace?: never;
   };
+  "/workspaces/current/import-export": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["getCurrentWorkspaceImportExport"];
+    put?: never;
+    post: operations["mutateCurrentWorkspaceImportExport"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/workspaces/current/import-export/exports/{id}/download": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    get: operations["downloadCurrentWorkspaceExport"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/workspaces/exports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listWorkspaceExports"];
+    put?: never;
+    post: operations["createWorkspaceExport"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/workspaces/imports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["listWorkspaceImports"];
+    put?: never;
+    post: operations["createWorkspaceImport"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/workspaces/imports/preview": {
     parameters: {
       query?: never;
@@ -3253,6 +3319,83 @@ export interface components {
       }[];
     } & {
       [key: string]: unknown;
+    };
+    WorkspaceImportExportJob: {
+      id: string;
+      /** @enum {string} */
+      type?: "import" | "export";
+      /** @enum {string} */
+      provider?: "csv" | "github" | "jira";
+      status: string;
+      createdAt: string;
+      completedAt?: string;
+      fileName?: string;
+      message?: string;
+      rowCount?: number;
+      importedCount?: number;
+      errorCount?: number;
+      downloadUrl?: string;
+      counts?: {
+        [key: string]: number;
+      };
+    } & {
+      [key: string]: unknown;
+    };
+    WorkspaceImportExportResponse: {
+      workspace: {
+        /** Format: uuid */
+        id: string;
+        name: string;
+        urlSlug: string;
+      };
+      capabilities: {
+        canExport: boolean;
+        canImportCsv: boolean;
+        canConfigureProviders: boolean;
+      };
+      teams: {
+        [key: string]: unknown;
+      }[];
+      imports: components["schemas"]["WorkspaceImportExportJob"][];
+      exports: components["schemas"]["WorkspaceImportExportJob"][];
+    };
+    WorkspaceImportExportActionRequest: {
+      /** @enum {string} */
+      action:
+        | "request_export"
+        | "preview_csv"
+        | "start_csv_import"
+        | "prepare_provider";
+      fileName?: string;
+      csv?: string;
+      /** @enum {string} */
+      provider?: "github" | "jira";
+      /** Format: uuid */
+      defaultTeamId?: string;
+      mapping?: {
+        [key: string]: unknown;
+      };
+    } & {
+      [key: string]: unknown;
+    };
+    WorkspaceExportsResponse: {
+      export: components["schemas"]["WorkspaceImportExportJob"];
+      exports: components["schemas"]["WorkspaceImportExportJob"][];
+    };
+    WorkspaceImportsResponse: {
+      imports: components["schemas"]["WorkspaceImportExportJob"][];
+      teams: {
+        [key: string]: unknown;
+      }[];
+    };
+    CreateWorkspaceImportRequest: {
+      csv: string;
+      /** Format: uuid */
+      teamId: string;
+      fileName?: string;
+      mapping: {
+        [key: string]: unknown;
+      };
     };
     WorkspaceImportPreviewRequest: {
       csv: string;
@@ -8525,6 +8668,185 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SuccessResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  getCurrentWorkspaceImportExport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current workspace import/export state */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceImportExportResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  mutateCurrentWorkspaceImportExport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["WorkspaceImportExportActionRequest"];
+      };
+    };
+    responses: {
+      /** @description Import/export action result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Import/export job created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  downloadCurrentWorkspaceExport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Workspace export artifact */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listWorkspaceExports: {
+    parameters: {
+      query?: {
+        id?: string;
+        download?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Workspace exports or export artifact download */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createWorkspaceExport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Workspace export created */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceExportsResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  listWorkspaceImports: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Workspace import jobs and teams */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceImportsResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  createWorkspaceImport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateWorkspaceImportRequest"];
+      };
+    };
+    responses: {
+      /** @description Workspace import completed */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            import: components["schemas"]["WorkspaceImportExportJob"];
+          };
         };
       };
       default: components["responses"]["Problem"];

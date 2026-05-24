@@ -2,6 +2,11 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { issue, member, team, workflowState, workspace } from "@/lib/db/schema";
+import {
+  createHeadlessWorkspacesClient,
+  headlessWorkspacesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { insertIssueHistoryEvent } from "@/lib/issue-history";
 import { isWorkspaceAdminRole } from "@/lib/workspace-permissions";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -87,6 +92,20 @@ export async function GET() {
       { error: "Workspace admin access required" },
       { status: 403 },
     );
+  if (headlessWorkspacesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: ws.id,
+    });
+    const client = createHeadlessWorkspacesClient(token);
+    const { data, error, response } = await client.GET("/workspaces/imports");
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const teams = await db
     .select({ id: team.id, name: team.name, key: team.key })
     .from(team)
@@ -130,6 +149,22 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   const body = await request.json();
+  if (headlessWorkspacesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: ws.id,
+    });
+    const client = createHeadlessWorkspacesClient(token);
+    const { data, error, response } = await client.POST("/workspaces/imports", {
+      body: body as never,
+    });
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const mapping = asRecord(body.mapping) as Mapping;
   const rows = parseCsv(String(body.csv ?? ""));
   const teamId = String(body.teamId ?? "");

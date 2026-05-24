@@ -11,6 +11,11 @@ import {
   workflowState,
   workspace,
 } from "@/lib/db/schema";
+import {
+  createHeadlessWorkspacesClient,
+  headlessWorkspacesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { isWorkspaceAdminRole } from "@/lib/workspace-permissions";
 import { and, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -77,6 +82,36 @@ export async function GET(request: Request) {
       { status: 403 },
     );
   const url = new URL(request.url);
+  if (headlessWorkspacesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: ws.id,
+    });
+    const client = createHeadlessWorkspacesClient(token);
+    const { data, error, response } = await client.GET("/workspaces/exports", {
+      params: {
+        query: {
+          id: url.searchParams.get("id") ?? undefined,
+          download: url.searchParams.get("download") ?? undefined,
+        },
+      },
+    });
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    if (url.searchParams.get("id") && url.searchParams.get("download")) {
+      return new Response(JSON.stringify(data, null, 2), {
+        status: (response as Response).status,
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Disposition": `attachment; filename="${ws.urlSlug}-export-${url.searchParams.get("id")}.json"`,
+        },
+      });
+    }
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const all = jobs(ws.settings);
   const id = url.searchParams.get("id");
   if (id && url.searchParams.get("download")) {
@@ -106,6 +141,20 @@ export async function POST() {
       { error: "Workspace admin access required" },
       { status: 403 },
     );
+  if (headlessWorkspacesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: ws.id,
+    });
+    const client = createHeadlessWorkspacesClient(token);
+    const { data, error, response } = await client.POST("/workspaces/exports");
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const teams = await db.select().from(team).where(eq(team.workspaceId, ws.id));
   const teamIds = teams.map((t) => t.id);
   const [states, labels, projects, members, users, issues] = await Promise.all([

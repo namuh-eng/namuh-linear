@@ -2959,6 +2959,124 @@ paths:
                 $ref: '#/components/schemas/SuccessResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /workspaces/current/import-export:
+    get:
+      operationId: getCurrentWorkspaceImportExport
+      responses:
+        '200':
+          description: Current workspace import/export state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceImportExportResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: mutateCurrentWorkspaceImportExport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceImportExportActionRequest'
+      responses:
+        '200':
+          description: Import/export action result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '201':
+          description: Import/export job created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/Problem'
+  /workspaces/current/import-export/exports/{id}/download:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: downloadCurrentWorkspaceExport
+      responses:
+        '200':
+          description: Workspace export artifact
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/Problem'
+  /workspaces/exports:
+    get:
+      operationId: listWorkspaceExports
+      parameters:
+        - name: id
+          in: query
+          schema: { type: string }
+        - name: download
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Workspace exports or export artifact download
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createWorkspaceExport
+      responses:
+        '200':
+          description: Workspace export created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceExportsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /workspaces/imports:
+    get:
+      operationId: listWorkspaceImports
+      responses:
+        '200':
+          description: Workspace import jobs and teams
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceImportsResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      operationId: createWorkspaceImport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkspaceImportRequest'
+      responses:
+        '200':
+          description: Workspace import completed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [import]
+                properties:
+                  import: { $ref: '#/components/schemas/WorkspaceImportExportJob' }
+        default:
+          $ref: '#/components/responses/Problem'
   /workspaces/imports/preview:
     post:
       operationId: previewWorkspaceImport
@@ -4699,6 +4817,100 @@ components:
           items:
             type: object
             additionalProperties: true
+    WorkspaceImportExportJob:
+      type: object
+      required: [id, status, createdAt]
+      additionalProperties: true
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [import, export] }
+        provider: { type: string, enum: [csv, github, jira] }
+        status: { type: string }
+        createdAt: { type: string }
+        completedAt: { type: string }
+        fileName: { type: string }
+        message: { type: string }
+        rowCount: { type: integer }
+        importedCount: { type: integer }
+        errorCount: { type: integer }
+        downloadUrl: { type: string }
+        counts:
+          type: object
+          additionalProperties: { type: integer }
+    WorkspaceImportExportResponse:
+      type: object
+      required: [workspace, capabilities, teams, imports, exports]
+      properties:
+        workspace:
+          type: object
+          required: [id, name, urlSlug]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            urlSlug: { type: string }
+        capabilities:
+          type: object
+          required: [canExport, canImportCsv, canConfigureProviders]
+          properties:
+            canExport: { type: boolean }
+            canImportCsv: { type: boolean }
+            canConfigureProviders: { type: boolean }
+        teams:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        imports:
+          type: array
+          items: { $ref: '#/components/schemas/WorkspaceImportExportJob' }
+        exports:
+          type: array
+          items: { $ref: '#/components/schemas/WorkspaceImportExportJob' }
+    WorkspaceImportExportActionRequest:
+      type: object
+      required: [action]
+      additionalProperties: true
+      properties:
+        action:
+          type: string
+          enum: [request_export, preview_csv, start_csv_import, prepare_provider]
+        fileName: { type: string }
+        csv: { type: string }
+        provider: { type: string, enum: [github, jira] }
+        defaultTeamId: { type: string, format: uuid }
+        mapping:
+          type: object
+          additionalProperties: true
+    WorkspaceExportsResponse:
+      type: object
+      required: [export, exports]
+      properties:
+        export: { $ref: '#/components/schemas/WorkspaceImportExportJob' }
+        exports:
+          type: array
+          items: { $ref: '#/components/schemas/WorkspaceImportExportJob' }
+    WorkspaceImportsResponse:
+      type: object
+      required: [imports, teams]
+      properties:
+        imports:
+          type: array
+          items: { $ref: '#/components/schemas/WorkspaceImportExportJob' }
+        teams:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    CreateWorkspaceImportRequest:
+      type: object
+      required: [csv, teamId, mapping]
+      properties:
+        csv: { type: string }
+        teamId: { type: string, format: uuid }
+        fileName: { type: string }
+        mapping:
+          type: object
+          additionalProperties: true
     WorkspaceImportPreviewRequest:
       type: object
       required: [csv, teamId, mapping]

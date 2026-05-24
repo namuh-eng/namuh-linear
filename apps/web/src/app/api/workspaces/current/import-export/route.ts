@@ -14,6 +14,11 @@ import {
   workspace,
 } from "@/lib/db/schema";
 import {
+  createHeadlessWorkspacesClient,
+  headlessWorkspacesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
+import {
   type CsvMapping,
   type ImportExportJobSummary,
   type ImportProvider,
@@ -254,6 +259,22 @@ export async function GET(request: Request) {
   const currentWorkspace = gate.workspace;
   if (!currentWorkspace) return jsonError("No active workspace found", 404);
 
+  if (headlessWorkspacesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: gate.session.user.id,
+      workspaceId: currentWorkspace.id,
+    });
+    const client = createHeadlessWorkspacesClient(token);
+    const { data, error, response } = await client.GET(
+      "/workspaces/current/import-export",
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
+
   const teams = await listWorkspaceTeams(currentWorkspace.id);
   const state = readImportExportState(currentWorkspace.settings);
   return NextResponse.json({
@@ -286,6 +307,23 @@ export async function POST(request: Request) {
     .catch(() => null)) as ImportExportBody | null;
   if (!body || typeof body.action !== "string")
     return jsonError("Invalid import/export request", 400);
+
+  if (headlessWorkspacesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: currentWorkspace.id,
+    });
+    const client = createHeadlessWorkspacesClient(token);
+    const { data, error, response } = await client.POST(
+      "/workspaces/current/import-export",
+      { body: body as never },
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return NextResponse.json(data, { status: (response as Response).status });
+  }
 
   if (body.action === "request_export") {
     const artifact = await buildExportArtifact(currentWorkspace);

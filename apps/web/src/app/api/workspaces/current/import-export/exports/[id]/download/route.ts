@@ -2,6 +2,11 @@ import { resolveRequestWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { member, workspace } from "@/lib/db/schema";
+import {
+  createHeadlessWorkspacesClient,
+  headlessWorkspacesEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { readImportExportState } from "@/lib/import-export";
 import { isWorkspaceAdminRole } from "@/lib/workspace-permissions";
 import { and, eq } from "drizzle-orm";
@@ -52,6 +57,29 @@ export async function GET(
   }
 
   const { id } = await params;
+  if (headlessWorkspacesEnabled()) {
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId: currentWorkspace.id,
+    });
+    const client = createHeadlessWorkspacesClient(token);
+    const { data, error, response } = await client.GET(
+      "/workspaces/current/import-export/exports/{id}/download",
+      { params: { path: { id } } },
+    );
+    if (error)
+      return NextResponse.json(error, {
+        status: (response as Response).status,
+      });
+    return new Response(JSON.stringify(data, null, 2), {
+      status: (response as Response).status,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "content-disposition": `attachment; filename="${currentWorkspace.urlSlug}-workspace-export-${id}.json"`,
+      },
+    });
+  }
+
   const state = readImportExportState(currentWorkspace.settings);
   const artifact = state.artifacts[id];
   const job = state.exports.find((candidate) => candidate.id === id);
