@@ -252,7 +252,7 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = tx.Rollback(r.Context()) }()
-	created, err := scanInitiative(tx.QueryRow(r.Context(), `insert into initiative (name, description, status, health, start_date, target_date, timeframe, owner_id, parent_initiative_id, workspace_id) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::uuid) returning `+initiativeColumns(), name, desc, status, health, start, target, timeframe, ownerID, parentID, p.WorkspaceID))
+	created, err := scanInitiative(tx.QueryRow(r.Context(), `insert into initiative (name, description, status, health, start_date, target_date, timeframe, owner_id, parent_initiative_id, workspace_id) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::uuid) returning `+initiativeReturningColumns(), name, desc, status, health, start, target, timeframe, ownerID, parentID, p.WorkspaceID))
 	if err != nil {
 		problem.Write(w, 500, "Create initiative failed", err.Error())
 		return
@@ -672,7 +672,15 @@ func (h Handler) findInitiative(ctx context.Context, workspaceID, id string) (In
 }
 
 func initiativeColumns() string {
-	return `i.id::text, i.name, i.description, i.status::text, i.owner_id, i.start_date, i.target_date, i.timeframe, i.health, coalesce(i.settings, '{}'::jsonb), i.workspace_id::text, i.parent_initiative_id::text, i.created_at, i.updated_at`
+	return initiativeColumnsWithPrefix("i.")
+}
+
+func initiativeReturningColumns() string {
+	return initiativeColumnsWithPrefix("")
+}
+
+func initiativeColumnsWithPrefix(prefix string) string {
+	return prefix + `id::text, ` + prefix + `name, ` + prefix + `description, ` + prefix + `status::text, ` + prefix + `owner_id, ` + prefix + `start_date, ` + prefix + `target_date, ` + prefix + `timeframe, ` + prefix + `health, coalesce(` + prefix + `settings, '{}'::jsonb), ` + prefix + `workspace_id::text, ` + prefix + `parent_initiative_id::text, ` + prefix + `created_at, ` + prefix + `updated_at`
 }
 
 type scanner interface{ Scan(dest ...any) error }

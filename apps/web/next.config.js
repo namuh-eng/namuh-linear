@@ -16,15 +16,15 @@ const nextConfig = {
     }
 
     return {
-      beforeFiles: kratosUrl
-        ? [
-            {
-              source: "/api/auth/kratos/:path*",
-              destination: `${kratosUrl}/:path*`,
-            },
-          ]
-        : [],
-      fallback: [
+      beforeFiles: [
+        ...(kratosUrl
+          ? [
+              {
+                source: "/api/auth/kratos/:path*",
+                destination: `${kratosUrl}/:path*`,
+              },
+            ]
+          : []),
         ...(apiUrl
           ? [
               {
