@@ -8,7 +8,10 @@ const browserClient = readFileSync(
 if (!browserClient.includes('from "@exponential/sdk"')) {
   throw new Error("apps/web browser API client must use @exponential/sdk");
 }
-if (!browserClient.includes('baseUrl: "/api"')) {
+if (
+  !browserClient.includes("baseUrl: browserApiBaseUrl()") ||
+  !browserClient.includes('new URL("/api", window.location.origin)')
+) {
   throw new Error(
     "apps/web browser API client must target the same-origin /api prefix",
   );
@@ -31,6 +34,26 @@ for (const forbidden of [
   if (agentDashboard.includes(forbidden)) {
     throw new Error(
       `AgentDashboard still contains direct agent API fetch: ${forbidden}`,
+    );
+  }
+}
+
+const createWorkspacePage = readFileSync(
+  "apps/web/src/app/create-workspace/page.tsx",
+  "utf8",
+);
+if (!createWorkspacePage.includes("createBrowserApiClient")) {
+  throw new Error(
+    "CreateWorkspacePage must consume the generated SDK browser client",
+  );
+}
+for (const forbidden of [
+  'fetch("/api/workspaces"',
+  "fetch('/api/workspaces'",
+]) {
+  if (createWorkspacePage.includes(forbidden)) {
+    throw new Error(
+      `CreateWorkspacePage still contains direct workspace API fetch: ${forbidden}`,
     );
   }
 }

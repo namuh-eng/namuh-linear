@@ -6,7 +6,10 @@ import type {
   AgentSuggestion,
   AgentSuggestionStatus,
 } from "@/lib/agent-runs";
-import { createBrowserApiClient } from "@/lib/browser-api-client";
+import {
+  apiErrorMessage,
+  createBrowserApiClient,
+} from "@/lib/browser-api-client";
 import { withWorkspaceSlug } from "@/lib/workspace-paths";
 import Link from "next/link";
 import {
@@ -20,16 +23,6 @@ import {
 interface AgentRunsResponse {
   runs: AgentRun[];
   canCreateRuns: boolean;
-}
-
-function apiErrorMessage(error: unknown, fallback: string) {
-  if (error && typeof error === "object") {
-    const record = error as Record<string, unknown>;
-    if (typeof record.error === "string") return record.error;
-    if (typeof record.detail === "string") return record.detail;
-    if (typeof record.title === "string") return record.title;
-  }
-  return fallback;
 }
 
 const apiClient = createBrowserApiClient();

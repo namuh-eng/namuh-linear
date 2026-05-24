@@ -15,6 +15,20 @@ vi.mock("next/navigation", () => ({
 
 import CreateWorkspacePage from "@/app/create-workspace/page";
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function requestPath(input: RequestInfo | URL) {
+  if (input instanceof Request) {
+    return new URL(input.url).pathname;
+  }
+  return new URL(input.toString(), "http://localhost").pathname;
+}
+
 describe("Create Workspace page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -102,14 +116,12 @@ describe("Create Workspace page", () => {
   });
 
   it("submits the form and redirects on success", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          workspace: { id: "ws-1", urlSlug: "test-team" },
-          team: { id: "t-1", key: "TES" },
-        }),
-    });
+    const mockFetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        workspace: { id: "ws-1", urlSlug: "test-team" },
+        team: { id: "t-1", key: "TES" },
+      }),
+    );
     globalThis.fetch = mockFetch;
 
     render(<CreateWorkspacePage />);
@@ -118,12 +130,17 @@ describe("Create Workspace page", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Create workspace" }));
 
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Test Team", urlSlug: "test-team" }),
-      });
+    await waitFor(async () => {
+      expect(mockFetch).toHaveBeenCalled();
+      const [request] = mockFetch.mock.calls[0] as [RequestInfo | URL];
+      expect(requestPath(request)).toBe("/api/workspaces");
+      expect(request instanceof Request ? request.method : "POST").toBe("POST");
+      if (request instanceof Request) {
+        await expect(request.clone().json()).resolves.toEqual({
+          name: "Test Team",
+          urlSlug: "test-team",
+        });
+      }
     });
 
     await waitFor(() => {
@@ -134,10 +151,11 @@ describe("Create Workspace page", () => {
   });
 
   it("displays error message on API failure", async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: () => Promise.resolve({ error: "This URL is already taken" }),
-    });
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ error: "This URL is already taken" }, 409),
+      );
     globalThis.fetch = mockFetch;
 
     render(<CreateWorkspacePage />);
@@ -154,18 +172,15 @@ describe("Create Workspace page", () => {
   it("clears the error message when the user edits the form", async () => {
     const mockFetch = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: false,
-        json: () => Promise.resolve({ error: "This URL is already taken" }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            workspace: { id: "ws-1", urlSlug: "updated-workspace" },
-            team: { id: "t-1", key: "UPD" },
-          }),
-      });
+      .mockResolvedValueOnce(
+        jsonResponse({ error: "This URL is already taken" }, 409),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          workspace: { id: "ws-1", urlSlug: "updated-workspace" },
+          team: { id: "t-1", key: "UPD" },
+        }),
+      );
     globalThis.fetch = mockFetch;
 
     render(<CreateWorkspacePage />);

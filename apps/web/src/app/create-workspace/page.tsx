@@ -1,12 +1,18 @@
 "use client";
 
 import {
+  apiErrorMessage,
+  createBrowserApiClient,
+} from "@/lib/browser-api-client";
+import {
   MAX_WORKSPACE_NAME_LENGTH,
   MAX_WORKSPACE_SLUG_LENGTH,
   sanitizeWorkspaceSlug,
 } from "@/lib/workspace-creation";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+
+const apiClient = createBrowserApiClient();
 
 export default function CreateWorkspacePage() {
   const router = useRouter();
@@ -36,21 +42,17 @@ export default function CreateWorkspacePage() {
     setError("");
 
     try {
-      const res = await fetch("/api/workspaces", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), urlSlug: urlSlug.trim() }),
+      const { data, error } = await apiClient.POST("/workspaces", {
+        body: { name: name.trim(), urlSlug: urlSlug.trim() },
       });
 
-      if (!res.ok) {
-        const data = await res.json();
+      if (error || !data) {
         if (mountedRef.current) {
-          setError(data.error || "Failed to create workspace");
+          setError(apiErrorMessage(error, "Failed to create workspace"));
         }
         return;
       }
 
-      const data = await res.json();
       if (!mountedRef.current) {
         return;
       }
