@@ -382,7 +382,11 @@ func buildTeamIssuesResponse(team teamRecordForSettings, states []teamIssueState
 	}
 	groups := []teamIssueGroup{}
 	for _, state := range states {
-		groups = append(groups, teamIssueGroup{State: state, Issues: byState[state.ID]})
+		stateIssues := byState[state.ID]
+		if stateIssues == nil {
+			stateIssues = []teamIssueItem{}
+		}
+		groups = append(groups, teamIssueGroup{State: state, Issues: stateIssues})
 	}
 	return teamIssuesResponse{Team: teamIssuesTeam{ID: team.ID, Name: team.Name, Key: team.Key}, Groups: groups, FilterOptions: teamIssueFilterOptions{Statuses: stateOptions(states), Assignees: sortedOptions(assignees), Labels: sortedOptions(labelOptions), Projects: sortedOptions(projects), Creators: sortedOptions(creatorOptions), Cycles: sortedOptions(cycleOptions), Estimates: valueOptions(estimates), DueDates: valueOptions(dueDates), Teams: teams, Priorities: priorityIssueOptions()}}
 }

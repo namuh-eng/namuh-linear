@@ -41,7 +41,7 @@ type Initiative struct {
 	Status                    string           `json:"status"`
 	OwnerID                   *string          `json:"ownerId"`
 	Owner                     *UserSummary     `json:"owner,omitempty"`
-	Teams                     []TeamSummary    `json:"teams,omitempty"`
+	Teams                     []TeamSummary    `json:"teams"`
 	StartDate                 *string          `json:"startDate"`
 	TargetDate                *string          `json:"targetDate"`
 	Timeframe                 *string          `json:"timeframe"`
@@ -50,7 +50,7 @@ type Initiative struct {
 	WorkspaceID               string           `json:"workspaceId"`
 	ParentInitiativeID        *string          `json:"parentInitiativeId"`
 	ParentInitiative          *miniInitiative  `json:"parentInitiative,omitempty"`
-	ChildInitiatives          []miniInitiative `json:"childInitiatives,omitempty"`
+	ChildInitiatives          []miniInitiative `json:"childInitiatives"`
 	ProjectCount              int              `json:"projectCount,omitempty"`
 	CompletedProjectCount     int              `json:"completedProjectCount,omitempty"`
 	LatestUpdate              any              `json:"latestUpdate,omitempty"`

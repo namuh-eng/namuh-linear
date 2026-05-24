@@ -182,7 +182,7 @@ func (h Handler) Create(w http.ResponseWriter, r *http.Request) {
 	project, err := scanProject(tx.QueryRow(r.Context(), `
 		insert into project (name, description, icon, slug, status, priority, lead_id, workspace_id, start_date, target_date)
 		values ($1,$2,$3,$4,$5,$6,$7,$8::uuid,$9,$10)
-		returning `+projectColumns(), name, input.Description, truncatePtr(input.Icon, 10), slug, status, priority, input.LeadID, p.WorkspaceID, startDate, targetDate))
+		returning `+projectReturningColumns(), name, input.Description, truncatePtr(input.Icon, 10), slug, status, priority, input.LeadID, p.WorkspaceID, startDate, targetDate))
 	if isUniqueViolation(err) {
 		problem.Write(w, 409, "Project slug already exists", "")
 		return
@@ -300,7 +300,7 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = tx.Rollback(r.Context()) }()
-	updated, err := scanProject(tx.QueryRow(r.Context(), `update project set `+strings.Join(sets, ", ")+fmt.Sprintf(" where id=$%d::uuid returning ", len(args))+projectColumns(), args...))
+	updated, err := scanProject(tx.QueryRow(r.Context(), `update project set `+strings.Join(sets, ", ")+fmt.Sprintf(" where id=$%d::uuid returning ", len(args))+projectReturningColumns(), args...))
 	if isUniqueViolation(err) {
 		problem.Write(w, 409, "Project slug already exists", "")
 		return
@@ -408,7 +408,15 @@ func (h Handler) loadProjects(ctx context.Context, where string, args ...any) ([
 }
 
 func projectColumns() string {
-	return `p.id::text, p.name, p.description, p.icon, p.slug, p.status::text, p.priority::text, p.lead_id, p.workspace_id::text, p.start_date, p.target_date, p.completed_at, p.canceled_at, p.created_at, p.updated_at`
+	return projectColumnsWithPrefix("p.")
+}
+
+func projectReturningColumns() string {
+	return projectColumnsWithPrefix("")
+}
+
+func projectColumnsWithPrefix(prefix string) string {
+	return prefix + `id::text, ` + prefix + `name, ` + prefix + `description, ` + prefix + `icon, ` + prefix + `slug, ` + prefix + `status::text, ` + prefix + `priority::text, ` + prefix + `lead_id, ` + prefix + `workspace_id::text, ` + prefix + `start_date, ` + prefix + `target_date, ` + prefix + `completed_at, ` + prefix + `canceled_at, ` + prefix + `created_at, ` + prefix + `updated_at`
 }
 
 func scanProject(row scanner) (Project, error) {
