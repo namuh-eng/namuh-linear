@@ -122,6 +122,34 @@ function membersResponse(
   };
 }
 
+function membersJsonResponse(
+  members = mockMembers,
+  overrides: Partial<Record<string, unknown>> = {},
+) {
+  return jsonResponse(membersResponse(members, overrides));
+}
+
+async function expectJsonRequest(
+  callIndex: number,
+  path: string,
+  method: string,
+  body: unknown,
+) {
+  const [request, init] = mockFetch.mock.calls[callIndex] as [
+    RequestInfo | URL,
+    RequestInit?,
+  ];
+  expect(requestPath(request)).toBe(path);
+  expect(request instanceof Request ? request.method : init?.method).toBe(
+    method,
+  );
+  if (request instanceof Request) {
+    await expect(request.clone().json()).resolves.toEqual(body);
+  } else {
+    expect(init?.body).toBe(JSON.stringify(body));
+  }
+}
+
 describe("Members Admin Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -133,10 +161,7 @@ describe("Members Admin Page", () => {
   });
 
   it("renders members heading, actions, and table data from the members API", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => membersResponse(),
-    });
+    mockFetch.mockResolvedValueOnce(membersJsonResponse());
 
     render(<MembersPage />);
     await waitForLoaded();
@@ -158,14 +183,13 @@ describe("Members Admin Page", () => {
     expect(screen.getByText("alice@acme.com")).toBeInTheDocument();
     expect(screen.getByText("charlie@acme.com")).toBeInTheDocument();
     expect(screen.getByText("Pending invite")).toBeInTheDocument();
-    expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/members");
+    expect(requestPath(mockFetch.mock.calls[0][0] as RequestInfo | URL)).toBe(
+      "/api/workspaces/members",
+    );
   });
 
   it("labels the pending invitation summary count as invited, not application", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => membersResponse(),
-    });
+    mockFetch.mockResolvedValueOnce(membersJsonResponse());
 
     render(<MembersPage />);
     await waitForLoaded();
@@ -180,14 +204,12 @@ describe("Members Admin Page", () => {
   });
 
   it("uses the members API invite capability for the invite button", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () =>
-        membersResponse(mockMembers, {
-          viewerRole: "member",
-          canInviteMembers: true,
-        }),
-    });
+    mockFetch.mockResolvedValueOnce(
+      membersJsonResponse(mockMembers, {
+        viewerRole: "member",
+        canInviteMembers: true,
+      }),
+    );
 
     render(<MembersPage />);
     await waitForLoaded();
@@ -196,14 +218,12 @@ describe("Members Admin Page", () => {
 
     cleanup();
     mockFetch.mockReset();
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () =>
-        membersResponse(mockMembers, {
-          viewerRole: "admin",
-          canInviteMembers: false,
-        }),
-    });
+    mockFetch.mockResolvedValueOnce(
+      membersJsonResponse(mockMembers, {
+        viewerRole: "admin",
+        canInviteMembers: false,
+      }),
+    );
 
     render(<MembersPage />);
     await waitForLoaded();
@@ -213,35 +233,30 @@ describe("Members Admin Page", () => {
 
   it("opens the invite modal and submits invitations through the API", async () => {
     mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => membersResponse(),
-      })
+      .mockResolvedValueOnce(membersJsonResponse())
       .mockResolvedValueOnce(
         jsonResponse({
           results: [{ email: "new@acme.com", status: "sent" }],
         }),
       )
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () =>
-          membersResponse([
-            ...mockMembers,
-            {
-              id: "invite-2",
-              kind: "invitation",
-              userId: null,
-              name: "Pending invite",
-              email: "new@acme.com",
-              image: null,
-              role: "admin",
-              status: "pending",
-              teams: [],
-              joinedAt: "2026-03-11T00:00:00Z",
-              lastSeenAt: null,
-            },
-          ]),
-      });
+      .mockResolvedValueOnce(
+        membersJsonResponse([
+          ...mockMembers,
+          {
+            id: "invite-2",
+            kind: "invitation",
+            userId: null,
+            name: "Pending invite",
+            email: "new@acme.com",
+            image: null,
+            role: "admin",
+            status: "pending",
+            teams: [],
+            joinedAt: "2026-03-11T00:00:00Z",
+            lastSeenAt: null,
+          },
+        ]),
+      );
 
     render(<MembersPage />);
     await waitForLoaded();
@@ -265,27 +280,10 @@ describe("Members Admin Page", () => {
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledTimes(3);
     });
-    const [request, init] = mockFetch.mock.calls[1] as [
-      RequestInfo | URL,
-      RequestInit?,
-    ];
-    expect(requestPath(request)).toBe("/api/workspaces/invite");
-    expect(request instanceof Request ? request.method : init?.method).toBe(
-      "POST",
-    );
-    if (request instanceof Request) {
-      await expect(request.clone().json()).resolves.toEqual({
-        workspaceId: "workspace-1",
-        invites: [{ email: "new@acme.com", role: "admin" }],
-      });
-    } else {
-      expect(init?.body).toBe(
-        JSON.stringify({
-          workspaceId: "workspace-1",
-          invites: [{ email: "new@acme.com", role: "admin" }],
-        }),
-      );
-    }
+    await expectJsonRequest(1, "/api/workspaces/invite", "POST", {
+      workspaceId: "workspace-1",
+      invites: [{ email: "new@acme.com", role: "admin" }],
+    });
     await waitFor(() => {
       expect(screen.getByText("Sent 1 invitation.")).toBeInTheDocument();
     });
@@ -293,26 +291,18 @@ describe("Members Admin Page", () => {
 
   it("updates member roles through the members API", async () => {
     mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => membersResponse(),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () =>
-          membersResponse([
-            mockMembers[0],
-            {
-              ...mockMembers[1],
-              role: "admin",
-            },
-            mockMembers[2],
-          ]),
-      });
+      .mockResolvedValueOnce(membersJsonResponse())
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
+      .mockResolvedValueOnce(
+        membersJsonResponse([
+          mockMembers[0],
+          {
+            ...mockMembers[1],
+            role: "admin",
+          },
+          mockMembers[2],
+        ]),
+      );
 
     render(<MembersPage />);
     await waitForLoaded();
@@ -324,15 +314,11 @@ describe("Members Admin Page", () => {
       },
     );
 
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/members", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: "m2",
-          kind: "member",
-          role: "admin",
-        }),
+    await waitFor(async () => {
+      await expectJsonRequest(1, "/api/workspaces/members", "PATCH", {
+        id: "m2",
+        kind: "member",
+        role: "admin",
       });
     });
     await waitFor(() => {
@@ -343,32 +329,21 @@ describe("Members Admin Page", () => {
   it("removes active members through the members API", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => membersResponse(),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => membersResponse([mockMembers[0], mockMembers[2]]),
-      });
+      .mockResolvedValueOnce(membersJsonResponse())
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
+      .mockResolvedValueOnce(
+        membersJsonResponse([mockMembers[0], mockMembers[2]]),
+      );
 
     render(<MembersPage />);
     await waitForLoaded();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[1]);
 
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/members", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: "m2",
-          kind: "member",
-        }),
+    await waitFor(async () => {
+      await expectJsonRequest(1, "/api/workspaces/members", "DELETE", {
+        id: "m2",
+        kind: "member",
       });
     });
     await waitFor(() => {
@@ -381,41 +356,24 @@ describe("Members Admin Page", () => {
   it("resends and revokes pending invitations through the members API", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => membersResponse(),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => membersResponse(),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => membersResponse([mockMembers[0], mockMembers[1]]),
-      });
+      .mockResolvedValueOnce(membersJsonResponse())
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
+      .mockResolvedValueOnce(membersJsonResponse())
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
+      .mockResolvedValueOnce(
+        membersJsonResponse([mockMembers[0], mockMembers[1]]),
+      );
 
     render(<MembersPage />);
     await waitForLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: "Resend" }));
 
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/members", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: "invite-1",
-          kind: "invitation",
-          action: "resend",
-        }),
+    await waitFor(async () => {
+      await expectJsonRequest(1, "/api/workspaces/members", "POST", {
+        id: "invite-1",
+        kind: "invitation",
+        action: "resend",
       });
     });
     await waitFor(() => {
@@ -426,14 +384,10 @@ describe("Members Admin Page", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
 
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/members", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: "invite-1",
-          kind: "invitation",
-        }),
+    await waitFor(async () => {
+      await expectJsonRequest(3, "/api/workspaces/members", "DELETE", {
+        id: "invite-1",
+        kind: "invitation",
       });
     });
     await waitFor(() => {
@@ -456,10 +410,7 @@ describe("Members Admin Page", () => {
       return element;
     }) as typeof document.createElement);
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => membersResponse(),
-    });
+    mockFetch.mockResolvedValueOnce(membersJsonResponse());
 
     render(<MembersPage />);
     await waitForLoaded();
@@ -473,10 +424,9 @@ describe("Members Admin Page", () => {
   });
 
   it("shows empty state when no members are returned", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => membersResponse([], { viewerRole: "member" }),
-    });
+    mockFetch.mockResolvedValueOnce(
+      membersJsonResponse([], { viewerRole: "member" }),
+    );
 
     render(<MembersPage />);
     await waitForLoaded();

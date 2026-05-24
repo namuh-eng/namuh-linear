@@ -127,10 +127,12 @@ if (!membersSettingsPage.includes("createBrowserApiClient")) {
 for (const forbidden of [
   'fetch("/api/workspaces/invite"',
   "fetch('/api/workspaces/invite'",
+  'fetch("/api/workspaces/members"',
+  "fetch('/api/workspaces/members'",
 ]) {
   if (membersSettingsPage.includes(forbidden)) {
     throw new Error(
-      `MembersSettingsPage still contains direct workspace invite API fetch: ${forbidden}`,
+      `MembersSettingsPage still contains direct workspace members API fetch: ${forbidden}`,
     );
   }
 }

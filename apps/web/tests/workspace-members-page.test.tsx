@@ -10,6 +10,27 @@ vi.mock("@/components/avatar", () => ({
   ),
 }));
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function requestPath(input: RequestInfo | URL) {
+  if (input instanceof Request) {
+    return new URL(input.url).pathname;
+  }
+  return new URL(input.toString(), "http://localhost").pathname;
+}
+
+async function requestJson(input: RequestInfo | URL, init?: RequestInit) {
+  if (input instanceof Request) {
+    return input.clone().json();
+  }
+  return JSON.parse(`${init?.body ?? "{}"}`) as unknown;
+}
+
 describe("MembersPage component", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
@@ -17,9 +38,13 @@ describe("MembersPage component", () => {
       "confirm",
       vi.fn(() => true),
     );
-    vi.stubGlobal("URL", {
-      createObjectURL: vi.fn(() => "blob:url"),
-      revokeObjectURL: vi.fn(),
+    Object.defineProperty(global.URL, "createObjectURL", {
+      configurable: true,
+      value: vi.fn(() => "blob:url"),
+    });
+    Object.defineProperty(global.URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn(),
     });
   });
 
@@ -75,11 +100,32 @@ describe("MembersPage component", () => {
     ],
   };
 
-  it("renders the members list and summary counts", async () => {
-    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => mockMembersData,
+  function mockMembersApi(data: typeof mockMembersData = mockMembersData) {
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(() =>
+      Promise.resolve(jsonResponse(data)),
+    );
+  }
+
+  async function expectApiCall(method: string, body: unknown) {
+    const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls as [
+      RequestInfo | URL,
+      RequestInit?,
+    ][];
+    const call = [...calls].reverse().find(([input, init]) => {
+      const requestMethod =
+        input instanceof Request ? input.method : init?.method;
+      return (
+        requestPath(input) === "/api/workspaces/members" &&
+        requestMethod === method
+      );
     });
+    expect(call).toBeDefined();
+    const [input, init] = call as [RequestInfo | URL, RequestInit?];
+    await expect(requestJson(input, init)).resolves.toEqual(body);
+  }
+
+  it("renders the members list and summary counts", async () => {
+    mockMembersApi();
 
     render(<MembersPage />);
 
@@ -103,10 +149,7 @@ describe("MembersPage component", () => {
   });
 
   it("opens the invite dialog and adds/removes rows", async () => {
-    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => mockMembersData,
-    });
+    mockMembersApi();
 
     render(<MembersPage />);
     await waitFor(() =>
@@ -138,10 +181,7 @@ describe("MembersPage component", () => {
   });
 
   it("exports members to CSV", async () => {
-    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => mockMembersData,
-    });
+    mockMembersApi();
 
     const clickMock = vi.fn();
     const originalCreateElement = document.createElement.bind(document);
@@ -167,10 +207,7 @@ describe("MembersPage component", () => {
   });
 
   it("updates member role", async () => {
-    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => mockMembersData,
-    });
+    mockMembersApi();
 
     render(<MembersPage />);
     await waitFor(() =>
@@ -180,17 +217,11 @@ describe("MembersPage component", () => {
     const roleSelect = screen.getByLabelText("Role for teammate@example.com");
     await userEvent.selectOptions(roleSelect, "admin");
 
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/workspaces/members",
-      expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({
-          id: "m2",
-          kind: "member",
-          role: "admin",
-        }),
-      }),
-    );
+    await expectApiCall("PATCH", {
+      id: "m2",
+      kind: "member",
+      role: "admin",
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Member role updated.")).toBeDefined();
@@ -198,10 +229,7 @@ describe("MembersPage component", () => {
   });
 
   it("shows member and invitation actions and calls remove/revoke/resend APIs", async () => {
-    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => mockMembersData,
-    });
+    mockMembersApi();
 
     render(<MembersPage />);
     await waitFor(() =>
@@ -209,42 +237,21 @@ describe("MembersPage component", () => {
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Remove" }));
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/workspaces/members",
-      expect.objectContaining({
-        method: "DELETE",
-        body: JSON.stringify({ id: "m2", kind: "member" }),
-      }),
-    );
+    await expectApiCall("DELETE", { id: "m2", kind: "member" });
 
     await userEvent.click(screen.getByRole("button", { name: "Resend" }));
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/workspaces/members",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          id: "m3",
-          kind: "invitation",
-          action: "resend",
-        }),
-      }),
-    );
+    await expectApiCall("POST", {
+      id: "m3",
+      kind: "invitation",
+      action: "resend",
+    });
 
     await userEvent.click(screen.getByRole("button", { name: "Revoke" }));
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/workspaces/members",
-      expect.objectContaining({
-        method: "DELETE",
-        body: JSON.stringify({ id: "m3", kind: "invitation" }),
-      }),
-    );
+    await expectApiCall("DELETE", { id: "m3", kind: "invitation" });
   });
 
   it("shows empty state when no members exist", async () => {
-    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => ({ ...mockMembersData, members: [] }),
-    });
+    mockMembersApi({ ...mockMembersData, members: [] });
 
     render(<MembersPage />);
     await waitFor(() => {

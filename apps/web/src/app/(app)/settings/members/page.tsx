@@ -30,14 +30,6 @@ interface InviteDraft {
   role: Exclude<WorkspaceRole, "owner">;
 }
 
-interface MembersResponse {
-  workspaceId: string;
-  currentUserId: string;
-  viewerRole: WorkspaceRole;
-  canInviteMembers?: boolean;
-  members: MemberData[];
-}
-
 const defaultInvite = (): InviteDraft => ({
   id:
     globalThis.crypto?.randomUUID?.() ??
@@ -98,16 +90,10 @@ export default function MembersPage() {
   ).length;
 
   async function loadMembers() {
-    const response = await fetch("/api/workspaces/members");
-    const data = (await response.json().catch(() => null)) as
-      | MembersResponse
-      | { error?: string }
-      | null;
+    const { data, error } = await apiClient.GET("/workspaces/members");
 
-    if (!response.ok || !data || !("members" in data)) {
-      throw new Error(
-        data && "error" in data ? data.error : "Failed to load members",
-      );
+    if (error || !data) {
+      throw new Error(apiErrorMessage(error, "Failed to load members"));
     }
 
     setWorkspaceId(data.workspaceId);
@@ -117,7 +103,15 @@ export default function MembersPage() {
       data.canInviteMembers ??
         (data.viewerRole === "owner" || data.viewerRole === "admin"),
     );
-    setMembers(data.members);
+    setMembers(
+      data.members.map((memberEntry) => ({
+        ...memberEntry,
+        userId: memberEntry.userId ?? null,
+        image: memberEntry.image ?? null,
+        teams: memberEntry.teams ?? [],
+        lastSeenAt: memberEntry.lastSeenAt ?? null,
+      })),
+    );
   }
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadMembers is a stable effect event used for the initial fetch only
@@ -219,24 +213,19 @@ export default function MembersPage() {
     );
 
     try {
-      const response = await fetch("/api/workspaces/members", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const { error } = await apiClient.PATCH("/workspaces/members", {
+        body: {
           id: memberEntry.id,
           kind: memberEntry.kind,
           role,
-        }),
+        },
       });
-      const data = (await response.json().catch(() => null)) as {
-        error?: string;
-      } | null;
 
-      if (!response.ok) {
+      if (error) {
         setMembers(previousMembers);
-        setErrorMessage(data?.error ?? "Unable to update member role.");
+        setErrorMessage(
+          apiErrorMessage(error, "Unable to update member role."),
+        );
         return;
       }
 
@@ -270,18 +259,15 @@ export default function MembersPage() {
     );
 
     try {
-      const response = await fetch("/api/workspaces/members", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: memberEntry.id, kind: memberEntry.kind }),
+      const { error } = await apiClient.DELETE("/workspaces/members", {
+        body: { id: memberEntry.id, kind: memberEntry.kind },
       });
-      const data = (await response.json().catch(() => null)) as {
-        error?: string;
-      } | null;
 
-      if (!response.ok) {
+      if (error) {
         setMembers(previousMembers);
-        setErrorMessage(data?.error ?? "Unable to update workspace access.");
+        setErrorMessage(
+          apiErrorMessage(error, "Unable to update workspace access."),
+        );
         return;
       }
 
@@ -305,21 +291,16 @@ export default function MembersPage() {
     setStatusMessage(null);
 
     try {
-      const response = await fetch("/api/workspaces/members", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { error } = await apiClient.POST("/workspaces/members", {
+        body: {
           id: memberEntry.id,
           kind: "invitation",
           action: "resend",
-        }),
+        },
       });
-      const data = (await response.json().catch(() => null)) as {
-        error?: string;
-      } | null;
 
-      if (!response.ok) {
-        setErrorMessage(data?.error ?? "Unable to resend invitation.");
+      if (error) {
+        setErrorMessage(apiErrorMessage(error, "Unable to resend invitation."));
         return;
       }
 
