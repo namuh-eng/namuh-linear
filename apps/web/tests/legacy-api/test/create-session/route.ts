@@ -37,7 +37,7 @@ function normalizeSameSite(value: string | undefined) {
 function shouldSetBrowserCookies(request: Request) {
   return (
     process.env.VITEST === "true" ||
-    request.headers.has("sec-fetch-mode") ||
+    request.headers.has("referer") ||
     request.headers.get("x-set-test-session-cookies") === "true"
   );
 }
