@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -291,10 +292,21 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 500, "Update initiative failed", err.Error())
 		return
 	}
-	var input updateRequest
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		problem.Write(w, 400, "Invalid JSON", err.Error())
 		return
+	}
+	var input updateRequest
+	if err := json.Unmarshal(body, &input); err != nil {
+		problem.Write(w, 400, "Invalid JSON", err.Error())
+		return
+	}
+	var rawInput map[string]json.RawMessage
+	_ = json.Unmarshal(body, &rawInput)
+	provided := func(key string) bool {
+		_, ok := rawInput[key]
+		return ok
 	}
 	sets := []string{"updated_at=now()"}
 	args := []any{}
@@ -314,7 +326,7 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 			settingsChanged = true
 		}
 	}
-	if input.Description != nil {
+	if provided("description") {
 		desc := anyStringPtr(input.Description, 0)
 		if ptrVal(desc) != ptrVal(current.Description) {
 			add("description=$%d", desc)
@@ -344,7 +356,7 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 			settingsChanged = true
 		}
 	}
-	if input.Timeframe != nil {
+	if provided("timeframe") {
 		timeframe := anyStringPtr(input.Timeframe, 120)
 		if ptrVal(timeframe) != ptrVal(current.Timeframe) {
 			add("timeframe=$%d", timeframe)
@@ -352,7 +364,7 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 			settingsChanged = true
 		}
 	}
-	if input.StartDate != nil {
+	if provided("startDate") {
 		start, ok, err := parseAnyDate(input.StartDate)
 		if err != nil {
 			problem.Write(w, 400, "Invalid start date", err.Error())
@@ -364,7 +376,7 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 			addActivity(settingsMap, "property_change", "Start date changed", activityActor, actorImage)
 		}
 	}
-	if input.TargetDate != nil {
+	if provided("targetDate") {
 		target, ok, err := parseAnyDate(input.TargetDate)
 		if err != nil {
 			problem.Write(w, 400, "Invalid target date", err.Error())
@@ -376,7 +388,7 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 			addActivity(settingsMap, "property_change", "Target date changed", activityActor, actorImage)
 		}
 	}
-	if input.OwnerID != nil {
+	if provided("ownerId") {
 		ownerID := anyStringPtr(input.OwnerID, 0)
 		if ownerID != nil && !h.userMember(r.Context(), p.WorkspaceID, *ownerID) {
 			problem.Write(w, 404, "Owner not found", "")
@@ -388,7 +400,7 @@ func (h Handler) Update(w http.ResponseWriter, r *http.Request) {
 			addActivity(settingsMap, "property_change", "Owner changed", activityActor, actorImage)
 		}
 	}
-	if input.ParentInitiativeID != nil {
+	if provided("parentInitiativeId") {
 		parentID := anyStringPtr(input.ParentInitiativeID, 0)
 		if parentID != nil {
 			hierarchy, _ := h.hierarchy(r.Context(), p.WorkspaceID)
