@@ -316,17 +316,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for either legacy Better Auth or Ory Kratos session cookies while
-  // the auth migration is running in dual-stack mode.
-  const betterAuthSessionToken =
-    request.cookies.get("better-auth.session_token")?.value ??
-    request.cookies.get("__Secure-better-auth.session_token")?.value;
   const kratosSessionToken =
     request.cookies.get("ory_kratos_session")?.value ??
     request.cookies.get("ory_kratos_continuity")?.value;
-  const sessionToken =
-    betterAuthSessionToken ||
-    (headlessAuthEnabled() ? kratosSessionToken : null);
+  const betterAuthSessionToken =
+    request.cookies.get("better-auth.session_token")?.value ??
+    request.cookies.get("__Secure-better-auth.session_token")?.value;
+  const sessionToken = headlessAuthEnabled()
+    ? kratosSessionToken
+    : betterAuthSessionToken;
 
   if (!sessionToken) {
     const callbackUrl = `${pathname}${search}`;

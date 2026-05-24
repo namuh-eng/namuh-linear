@@ -451,3 +451,42 @@ describe("Auth proxy", () => {
     expect(config.matcher.length).toBeGreaterThan(0);
   });
 });
+
+describe("Auth proxy headless auth mode", () => {
+  it("requires Kratos cookies instead of Better Auth cookies when headless auth is enabled", async () => {
+    vi.resetModules();
+    vi.stubEnv("EXPONENTIAL_HEADLESS_AUTH_PROVIDERS", "true");
+    mockRedirect.mockClear();
+    mockRewrite.mockClear();
+    mockNext.mockClear();
+
+    const { proxy } = await import("@/proxy");
+    const req = createMockRequest("/inbox", {
+      "better-auth.session_token": "legacy-session-token",
+    });
+    await proxy(req as never);
+
+    expect(mockNext).not.toHaveBeenCalled();
+    expect(mockRedirect).toHaveBeenCalled();
+    expect((mockRedirect.mock.calls[0][0] as URL).pathname).toBe("/login");
+    vi.unstubAllEnvs();
+  });
+
+  it("allows Kratos session cookies when headless auth is enabled", async () => {
+    vi.resetModules();
+    vi.stubEnv("EXPONENTIAL_HEADLESS_AUTH_PROVIDERS", "true");
+    mockRedirect.mockClear();
+    mockRewrite.mockClear();
+    mockNext.mockClear();
+
+    const { proxy } = await import("@/proxy");
+    const req = createMockRequest("/inbox", {
+      ory_kratos_session: "kratos-session-token",
+    });
+    await proxy(req as never);
+
+    expect(mockRedirect).not.toHaveBeenCalled();
+    expect(mockNext).toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+});

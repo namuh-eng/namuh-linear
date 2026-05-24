@@ -189,10 +189,12 @@ async function validateKratosSession(
 
 export async function requireApiSession() {
   const requestHeaders = await headers();
-  const session = await auth.api.getSession({ headers: requestHeaders });
 
-  if (session) {
-    return { response: null, session: session as ApiSession };
+  if (!headlessAuthEnabled()) {
+    const session = await auth.api.getSession({ headers: requestHeaders });
+    if (session) {
+      return { response: null, session: session as ApiSession };
+    }
   }
 
   const kratosSession = await validateKratosSession(requestHeaders);
