@@ -115,4 +115,24 @@ for (const forbidden of [
   }
 }
 
+const membersSettingsPage = readFileSync(
+  "apps/web/src/app/(app)/settings/members/page.tsx",
+  "utf8",
+);
+if (!membersSettingsPage.includes("createBrowserApiClient")) {
+  throw new Error(
+    "MembersSettingsPage must consume the generated SDK browser client",
+  );
+}
+for (const forbidden of [
+  'fetch("/api/workspaces/invite"',
+  "fetch('/api/workspaces/invite'",
+]) {
+  if (membersSettingsPage.includes(forbidden)) {
+    throw new Error(
+      `MembersSettingsPage still contains direct workspace invite API fetch: ${forbidden}`,
+    );
+  }
+}
+
 console.log("Web runtime SDK usage guard passed.");

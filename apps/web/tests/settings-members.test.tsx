@@ -35,6 +35,20 @@ Object.defineProperty(global.URL, "revokeObjectURL", {
   value: revokeObjectURLMock,
 });
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function requestPath(input: RequestInfo | URL) {
+  if (input instanceof Request) {
+    return new URL(input.url).pathname;
+  }
+  return new URL(input.toString(), "http://localhost").pathname;
+}
+
 function waitForLoaded() {
   return waitFor(() => {
     expect(screen.queryByText("Loading...")).not.toBeInTheDocument();
@@ -203,12 +217,11 @@ describe("Members Admin Page", () => {
         ok: true,
         json: async () => membersResponse(),
       })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
+      .mockResolvedValueOnce(
+        jsonResponse({
           results: [{ email: "new@acme.com", status: "sent" }],
         }),
-      })
+      )
       .mockResolvedValueOnce({
         ok: true,
         json: async () =>
@@ -250,15 +263,29 @@ describe("Members Admin Page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send invitations" }));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith("/api/workspaces/invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+    const [request, init] = mockFetch.mock.calls[1] as [
+      RequestInfo | URL,
+      RequestInit?,
+    ];
+    expect(requestPath(request)).toBe("/api/workspaces/invite");
+    expect(request instanceof Request ? request.method : init?.method).toBe(
+      "POST",
+    );
+    if (request instanceof Request) {
+      await expect(request.clone().json()).resolves.toEqual({
+        workspaceId: "workspace-1",
+        invites: [{ email: "new@acme.com", role: "admin" }],
+      });
+    } else {
+      expect(init?.body).toBe(
+        JSON.stringify({
           workspaceId: "workspace-1",
           invites: [{ email: "new@acme.com", role: "admin" }],
         }),
-      });
-    });
+      );
+    }
     await waitFor(() => {
       expect(screen.getByText("Sent 1 invitation.")).toBeInTheDocument();
     });

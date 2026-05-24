@@ -1,6 +1,10 @@
 "use client";
 
 import { Avatar } from "@/components/avatar";
+import {
+  apiErrorMessage,
+  createBrowserApiClient,
+} from "@/lib/browser-api-client";
 import { useEffect, useState } from "react";
 
 type WorkspaceRole = "owner" | "admin" | "member" | "guest";
@@ -41,6 +45,8 @@ const defaultInvite = (): InviteDraft => ({
   email: "",
   role: "member",
 });
+
+const apiClient = createBrowserApiClient();
 
 function formatDate(dateStr: string | null) {
   if (!dateStr) return "—";
@@ -160,32 +166,20 @@ export default function MembersPage() {
     setErrorMessage(null);
 
     try {
-      const response = await fetch("/api/workspaces/invite", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          workspaceId,
+      const { data, error } = await apiClient.POST("/workspaces/invite", {
+        body: {
+          workspaceId: workspaceId ?? undefined,
           invites,
-        }),
+        },
       });
-      const data = (await response.json().catch(() => null)) as {
-        error?: string;
-        results?: {
-          email: string;
-          status: "sent" | "failed";
-          error?: string;
-        }[];
-      } | null;
 
-      if (!response.ok) {
-        setErrorMessage(data?.error ?? "Unable to send invitations.");
+      if (error) {
+        setErrorMessage(apiErrorMessage(error, "Unable to send invitations."));
         return;
       }
 
       const failures =
-        data?.results?.filter((result) => result.status === "failed") ?? [];
+        data.results?.filter((result) => result.status === "failed") ?? [];
       if (failures.length > 0) {
         setErrorMessage(
           failures
