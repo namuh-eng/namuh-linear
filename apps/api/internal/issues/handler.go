@@ -327,6 +327,10 @@ func (h Handler) issueDetail(ctx context.Context, issue Issue, userID string) (m
 	if err != nil {
 		return nil, err
 	}
+	reactions, err := h.issueReactions(ctx, issue.ID, userID)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
 		"id":                   issue.ID,
 		"number":               issue.Number,
@@ -348,7 +352,7 @@ func (h Handler) issueDetail(ctx context.Context, issue Issue, userID string) (m
 		"relations":            []any{},
 		"labels":               labels,
 		"subscription":         subscription,
-		"reactions":            []any{},
+		"reactions":            reactions,
 		"discussionSummary":    map[string]any{"enabled": false, "status": "disabled", "text": nil, "generatedAt": nil, "sourceCommentCount": 0},
 		"comments":             []any{},
 		"subIssues":            subIssues,
@@ -361,6 +365,25 @@ func (h Handler) issueDetail(ctx context.Context, issue Issue, userID string) (m
 		"project_milestone_id": issue.ProjectMilestoneID,
 		"cycle_id":             issue.CycleID,
 	}, nil
+}
+
+func (h Handler) issueReactions(ctx context.Context, issueID, userID string) ([]map[string]any, error) {
+	rows, err := h.DB.Query(ctx, `select emoji, count(*)::int, bool_or(user_id=$2) from issue_reaction where issue_id=$1::uuid group by emoji order by emoji`, issueID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	reactions := []map[string]any{}
+	for rows.Next() {
+		var emoji string
+		var count int32
+		var reactedByMe bool
+		if err := rows.Scan(&emoji, &count, &reactedByMe); err != nil {
+			return nil, err
+		}
+		reactions = append(reactions, map[string]any{"emoji": emoji, "count": count, "reacted": reactedByMe, "reactedByMe": reactedByMe})
+	}
+	return reactions, rows.Err()
 }
 
 func (h Handler) GetSubscription(w http.ResponseWriter, r *http.Request) {

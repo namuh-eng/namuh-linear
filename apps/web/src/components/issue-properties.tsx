@@ -936,7 +936,7 @@ export function IssueProperties({
                       {manageable && (
                         <button
                           type="button"
-                          aria-label={`Remove relation ${relation.issue.identifier}`}
+                          aria-label={`Remove ${relationLabel(type)} relation to ${relation.issue.identifier}`}
                           disabled={removingId === relation.id}
                           onClick={() => void removeRelation(relation.id)}
                           className="text-[12px] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] disabled:opacity-50"

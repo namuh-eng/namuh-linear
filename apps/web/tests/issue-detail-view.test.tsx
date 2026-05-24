@@ -1045,7 +1045,7 @@ describe("IssueDetailView relation management", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Remove relation ENG-3",
+        name: "Remove Duplicate relation to ENG-3",
       }),
     );
 

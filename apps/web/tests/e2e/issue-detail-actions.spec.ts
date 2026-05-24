@@ -262,7 +262,7 @@ test.describe("Issue detail relation management", () => {
 
     await page.getByRole("button", { name: "Add relation" }).nth(2).click();
     await page
-      .getByLabel("Search issue to add Duplicate relation")
+      .getByLabel("Search issues to add Duplicate relation")
       .fill("ENG-180");
     await page.getByRole("button", { name: /ENG-180/ }).click();
 
