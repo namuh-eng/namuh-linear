@@ -1,4 +1,4 @@
-import { POST } from "@/app/api/auth/saml/discovery/route";
+import { POST } from "@/legacy-api/auth/saml/discovery/route";
 import { db } from "@/lib/db";
 import { workspace } from "@/lib/db/schema";
 import { inArray } from "drizzle-orm";

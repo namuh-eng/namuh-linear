@@ -1,5 +1,5 @@
 import { POST as authPOST } from "@/app/api/auth/[...all]/route";
-import { GET as capabilitiesGET } from "@/app/api/auth/provider-capabilities/route";
+import { GET as capabilitiesGET } from "@/legacy-api/auth/provider-capabilities/route";
 import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
