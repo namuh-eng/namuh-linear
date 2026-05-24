@@ -44,18 +44,18 @@ register_service_autoscaling() {
   put_target_tracking_policy "$service" ECSServiceAverageMemoryUtilization "$MEMORY_TARGET"
 }
 
-alarm_actions=()
-if [ -n "$ALARM_TOPIC_ARN" ]; then
-  alarm_actions=(--alarm-actions "$ALARM_TOPIC_ARN")
-fi
-
 put_service_alarm() {
   local service="$1"
   local metric="$2"
   local threshold="$3"
   local comparison="$4"
   local statistic="$5"
+  local alarm_action_args=""
+  if [ -n "$ALARM_TOPIC_ARN" ]; then
+    alarm_action_args="--alarm-actions $ALARM_TOPIC_ARN"
+  fi
 
+  # shellcheck disable=SC2086
   aws cloudwatch put-metric-alarm \
     --alarm-name "${service}-${metric}" \
     --namespace AWS/ECS \
@@ -68,7 +68,7 @@ put_service_alarm() {
     --threshold "$threshold" \
     --comparison-operator "$comparison" \
     --treat-missing-data notBreaching \
-    "${alarm_actions[@]}" \
+    $alarm_action_args \
     --region "$REGION" >/dev/null
 }
 
