@@ -871,6 +871,38 @@ export interface paths {
     patch: operations["snoozeNotification"];
     trace?: never;
   };
+  "/oauth/authorize": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations["authorizeOAuthApplication"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/oauth/token": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations["exchangeOAuthToken"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/personal-access-tokens": {
     parameters: {
       query?: never;
@@ -2521,6 +2553,25 @@ export interface components {
     SnoozeNotificationRequest: {
       /** Format: date-time */
       snoozedUntilAt?: string | null;
+    };
+    OAuthTokenRequest: {
+      /** @enum {string} */
+      grant_type: "authorization_code";
+      code: string;
+      client_id: string;
+      client_secret: string;
+      redirect_uri: string;
+    };
+    OAuthTokenResponse: {
+      access_token: string;
+      refresh_token: string;
+      /** @enum {string} */
+      token_type: "Bearer";
+      expires_in: number;
+      scope: string;
+    };
+    OAuthErrorResponse: {
+      error: string;
     };
     PersonalAccessToken: {
       /** Format: uuid */
@@ -6045,6 +6096,84 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["NotificationActionResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  authorizeOAuthApplication: {
+    parameters: {
+      query: {
+        response_type: "code";
+        client_id: string;
+        redirect_uri: string;
+        state?: string;
+        scope?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Redirects to the OAuth client redirect URI with code or error */
+      302: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description OAuth authorization error */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OAuthErrorResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  exchangeOAuthToken: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OAuthTokenRequest"];
+        "application/x-www-form-urlencoded": components["schemas"]["OAuthTokenRequest"];
+      };
+    };
+    responses: {
+      /** @description OAuth access token */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OAuthTokenResponse"];
+        };
+      };
+      /** @description OAuth token error */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OAuthErrorResponse"];
+        };
+      };
+      /** @description OAuth client authentication failed */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OAuthErrorResponse"];
         };
       };
       default: components["responses"]["Problem"];

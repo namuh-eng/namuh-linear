@@ -1202,6 +1202,73 @@ paths:
                 $ref: '#/components/schemas/NotificationActionResponse'
         default:
           $ref: '#/components/responses/Problem'
+  /oauth/authorize:
+    get:
+      operationId: authorizeOAuthApplication
+      parameters:
+        - name: response_type
+          in: query
+          required: true
+          schema: { type: string, enum: [code] }
+        - name: client_id
+          in: query
+          required: true
+          schema: { type: string }
+        - name: redirect_uri
+          in: query
+          required: true
+          schema: { type: string }
+        - name: state
+          in: query
+          schema: { type: string }
+        - name: scope
+          in: query
+          schema: { type: string }
+      responses:
+        '302':
+          description: Redirects to the OAuth client redirect URI with code or error
+        '400':
+          description: OAuth authorization error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthErrorResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /oauth/token:
+    post:
+      operationId: exchangeOAuthToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthTokenRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OAuthTokenRequest'
+      responses:
+        '200':
+          description: OAuth access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthTokenResponse'
+        '400':
+          description: OAuth token error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthErrorResponse'
+        '401':
+          description: OAuth client authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthErrorResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /personal-access-tokens:
     get:
       operationId: listPersonalAccessTokens
@@ -3874,6 +3941,29 @@ components:
       type: object
       properties:
         snoozedUntilAt: { type: [string, 'null'], format: date-time }
+    OAuthTokenRequest:
+      type: object
+      required: [grant_type, code, client_id, client_secret, redirect_uri]
+      properties:
+        grant_type: { type: string, enum: [authorization_code] }
+        code: { type: string }
+        client_id: { type: string }
+        client_secret: { type: string }
+        redirect_uri: { type: string }
+    OAuthTokenResponse:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in, scope]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer }
+        scope: { type: string }
+    OAuthErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
     PersonalAccessToken:
       type: object
       required: [id, name, token_prefix, scopes, created_at]

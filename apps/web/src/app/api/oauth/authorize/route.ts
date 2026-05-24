@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import {
   asRecord,
@@ -8,7 +9,11 @@ import {
   serializeWorkspaceApiSettings,
 } from "@/lib/api-settings";
 import { db } from "@/lib/db";
-import { authorizedApplicationGrant, workspace } from "@/lib/db/schema";
+import { authorizedApplicationGrant, member, workspace } from "@/lib/db/schema";
+import {
+  headlessAuthProvidersEnabled,
+  mintInternalApiToken,
+} from "@/lib/headless-api";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -43,6 +48,44 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
+
+  if (headlessAuthProvidersEnabled()) {
+    const workspaceId =
+      (await resolveActiveWorkspaceId(session.user.id)) ??
+      (
+        await db
+          .select({ workspaceId: member.workspaceId })
+          .from(member)
+          .where(eq(member.userId, session.user.id))
+          .limit(1)
+      )[0]?.workspaceId;
+    if (!workspaceId) {
+      return NextResponse.json(
+        { error: "No active workspace found" },
+        { status: 404 },
+      );
+    }
+    const token = await mintInternalApiToken({
+      userId: session.user.id,
+      workspaceId,
+    });
+    const upstream = await fetch(
+      `${process.env.EXPONENTIAL_API_URL ?? "http://localhost:3016/v1"}/oauth/authorize?${url.searchParams.toString()}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        redirect: "manual",
+      },
+    );
+    const location = upstream.headers.get("location");
+    if (location && upstream.status >= 300 && upstream.status < 400) {
+      return NextResponse.redirect(location);
+    }
+    const data = await upstream.json().catch(async () => ({
+      error: await upstream.text(),
+    }));
+    return NextResponse.json(data, { status: upstream.status });
+  }
+
   const responseType = url.searchParams.get("response_type");
   const clientId = url.searchParams.get("client_id")?.trim() ?? "";
   const redirectUri = url.searchParams.get("redirect_uri");

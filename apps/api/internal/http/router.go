@@ -58,12 +58,14 @@ func NewRouter(logger *zap.Logger, db *pgxpool.Pool) stdhttp.Handler {
 	})
 
 	authMiddleware := auth.Middleware{DB: db}
+	authProvidersHandler := authproviders.Handler{DB: db}
 	commentsHandler := comments.Handler{DB: db}
 	documentsHandler := documents.Handler{DB: db}
 	labelsHandler := labels.Handler{DB: db}
 	r.Route("/v1", func(v1 chi.Router) {
-		v1.Mount("/auth", authproviders.Handler{DB: db}.Routes())
+		v1.Mount("/auth", authProvidersHandler.Routes())
 		v1.Mount("/inbound", inbound.Handler{DB: db}.Routes())
+		v1.Post("/oauth/token", authProvidersHandler.ExchangeOAuthToken)
 		v1.Group(func(protected chi.Router) {
 			protected.Use(authMiddleware.Require)
 			protected.Post("/issues/{id}/comments", commentsHandler.CreateForIssue)
@@ -86,6 +88,7 @@ func NewRouter(logger *zap.Logger, db *pgxpool.Pool) stdhttp.Handler {
 			protected.Mount("/labels", labelsHandler.Routes())
 			protected.Mount("/my-issues", myissues.Handler{DB: db}.Routes())
 			protected.Mount("/notifications", notifications.Handler{DB: db}.Routes())
+			protected.Get("/oauth/authorize", authProvidersHandler.AuthorizeOAuth)
 			protected.Mount("/project-labels", labelsHandler.ProjectRoutes())
 			protected.Mount("/project-statuses", projectstatuses.Handler{DB: db}.Routes())
 			protected.Mount("/project-templates", projecttemplates.Handler{DB: db}.Routes())

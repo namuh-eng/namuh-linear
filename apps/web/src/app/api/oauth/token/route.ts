@@ -6,6 +6,7 @@ import {
 } from "@/lib/api-settings";
 import { db } from "@/lib/db";
 import { workspace } from "@/lib/db/schema";
+import { headlessAuthProvidersEnabled } from "@/lib/headless-api";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -26,6 +27,24 @@ async function readBody(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (headlessAuthProvidersEnabled()) {
+    const upstream = await fetch(
+      `${process.env.EXPONENTIAL_API_URL ?? "http://localhost:3016/v1"}/oauth/token`,
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            request.headers.get("content-type") ?? "application/json",
+        },
+        body: await request.clone().arrayBuffer(),
+      },
+    );
+    const data = await upstream.json().catch(async () => ({
+      error: await upstream.text(),
+    }));
+    return NextResponse.json(data, { status: upstream.status });
+  }
+
   const body = await readBody(request);
   if (body.grant_type !== "authorization_code") {
     return NextResponse.json(
