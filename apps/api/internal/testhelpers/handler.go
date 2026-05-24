@@ -146,7 +146,9 @@ func (h Handler) CreateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	signed := rawToken + "." + signBetterAuthToken(rawToken, betterAuthSecret())
-	setBrowserSessionCookies(w, r, workspace, signed, expires)
+	if shouldSetBrowserSessionCookies(r) {
+		setBrowserSessionCookies(w, r, workspace, signed, expires)
+	}
 	problem.JSON(w, 200, map[string]any{"success": true, "user": user, "sessionToken": signed, "expiresAt": expires.Format(time.RFC3339Nano), "workspace": workspace, "team": team})
 }
 
@@ -180,6 +182,10 @@ func setBrowserSessionCookies(w http.ResponseWriter, r *http.Request, workspace 
 	} {
 		http.SetCookie(w, cookie)
 	}
+}
+
+func shouldSetBrowserSessionCookies(r *http.Request) bool {
+	return r.Header.Get("X-Set-Test-Session-Cookies") == "true" || strings.TrimSpace(r.Referer()) != ""
 }
 
 func (h Handler) ensureUser(r *http.Request, email, name string) (testUser, error) {
