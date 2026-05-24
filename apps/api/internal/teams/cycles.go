@@ -47,8 +47,23 @@ type cycleTeam struct {
 type cycleRequest struct {
 	Name         *string `json:"name"`
 	StartDate    string  `json:"start_date"`
+	StartDateAlt string  `json:"startDate"`
 	EndDate      string  `json:"end_date"`
+	EndDateAlt   string  `json:"endDate"`
 	AutoRollover *bool   `json:"auto_rollover"`
+	AutoAlt      *bool   `json:"autoRollover"`
+}
+
+func (r *cycleRequest) normalize() {
+	if r.StartDate == "" {
+		r.StartDate = r.StartDateAlt
+	}
+	if r.EndDate == "" {
+		r.EndDate = r.EndDateAlt
+	}
+	if r.AutoRollover == nil {
+		r.AutoRollover = r.AutoAlt
+	}
 }
 
 func (h Handler) ListCycles(w http.ResponseWriter, r *http.Request) {
@@ -86,6 +101,7 @@ func (h Handler) CreateCycle(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 400, "Invalid JSON", err.Error())
 		return
 	}
+	input.normalize()
 	start, end, ok := parseCycleRange(input.StartDate, input.EndDate)
 	if !ok {
 		problem.Write(w, 400, "Start and end dates must use YYYY-MM-DD format", "")
@@ -120,7 +136,7 @@ func (h Handler) CreateCycle(w http.ResponseWriter, r *http.Request) {
 	cycle, err := scanCycle(tx.QueryRow(r.Context(), `
 		insert into cycle (name, number, team_id, start_date, end_date, auto_rollover)
 		values ($1,$2,$3::uuid,$4,$5,$6)
-		returning `+cycleColumns()+`, 0::int, 0::int`, normalizedName(input.Name), nextNumber, team.ID, start, end, auto))
+		returning `+cycleReturningColumns()+`, 0::int, 0::int`, normalizedName(input.Name), nextNumber, team.ID, start, end, auto))
 	if err != nil {
 		problem.Write(w, 500, "Create cycle failed", err.Error())
 		return
@@ -162,6 +178,7 @@ func (h Handler) UpdateCycle(w http.ResponseWriter, r *http.Request) {
 		problem.Write(w, 400, "Invalid JSON", err.Error())
 		return
 	}
+	input.normalize()
 	start, _ := time.Parse(time.RFC3339, existing.StartDate)
 	end, _ := time.Parse(time.RFC3339, existing.EndDate)
 	if strings.TrimSpace(input.StartDate) != "" {
@@ -201,7 +218,7 @@ func (h Handler) UpdateCycle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() { _ = tx.Rollback(r.Context()) }()
-	updated, err := scanCycle(tx.QueryRow(r.Context(), `update cycle set name=$1, start_date=$2, end_date=$3, auto_rollover=$4, updated_at=now() where id=$5::uuid and team_id=$6::uuid returning `+cycleColumns()+`, $7::int, $8::int`, normalizedName(input.Name), start, end, auto, cycleID, team.ID, existing.IssueCount, existing.CompletedIssueCount))
+	updated, err := scanCycle(tx.QueryRow(r.Context(), `update cycle set name=$1, start_date=$2, end_date=$3, auto_rollover=$4, updated_at=now() where id=$5::uuid and team_id=$6::uuid returning `+cycleReturningColumns()+`, $7::int, $8::int`, normalizedName(input.Name), start, end, auto, cycleID, team.ID, existing.IssueCount, existing.CompletedIssueCount))
 	if err != nil {
 		problem.Write(w, 500, "Update cycle failed", err.Error())
 		return
@@ -304,7 +321,15 @@ func (h Handler) cycleOverlaps(ctx context.Context, teamID, excludeID string, st
 }
 
 func cycleColumns() string {
-	return `c.id::text, c.name, c.number, c.team_id::text, c.start_date, c.end_date, coalesce(c.auto_rollover,true), c.created_at, c.updated_at`
+	return cycleColumnsWithPrefix("c.")
+}
+
+func cycleReturningColumns() string {
+	return cycleColumnsWithPrefix("")
+}
+
+func cycleColumnsWithPrefix(prefix string) string {
+	return prefix + `id::text, ` + prefix + `name, ` + prefix + `number, ` + prefix + `team_id::text, ` + prefix + `start_date, ` + prefix + `end_date, coalesce(` + prefix + `auto_rollover,true), ` + prefix + `created_at, ` + prefix + `updated_at`
 }
 
 func scanCycle(row scanner) (Cycle, error) {
