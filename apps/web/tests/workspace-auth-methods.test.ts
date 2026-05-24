@@ -1,4 +1,4 @@
-import { POST as authPOST } from "@/app/api/auth/[...all]/route";
+import { POST as authPOST } from "@/legacy-api/auth/[...all]/route";
 import { GET as capabilitiesGET } from "@/legacy-api/auth/provider-capabilities/route";
 import { db } from "@/lib/db";
 import { member, user, workspace } from "@/lib/db/schema";

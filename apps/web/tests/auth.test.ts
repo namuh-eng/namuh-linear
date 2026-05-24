@@ -155,7 +155,7 @@ describe("Auth configuration", () => {
   });
 
   it("auth API route exports GET and POST handlers", async () => {
-    const route = await import("@/app/api/auth/[...all]/route");
+    const route = await import("@/legacy-api/auth/[...all]/route");
     expect(route.GET).toBeDefined();
     expect(route.POST).toBeDefined();
   });
