@@ -13,6 +13,7 @@ RUN corepack enable
 WORKDIR /workspace
 COPY --from=deps /workspace/node_modules ./node_modules
 COPY --from=deps /workspace/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /workspace/packages/sdk/node_modules ./packages/sdk/node_modules
 COPY . .
 RUN pnpm --filter @exponential/web build
 
