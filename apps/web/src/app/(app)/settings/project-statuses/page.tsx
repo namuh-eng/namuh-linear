@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  apiErrorMessage,
+  createBrowserApiClient,
+} from "@/lib/browser-api-client";
 import { useEffect, useMemo, useState } from "react";
 
 type ProjectStatus = {
@@ -22,18 +26,7 @@ type ProjectStatusesResponse = {
   canManage: boolean;
 };
 
-async function readProjectStatusesError(response: Response) {
-  try {
-    const payload = (await response.json()) as { error?: unknown };
-    if (typeof payload.error === "string" && payload.error.trim()) {
-      return payload.error;
-    }
-  } catch {
-    // Keep the generic fallback when the server does not return JSON.
-  }
-
-  return "Unable to load project statuses.";
-}
+const apiClient = createBrowserApiClient();
 
 function makeDraftStatus(index: number): ProjectStatus {
   const suffix = Date.now().toString(36);
@@ -70,14 +63,16 @@ export default function ProjectStatusesPage() {
       setError(null);
 
       try {
-        const response = await fetch("/api/project-statuses");
-        if (!response.ok) {
-          throw new Error(await readProjectStatusesError(response));
+        const { data: payload, error } =
+          await apiClient.GET("/project-statuses");
+        if (error || !payload) {
+          throw new Error(
+            apiErrorMessage(error, "Unable to load project statuses."),
+          );
         }
 
-        const payload = (await response.json()) as ProjectStatusesResponse;
         if (!canceled) {
-          setData(payload);
+          setData(payload as ProjectStatusesResponse);
           setDraftStatuses(payload.statuses);
         }
       } catch (err) {
@@ -154,16 +149,18 @@ export default function ProjectStatusesPage() {
     setSaveMessage(null);
 
     try {
-      const response = await fetch("/api/project-statuses", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ statuses: draftStatuses }),
-      });
-      if (!response.ok) {
-        throw new Error(await readProjectStatusesError(response));
+      const { data: payload, error } = await apiClient.PATCH(
+        "/project-statuses",
+        {
+          body: { statuses: draftStatuses },
+        },
+      );
+      if (error || !payload) {
+        throw new Error(
+          apiErrorMessage(error, "Unable to save project statuses."),
+        );
       }
-      const payload = (await response.json()) as ProjectStatusesResponse;
-      setData(payload);
+      setData(payload as ProjectStatusesResponse);
       setDraftStatuses(payload.statuses);
       setSaveMessage("Project statuses saved.");
     } catch (err) {

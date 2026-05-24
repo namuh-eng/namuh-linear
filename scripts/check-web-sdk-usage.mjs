@@ -58,4 +58,24 @@ for (const forbidden of [
   }
 }
 
+const projectStatusesPage = readFileSync(
+  "apps/web/src/app/(app)/settings/project-statuses/page.tsx",
+  "utf8",
+);
+if (!projectStatusesPage.includes("createBrowserApiClient")) {
+  throw new Error(
+    "ProjectStatusesPage must consume the generated SDK browser client",
+  );
+}
+for (const forbidden of [
+  'fetch("/api/project-statuses"',
+  "fetch('/api/project-statuses'",
+]) {
+  if (projectStatusesPage.includes(forbidden)) {
+    throw new Error(
+      `ProjectStatusesPage still contains direct project statuses API fetch: ${forbidden}`,
+    );
+  }
+}
+
 console.log("Web runtime SDK usage guard passed.");

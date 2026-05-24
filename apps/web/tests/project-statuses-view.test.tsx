@@ -71,6 +71,20 @@ const statusPayload = {
     "Custom project statuses are configurable in settings; project records still store the default lifecycle values.",
 };
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function requestPath(input: RequestInfo | URL) {
+  if (input instanceof Request) {
+    return new URL(input.url).pathname;
+  }
+  return new URL(input.toString(), "http://localhost").pathname;
+}
+
 describe("ProjectStatusesPage component", () => {
   afterEach(() => {
     cleanup();
@@ -81,7 +95,7 @@ describe("ProjectStatusesPage component", () => {
   it("loads and renders editable lifecycle statuses with workspace counts", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: async () => statusPayload }),
+      vi.fn().mockResolvedValue(jsonResponse(statusPayload)),
     );
 
     render(<ProjectStatusesPage />);
@@ -94,7 +108,10 @@ describe("ProjectStatusesPage component", () => {
       ).not.toBeInTheDocument();
     });
 
-    expect(fetch).toHaveBeenCalledWith("/api/project-statuses");
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    expect(requestPath(fetchMock.mock.calls[0][0])).toBe(
+      "/api/project-statuses",
+    );
     expect(screen.getByText("Project statuses")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Planned")).toBeInTheDocument();
     expect(screen.getByDisplayValue("In progress")).toBeInTheDocument();
@@ -113,22 +130,20 @@ describe("ProjectStatusesPage component", () => {
   it("creates, edits, saves, and renders the persisted custom status", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => statusPayload })
-      .mockImplementationOnce(async (_url, init: RequestInit) => {
-        const body = JSON.parse(`${init.body}`) as {
+      .mockResolvedValueOnce(jsonResponse(statusPayload))
+      .mockImplementationOnce(async (input: RequestInfo | URL) => {
+        const request = input as Request;
+        const body = (await request.clone().json()) as {
           statuses: typeof statusPayload.statuses;
         };
-        return {
-          ok: true,
-          json: async () => ({
-            ...statusPayload,
-            statuses: body.statuses.map((status, position) => ({
-              ...status,
-              position,
-              projectCount: status.projectCount ?? 0,
-            })),
-          }),
-        };
+        return jsonResponse({
+          ...statusPayload,
+          statuses: body.statuses.map((status, position) => ({
+            ...status,
+            position,
+            projectCount: status.projectCount ?? 0,
+          })),
+        });
       });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
@@ -144,12 +159,15 @@ describe("ProjectStatusesPage component", () => {
 
     await waitFor(() => screen.getByText("Project statuses saved."));
 
-    expect(fetchMock).toHaveBeenLastCalledWith(
+    const [lastRequest] = fetchMock.mock.calls.at(-1) ?? [];
+    expect(requestPath(lastRequest as RequestInfo | URL)).toBe(
       "/api/project-statuses",
-      expect.objectContaining({ method: "PATCH" }),
     );
-    const [, init] = fetchMock.mock.calls.at(-1) ?? [];
-    expect(JSON.parse(`${(init as RequestInit).body}`).statuses).toEqual(
+    expect((lastRequest as Request).method).toBe("PATCH");
+    const requestBody = (await (lastRequest as Request).clone().json()) as {
+      statuses: typeof statusPayload.statuses;
+    };
+    expect(requestBody.statuses).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: "Blocked" })]),
     );
     expect(screen.getByDisplayValue("Blocked")).toBeInTheDocument();
@@ -158,9 +176,8 @@ describe("ProjectStatusesPage component", () => {
   it("shows an honest empty-project state while still listing lifecycle statuses", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
+      vi.fn().mockResolvedValue(
+        jsonResponse({
           ...statusPayload,
           totalProjects: 0,
           statuses: statusPayload.statuses.map((status) => ({
@@ -168,7 +185,7 @@ describe("ProjectStatusesPage component", () => {
             projectCount: 0,
           })),
         }),
-      }),
+      ),
     );
 
     render(<ProjectStatusesPage />);
@@ -185,10 +202,11 @@ describe("ProjectStatusesPage component", () => {
   it("hides mutation controls for non-admin users", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ ...statusPayload, canManage: false }),
-      }),
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ ...statusPayload, canManage: false }),
+        ),
     );
 
     render(<ProjectStatusesPage />);
@@ -203,10 +221,7 @@ describe("ProjectStatusesPage component", () => {
   it("shows an API error without rendering stale counts", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        json: async () => ({ error: "Unauthorized" }),
-      }),
+      vi.fn().mockResolvedValue(jsonResponse({ error: "Unauthorized" }, 401)),
     );
 
     render(<ProjectStatusesPage />);
@@ -221,12 +236,7 @@ describe("ProjectStatusesPage component", () => {
   it("falls back to a generic API error when the server body is unreadable", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        json: async () => {
-          throw new Error("not json");
-        },
-      }),
+      vi.fn().mockResolvedValue(new Response("not json", { status: 500 })),
     );
 
     render(<ProjectStatusesPage />);
