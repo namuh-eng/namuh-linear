@@ -56,7 +56,8 @@
         "options": {
           "awslogs-group": "/ecs/exponential-kratos",
           "awslogs-region": "${AWS_REGION}",
-          "awslogs-stream-prefix": "kratos"
+          "awslogs-stream-prefix": "kratos",
+          "awslogs-create-group": "true"
         }
       }
     }

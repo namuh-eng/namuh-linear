@@ -47,4 +47,7 @@ for (const item of required) {
   if (container.logConfiguration?.logDriver !== "awslogs") {
     throw new Error(`${item.file}: missing CloudWatch awslogs config`);
   }
+  if (container.logConfiguration.options?.["awslogs-create-group"] !== "true") {
+    throw new Error(`${item.file}: awslogs must create missing log groups`);
+  }
 }
