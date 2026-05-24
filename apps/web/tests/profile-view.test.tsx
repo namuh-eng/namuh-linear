@@ -18,6 +18,20 @@ vi.mock("next/navigation", () => ({
 
 import ProfilePage from "@/app/(app)/settings/account/profile/page";
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function requestPath(input: RequestInfo | URL) {
+  if (input instanceof Request) {
+    return new URL(input.url).pathname;
+  }
+  return new URL(input.toString(), "http://localhost").pathname;
+}
+
 const mockProfileData = {
   profile: {
     name: "Ashley",
@@ -43,10 +57,9 @@ describe("ProfilePage UI", () => {
   });
 
   it("renders loading state then profile details", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => mockProfileData,
-    } as Response);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse(mockProfileData),
+    );
 
     render(<ProfilePage />);
 
@@ -69,20 +82,19 @@ describe("ProfilePage UI", () => {
   });
 
   it("updates profile information", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
-      if (
-        url.toString().includes("/api/account/profile") &&
-        !url.toString().includes("workspace")
-      ) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            profile: { ...mockProfileData.profile, name: "Ashley Updated" },
-          }),
-        } as Response);
-      }
-      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
-    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation((input) => {
+        if (requestPath(input) === "/api/account/profile") {
+          return Promise.resolve(
+            jsonResponse({
+              ...mockProfileData,
+              profile: { ...mockProfileData.profile, name: "Ashley Updated" },
+            }),
+          );
+        }
+        return Promise.resolve(jsonResponse({}));
+      });
 
     render(<ProfilePage />);
     await screen.findByText("Profile");
@@ -93,34 +105,35 @@ describe("ProfilePage UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/account/profile",
-        expect.objectContaining({
-          method: "PATCH",
-          body: expect.stringContaining('"name":"Ashley Updated"'),
-        }),
+      expect(fetchSpy).toHaveBeenCalled();
+    });
+    const [request] = fetchSpy.mock.calls.find(([input]) => {
+      return (
+        requestPath(input as RequestInfo | URL) === "/api/account/profile" &&
+        input instanceof Request &&
+        input.method === "PATCH"
       );
+    }) as [RequestInfo | URL];
+    expect(request).toBeInstanceOf(Request);
+    await expect((request as Request).clone().json()).resolves.toMatchObject({
+      name: "Ashley Updated",
     });
 
     expect(screen.getByText("Profile updated.")).toBeInTheDocument();
   });
 
   it("opens leave workspace dialog and confirms", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
-      if (url.toString().includes("/api/account/profile/workspace")) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ redirectTo: "/login" }),
-        } as Response);
-      }
-      if (url.toString().includes("/api/account/profile")) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => mockProfileData,
-        } as Response);
-      }
-      return Promise.resolve({ ok: true, json: async () => ({}) } as Response);
-    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation((input) => {
+        if (requestPath(input) === "/api/account/profile/workspace") {
+          return Promise.resolve(jsonResponse({ redirectTo: "/login" }));
+        }
+        if (requestPath(input) === "/api/account/profile") {
+          return Promise.resolve(jsonResponse(mockProfileData));
+        }
+        return Promise.resolve(jsonResponse({}));
+      });
 
     render(<ProfilePage />);
     await screen.findByText("Profile");
@@ -143,10 +156,16 @@ describe("ProfilePage UI", () => {
     fireEvent.click(confirmButton);
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/account/profile/workspace",
-        expect.objectContaining({ method: "DELETE" }),
-      );
+      expect(
+        fetchSpy.mock.calls.some(([input]) => {
+          return (
+            requestPath(input as RequestInfo | URL) ===
+              "/api/account/profile/workspace" &&
+            input instanceof Request &&
+            input.method === "DELETE"
+          );
+        }),
+      ).toBe(true);
       expect(pushMock).toHaveBeenCalledWith("/login");
       expect(refreshMock).toHaveBeenCalled();
     });

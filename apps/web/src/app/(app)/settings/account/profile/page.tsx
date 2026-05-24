@@ -1,6 +1,10 @@
 "use client";
 
 import { Avatar } from "@/components/avatar";
+import {
+  apiErrorMessage,
+  createBrowserApiClient,
+} from "@/lib/browser-api-client";
 import { useRouter } from "next/navigation";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 
@@ -20,6 +24,8 @@ interface WorkspaceAccess {
   currentWorkspaceId: string | null;
   currentWorkspaceName: string | null;
 }
+
+const apiClient = createBrowserApiClient();
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -50,9 +56,9 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    fetch("/api/account/profile")
-      .then((res) => res.json())
-      .then((data) => {
+    apiClient
+      .GET("/account/profile")
+      .then(({ data }) => {
         if (data?.profile) {
           setProfile({
             name: data.profile.name ?? "",
@@ -106,10 +112,8 @@ export default function ProfilePage() {
     setSaving(true);
 
     try {
-      const response = await fetch("/api/account/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { data, error } = await apiClient.PATCH("/account/profile", {
+        body: {
           name: profile.name,
           username: profile.username,
           image: profile.image,
@@ -118,20 +122,17 @@ export default function ProfilePage() {
           location: profile.location,
           timezone: profile.timezone,
           showLocalTime: profile.showLocalTime,
-        }),
+        },
       });
 
-      const data = (await response.json().catch(() => null)) as {
-        error?: string;
-        profile?: ProfileData;
-      } | null;
-
-      if (!response.ok || !data?.profile) {
-        setErrorMessage(data?.error ?? "Unable to update your profile.");
+      if (error || !data?.profile) {
+        setErrorMessage(
+          apiErrorMessage(error, "Unable to update your profile."),
+        );
         return;
       }
 
-      setProfile(data.profile);
+      setProfile({ ...data.profile, image: data.profile.image ?? null });
       setSelectedPhotoName(null);
       setStatusMessage("Profile updated.");
     } finally {
@@ -145,16 +146,14 @@ export default function ProfilePage() {
     setLeavingWorkspace(true);
 
     try {
-      const response = await fetch("/api/account/profile/workspace", {
-        method: "DELETE",
-      });
-      const data = (await response.json().catch(() => null)) as {
-        error?: string;
-        redirectTo?: string;
-      } | null;
+      const { data, error } = await apiClient.DELETE(
+        "/account/profile/workspace",
+      );
 
-      if (!response.ok || !data?.redirectTo) {
-        setErrorMessage(data?.error ?? "Unable to leave the workspace.");
+      if (error || !data?.redirectTo) {
+        setErrorMessage(
+          apiErrorMessage(error, "Unable to leave the workspace."),
+        );
         return;
       }
 

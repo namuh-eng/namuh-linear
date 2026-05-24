@@ -157,4 +157,24 @@ for (const forbidden of [
   }
 }
 
+const accountProfilePage = readFileSync(
+  "apps/web/src/app/(app)/settings/account/profile/page.tsx",
+  "utf8",
+);
+if (!accountProfilePage.includes("createBrowserApiClient")) {
+  throw new Error(
+    "AccountProfilePage must consume the generated SDK browser client",
+  );
+}
+for (const forbidden of [
+  'fetch("/api/account/profile"',
+  "fetch('/api/account/profile'",
+]) {
+  if (accountProfilePage.includes(forbidden)) {
+    throw new Error(
+      `AccountProfilePage still contains direct account profile API fetch: ${forbidden}`,
+    );
+  }
+}
+
 console.log("Web runtime SDK usage guard passed.");

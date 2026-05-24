@@ -27,10 +27,23 @@ vi.mock("next/navigation", () => ({
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function requestPath(input: RequestInfo | URL) {
+  if (input instanceof Request) {
+    return new URL(input.url).pathname;
+  }
+  return new URL(input.toString(), "http://localhost").pathname;
+}
+
 function mockSession() {
-  mockFetch.mockResolvedValueOnce({
-    ok: true,
-    json: async () => ({
+  mockFetch.mockResolvedValueOnce(
+    jsonResponse({
       profile: {
         name: "John Doe",
         email: "john@example.com",
@@ -47,7 +60,7 @@ function mockSession() {
         currentWorkspaceName: "Onboarding QA Team",
       },
     }),
-  });
+  );
 }
 
 function waitForLoaded() {
@@ -153,9 +166,8 @@ describe("Account Profile Page", () => {
 
   it("calls update API when Update is clicked", async () => {
     mockSession();
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
         profile: {
           name: "John Doe",
           email: "john@example.com",
@@ -168,7 +180,7 @@ describe("Account Profile Page", () => {
           showLocalTime: false,
         },
       }),
-    });
+    );
 
     render(<ProfilePage />);
     await waitForLoaded();
@@ -176,13 +188,26 @@ describe("Account Profile Page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/account/profile",
-        expect.objectContaining({
-          method: "PATCH",
-          body: expect.stringContaining('"timezone":"America/Los_Angeles"'),
+      expect(
+        mockFetch.mock.calls.some(([input]) => {
+          return (
+            requestPath(input as RequestInfo | URL) ===
+              "/api/account/profile" &&
+            input instanceof Request &&
+            input.method === "PATCH"
+          );
         }),
+      ).toBe(true);
+    });
+    const [request] = mockFetch.mock.calls.find(([input]) => {
+      return (
+        requestPath(input as RequestInfo | URL) === "/api/account/profile" &&
+        input instanceof Request &&
+        input.method === "PATCH"
       );
+    }) as [RequestInfo | URL];
+    await expect((request as Request).clone().json()).resolves.toMatchObject({
+      timezone: "America/Los_Angeles",
     });
   });
 
@@ -202,10 +227,7 @@ describe("Account Profile Page", () => {
 
   it("calls the leave-workspace API after confirmation", async () => {
     mockSession();
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ redirectTo: "/" }),
-    });
+    mockFetch.mockResolvedValueOnce(jsonResponse({ redirectTo: "/" }));
 
     render(<ProfilePage />);
     await waitForLoaded();
@@ -216,10 +238,16 @@ describe("Account Profile Page", () => {
     );
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/account/profile/workspace",
-        expect.objectContaining({ method: "DELETE" }),
-      );
+      expect(
+        mockFetch.mock.calls.some(([input]) => {
+          return (
+            requestPath(input as RequestInfo | URL) ===
+              "/api/account/profile/workspace" &&
+            input instanceof Request &&
+            input.method === "DELETE"
+          );
+        }),
+      ).toBe(true);
     });
     expect(pushMock).toHaveBeenCalledWith("/");
     expect(refreshMock).toHaveBeenCalled();
