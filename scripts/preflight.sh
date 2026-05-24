@@ -138,9 +138,11 @@ if [ "$ALB_SG" = "None" ] || [ -z "$ALB_SG" ]; then
     --protocol tcp --port 443 --cidr 0.0.0.0/0 --region $REGION 2>/dev/null || true
 fi
 
-# Allow ALB → Fargate
-aws ec2 authorize-security-group-ingress --group-id $APP_SG \
-  --protocol tcp --port 3015 --source-group $ALB_SG --region $REGION 2>/dev/null || true
+# Allow ALB → Fargate split services (web, api, Kratos public)
+for PORT in 3000 3015 3016 4433; do
+  aws ec2 authorize-security-group-ingress --group-id $APP_SG \
+    --protocol tcp --port $PORT --source-group $ALB_SG --region $REGION 2>/dev/null || true
+done
 # Allow Fargate → RDS
 aws ec2 authorize-security-group-ingress --group-id $DB_SG \
   --protocol tcp --port 5432 --source-group $APP_SG --region $REGION 2>/dev/null || true
@@ -243,12 +245,14 @@ fi
 grep -q '^S3_BUCKET=' .env || echo "S3_BUCKET=$BUCKET_NAME" >> .env
 grep -q '^AWS_REGION=' .env || echo "AWS_REGION=$REGION" >> .env
 
-# 6. ECR Repository
+# 6. ECR Repositories
 echo ""
-echo "--- ECR Repository ---"
-aws ecr describe-repositories --repository-names $APP_NAME --region $REGION 2>/dev/null || \
-  aws ecr create-repository --repository-name $APP_NAME --region $REGION
-echo "ECR repo ready: $APP_NAME"
+echo "--- ECR Repositories ---"
+for REPO in "${APP_NAME}-api" "${APP_NAME}-web" "${APP_NAME}-kratos"; do
+  aws ecr describe-repositories --repository-names $REPO --region $REGION 2>/dev/null || \
+    aws ecr create-repository --repository-name $REPO --region $REGION
+  echo "ECR repo ready: $REPO"
+done
 
 # 7. ECS Cluster
 echo ""
@@ -276,33 +280,79 @@ else
   echo "ALB exists: $ALB_ARN"
 fi
 
-# Target group
-TG_ARN=$(aws elbv2 describe-target-groups --names ${APP_NAME}-tg --region $REGION \
-  --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null)
-if [ "$TG_ARN" = "None" ] || [ -z "$TG_ARN" ]; then
-  TG_ARN=$(aws elbv2 create-target-group --name ${APP_NAME}-tg \
-    --protocol HTTP --port 3015 --vpc-id $VPC_ID \
-    --target-type ip \
-    --health-check-path "/api/health" \
-    --health-check-interval-seconds 30 \
+create_target_group() {
+  local name="$1"
+  local port="$2"
+  local health_path="$3"
+  local arn
+  arn=$(aws elbv2 describe-target-groups --names "$name" --region $REGION \
+    --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null)
+  if [ "$arn" = "None" ] || [ -z "$arn" ]; then
+    arn=$(aws elbv2 create-target-group --name "$name" \
+      --protocol HTTP --port "$port" --vpc-id $VPC_ID \
+      --target-type ip \
+      --health-check-path "$health_path" \
+      --health-check-interval-seconds 30 \
+      --region $REGION \
+      --query 'TargetGroups[0].TargetGroupArn' --output text)
+    echo "Target group created: $name ($arn)" >&2
+  else
+    echo "Target group exists: $name ($arn)" >&2
+  fi
+  printf '%s' "$arn"
+}
+
+WEB_TG_ARN=$(create_target_group "${APP_NAME}-web-tg" 3000 "/")
+API_TG_ARN=$(create_target_group "${APP_NAME}-api-tg" 3016 "/healthz")
+KRATOS_TG_ARN=$(create_target_group "${APP_NAME}-kratos-tg" 4433 "/health/ready")
+
+# HTTP listener: default web, /api/* to Go API, /auth/* to Kratos.
+LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn $ALB_ARN --region $REGION \
+  --query 'Listeners[?Port==`80`].ListenerArn | [0]' --output text)
+if [ "$LISTENER_ARN" = "None" ] || [ -z "$LISTENER_ARN" ]; then
+  LISTENER_ARN=$(aws elbv2 create-listener --load-balancer-arn $ALB_ARN \
+    --protocol HTTP --port 80 \
+    --default-actions "Type=forward,TargetGroupArn=$WEB_TG_ARN" \
     --region $REGION \
-    --query 'TargetGroups[0].TargetGroupArn' --output text)
-  echo "Target group created: $TG_ARN"
+    --query 'Listeners[0].ListenerArn' --output text)
+else
+  aws elbv2 modify-listener --listener-arn "$LISTENER_ARN" \
+    --default-actions "Type=forward,TargetGroupArn=$WEB_TG_ARN" \
+    --region $REGION >/dev/null
 fi
 
-# HTTP listener (80 → target group)
-aws elbv2 describe-listeners --load-balancer-arn $ALB_ARN --region $REGION \
-  --query 'Listeners[?Port==`80`].ListenerArn' --output text | grep -q "arn:" || \
-  aws elbv2 create-listener --load-balancer-arn $ALB_ARN \
-    --protocol HTTP --port 80 \
-    --default-actions "Type=forward,TargetGroupArn=$TG_ARN" \
-    --region $REGION
+ensure_listener_rule() {
+  local priority="$1"
+  local tg_arn="$2"
+  shift 2
+  local existing
+  existing=$(aws elbv2 describe-rules --listener-arn "$LISTENER_ARN" --region $REGION \
+    --query "Rules[?Priority=='$priority'].RuleArn | [0]" --output text)
+  if [ "$existing" = "None" ] || [ -z "$existing" ]; then
+    aws elbv2 create-rule --listener-arn "$LISTENER_ARN" \
+      --priority "$priority" \
+      --conditions "$@" \
+      --actions "Type=forward,TargetGroupArn=$tg_arn" \
+      --region $REGION >/dev/null
+  else
+    aws elbv2 modify-rule --rule-arn "$existing" \
+      --conditions "$@" \
+      --actions "Type=forward,TargetGroupArn=$tg_arn" \
+      --region $REGION >/dev/null
+  fi
+}
+
+ensure_listener_rule 10 "$API_TG_ARN" 'Field=path-pattern,Values=/api/*'
+ensure_listener_rule 20 "$KRATOS_TG_ARN" 'Field=path-pattern,Values=/auth/*'
 
 ALB_DNS=$(aws elbv2 describe-load-balancers --load-balancer-arns $ALB_ARN --region $REGION \
   --query 'LoadBalancers[0].DNSName' --output text)
 grep -q '^ALB_DNS=' .env || echo "ALB_DNS=$ALB_DNS" >> .env
 grep -q '^ALB_ARN=' .env || echo "ALB_ARN=$ALB_ARN" >> .env
-grep -q '^TG_ARN=' .env || echo "TG_ARN=$TG_ARN" >> .env
+grep -q '^ALB_LISTENER_ARN=' .env || echo "ALB_LISTENER_ARN=$LISTENER_ARN" >> .env
+grep -q '^WEB_TG_ARN=' .env || echo "WEB_TG_ARN=$WEB_TG_ARN" >> .env
+grep -q '^API_TG_ARN=' .env || echo "API_TG_ARN=$API_TG_ARN" >> .env
+grep -q '^KRATOS_TG_ARN=' .env || echo "KRATOS_TG_ARN=$KRATOS_TG_ARN" >> .env
 
 # 9. SES (email - magic links, notifications)
 echo ""
@@ -325,7 +375,7 @@ echo "=== Pre-flight Complete (team tier) ==="
 echo "VPC: $VPC_ID | App SG: $APP_SG | DB SG: $DB_SG | Redis SG: $REDIS_SG | ALB SG: $ALB_SG"
 echo "Private subnets: $PRIV_SUBNET_A, $PRIV_SUBNET_B"
 echo "ALB DNS: $ALB_DNS"
-echo "Deploy target: ECS Fargate + ALB (docker build → ECR → ECS service)"
+echo "Deploy target: ECS Fargate split services + ALB (/api/* → api, /auth/* → Kratos, default → web)"
 
 # Store infrastructure IDs in .env
 grep -q '^PRIV_SUBNET_A=' .env || echo "PRIV_SUBNET_A=$PRIV_SUBNET_A" >> .env
