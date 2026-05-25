@@ -145,6 +145,9 @@ services:
   web:
     image: node:20-alpine
     working_dir: /workspace
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
     command: sh -c "corepack enable && pnpm install --frozen-lockfile=false && cd apps/web && node scripts/check-dev-db.mjs && pnpm exec next dev --webpack --hostname 0.0.0.0"
     environment:
       NODE_ENV: development
