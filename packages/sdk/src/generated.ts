@@ -4,6 +4,59 @@
  */
 
 export interface paths {
+  "/attachments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Attachments route namespace; concrete resources are presigned URL helpers. */
+    get: operations["attachmentsNamespace"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/attachments/presigned-upload": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create a presigned S3 upload URL for a comment attachment */
+    post: operations["createAttachmentPresignedUpload"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/attachments/{id}/download-url": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** Create a presigned download URL for an attachment in the authenticated workspace */
+    get: operations["getAttachmentDownloadUrl"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/issues": {
     parameters: {
       query?: never;
@@ -2234,6 +2287,28 @@ export interface components {
       };
       workspace: components["schemas"]["AuthProviderWorkspace"] | null;
     };
+    CreateAttachmentPresignedUploadRequest: {
+      fileName: string;
+      contentType?: string;
+      size?: number;
+    };
+    AttachmentPresignedUploadResponse: {
+      /** Format: uri */
+      uploadUrl: string;
+      storageKey: string;
+      headers: {
+        [key: string]: string;
+      };
+      expiresIn: number;
+      /** @enum {string} */
+      method: "PUT";
+      contentType: string;
+    };
+    AttachmentDownloadUrlResponse: {
+      /** Format: uri */
+      downloadUrl: string;
+      expiresIn: number;
+    };
     CommentUser: {
       name: string;
       image?: string | null;
@@ -4423,6 +4498,66 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  attachmentsNamespace: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      default: components["responses"]["Problem"];
+    };
+  };
+  createAttachmentPresignedUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateAttachmentPresignedUploadRequest"];
+      };
+    };
+    responses: {
+      /** @description Presigned upload details */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AttachmentPresignedUploadResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
+  getAttachmentDownloadUrl: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Presigned download URL */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AttachmentDownloadUrlResponse"];
+        };
+      };
+      default: components["responses"]["Problem"];
+    };
+  };
   listIssues: {
     parameters: {
       query?: {

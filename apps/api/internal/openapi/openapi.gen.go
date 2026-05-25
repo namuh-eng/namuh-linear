@@ -36,6 +36,11 @@ const (
 	AgentSuggestionStatusOpen     AgentSuggestionStatus = "open"
 )
 
+// Defines values for AttachmentPresignedUploadResponseMethod.
+const (
+	PUT AttachmentPresignedUploadResponseMethod = "PUT"
+)
+
 // Defines values for BillingPlanId.
 const (
 	BillingPlanIdBasic      BillingPlanId = "basic"
@@ -879,6 +884,25 @@ type ApplicationPermissionGroup struct {
 	Label        string   `json:"label"`
 }
 
+// AttachmentDownloadUrlResponse defines model for AttachmentDownloadUrlResponse.
+type AttachmentDownloadUrlResponse struct {
+	DownloadUrl string `json:"downloadUrl"`
+	ExpiresIn   int    `json:"expiresIn"`
+}
+
+// AttachmentPresignedUploadResponse defines model for AttachmentPresignedUploadResponse.
+type AttachmentPresignedUploadResponse struct {
+	ContentType string                                  `json:"contentType"`
+	ExpiresIn   int                                     `json:"expiresIn"`
+	Headers     map[string]string                       `json:"headers"`
+	Method      AttachmentPresignedUploadResponseMethod `json:"method"`
+	StorageKey  string                                  `json:"storageKey"`
+	UploadUrl   string                                  `json:"uploadUrl"`
+}
+
+// AttachmentPresignedUploadResponseMethod defines model for AttachmentPresignedUploadResponse.Method.
+type AttachmentPresignedUploadResponseMethod string
+
 // AuthProviderCapabilitiesResponse defines model for AuthProviderCapabilitiesResponse.
 type AuthProviderCapabilitiesResponse struct {
 	Providers struct {
@@ -1038,6 +1062,13 @@ type CreateAgentRunRequest struct {
 	Prompt  string  `json:"prompt"`
 	TeamKey *string `json:"teamKey,omitempty"`
 	Title   string  `json:"title"`
+}
+
+// CreateAttachmentPresignedUploadRequest defines model for CreateAttachmentPresignedUploadRequest.
+type CreateAttachmentPresignedUploadRequest struct {
+	ContentType *string `json:"contentType,omitempty"`
+	FileName    string  `json:"fileName"`
+	Size        *int    `json:"size,omitempty"`
 }
 
 // CreateCommentRequest defines model for CreateCommentRequest.
@@ -3580,6 +3611,9 @@ type CreateAgentRunJSONRequestBody = CreateAgentRunRequest
 
 // UpdateAgentRunSuggestionJSONRequestBody defines body for UpdateAgentRunSuggestion for application/json ContentType.
 type UpdateAgentRunSuggestionJSONRequestBody = UpdateAgentRunSuggestionRequest
+
+// CreateAttachmentPresignedUploadJSONRequestBody defines body for CreateAttachmentPresignedUpload for application/json ContentType.
+type CreateAttachmentPresignedUploadJSONRequestBody = CreateAttachmentPresignedUploadRequest
 
 // DiscoverSamlUrlJSONRequestBody defines body for DiscoverSamlUrl for application/json ContentType.
 type DiscoverSamlUrlJSONRequestBody = SamlDiscoveryRequest
@@ -6420,6 +6454,15 @@ type ServerInterface interface {
 
 	// (GET /analytics/workspace)
 	GetWorkspaceAnalytics(w http.ResponseWriter, r *http.Request)
+	// Attachments route namespace; concrete resources are presigned URL helpers.
+	// (GET /attachments)
+	AttachmentsNamespace(w http.ResponseWriter, r *http.Request)
+	// Create a presigned S3 upload URL for a comment attachment
+	// (POST /attachments/presigned-upload)
+	CreateAttachmentPresignedUpload(w http.ResponseWriter, r *http.Request)
+	// Create a presigned download URL for an attachment in the authenticated workspace
+	// (GET /attachments/{id}/download-url)
+	GetAttachmentDownloadUrl(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 	// Auth route namespace; concrete resources are under /auth/provider-capabilities.
 	// (GET /auth)
 	AuthNamespace(w http.ResponseWriter, r *http.Request)
@@ -7057,6 +7100,24 @@ func (_ Unimplemented) AnalyticsNamespace(w http.ResponseWriter, r *http.Request
 
 // (GET /analytics/workspace)
 func (_ Unimplemented) GetWorkspaceAnalytics(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Attachments route namespace; concrete resources are presigned URL helpers.
+// (GET /attachments)
+func (_ Unimplemented) AttachmentsNamespace(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a presigned S3 upload URL for a comment attachment
+// (POST /attachments/presigned-upload)
+func (_ Unimplemented) CreateAttachmentPresignedUpload(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a presigned download URL for an attachment in the authenticated workspace
+// (GET /attachments/{id}/download-url)
+func (_ Unimplemented) GetAttachmentDownloadUrl(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -8325,6 +8386,77 @@ func (siw *ServerInterfaceWrapper) GetWorkspaceAnalytics(w http.ResponseWriter, 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetWorkspaceAnalytics(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AttachmentsNamespace operation middleware
+func (siw *ServerInterfaceWrapper) AttachmentsNamespace(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AttachmentsNamespace(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAttachmentPresignedUpload operation middleware
+func (siw *ServerInterfaceWrapper) CreateAttachmentPresignedUpload(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAttachmentPresignedUpload(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAttachmentDownloadUrl operation middleware
+func (siw *ServerInterfaceWrapper) GetAttachmentDownloadUrl(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAttachmentDownloadUrl(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -13613,6 +13745,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/analytics/workspace", wrapper.GetWorkspaceAnalytics)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/attachments", wrapper.AttachmentsNamespace)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/attachments/presigned-upload", wrapper.CreateAttachmentPresignedUpload)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/attachments/{id}/download-url", wrapper.GetAttachmentDownloadUrl)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/auth", wrapper.AuthNamespace)
 	})
 	r.Group(func(r chi.Router) {
@@ -14576,6 +14717,83 @@ type GetWorkspaceAnalyticsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetWorkspaceAnalyticsdefaultApplicationProblemPlusJSONResponse) VisitGetWorkspaceAnalyticsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type AttachmentsNamespaceRequestObject struct {
+}
+
+type AttachmentsNamespaceResponseObject interface {
+	VisitAttachmentsNamespaceResponse(w http.ResponseWriter) error
+}
+
+type AttachmentsNamespacedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AttachmentsNamespacedefaultApplicationProblemPlusJSONResponse) VisitAttachmentsNamespaceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CreateAttachmentPresignedUploadRequestObject struct {
+	Body *CreateAttachmentPresignedUploadJSONRequestBody
+}
+
+type CreateAttachmentPresignedUploadResponseObject interface {
+	VisitCreateAttachmentPresignedUploadResponse(w http.ResponseWriter) error
+}
+
+type CreateAttachmentPresignedUpload200JSONResponse AttachmentPresignedUploadResponse
+
+func (response CreateAttachmentPresignedUpload200JSONResponse) VisitCreateAttachmentPresignedUploadResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateAttachmentPresignedUploaddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateAttachmentPresignedUploaddefaultApplicationProblemPlusJSONResponse) VisitCreateAttachmentPresignedUploadResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type GetAttachmentDownloadUrlRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetAttachmentDownloadUrlResponseObject interface {
+	VisitGetAttachmentDownloadUrlResponse(w http.ResponseWriter) error
+}
+
+type GetAttachmentDownloadUrl200JSONResponse AttachmentDownloadUrlResponse
+
+func (response GetAttachmentDownloadUrl200JSONResponse) VisitGetAttachmentDownloadUrlResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetAttachmentDownloadUrldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetAttachmentDownloadUrldefaultApplicationProblemPlusJSONResponse) VisitGetAttachmentDownloadUrlResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(response.StatusCode)
 
@@ -20060,6 +20278,15 @@ type StrictServerInterface interface {
 
 	// (GET /analytics/workspace)
 	GetWorkspaceAnalytics(ctx context.Context, request GetWorkspaceAnalyticsRequestObject) (GetWorkspaceAnalyticsResponseObject, error)
+	// Attachments route namespace; concrete resources are presigned URL helpers.
+	// (GET /attachments)
+	AttachmentsNamespace(ctx context.Context, request AttachmentsNamespaceRequestObject) (AttachmentsNamespaceResponseObject, error)
+	// Create a presigned S3 upload URL for a comment attachment
+	// (POST /attachments/presigned-upload)
+	CreateAttachmentPresignedUpload(ctx context.Context, request CreateAttachmentPresignedUploadRequestObject) (CreateAttachmentPresignedUploadResponseObject, error)
+	// Create a presigned download URL for an attachment in the authenticated workspace
+	// (GET /attachments/{id}/download-url)
+	GetAttachmentDownloadUrl(ctx context.Context, request GetAttachmentDownloadUrlRequestObject) (GetAttachmentDownloadUrlResponseObject, error)
 	// Auth route namespace; concrete resources are under /auth/provider-capabilities.
 	// (GET /auth)
 	AuthNamespace(ctx context.Context, request AuthNamespaceRequestObject) (AuthNamespaceResponseObject, error)
@@ -21043,6 +21270,87 @@ func (sh *strictHandler) GetWorkspaceAnalytics(w http.ResponseWriter, r *http.Re
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetWorkspaceAnalyticsResponseObject); ok {
 		if err := validResponse.VisitGetWorkspaceAnalyticsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AttachmentsNamespace operation middleware
+func (sh *strictHandler) AttachmentsNamespace(w http.ResponseWriter, r *http.Request) {
+	var request AttachmentsNamespaceRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AttachmentsNamespace(ctx, request.(AttachmentsNamespaceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AttachmentsNamespace")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AttachmentsNamespaceResponseObject); ok {
+		if err := validResponse.VisitAttachmentsNamespaceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateAttachmentPresignedUpload operation middleware
+func (sh *strictHandler) CreateAttachmentPresignedUpload(w http.ResponseWriter, r *http.Request) {
+	var request CreateAttachmentPresignedUploadRequestObject
+
+	var body CreateAttachmentPresignedUploadJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateAttachmentPresignedUpload(ctx, request.(CreateAttachmentPresignedUploadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateAttachmentPresignedUpload")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateAttachmentPresignedUploadResponseObject); ok {
+		if err := validResponse.VisitCreateAttachmentPresignedUploadResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAttachmentDownloadUrl operation middleware
+func (sh *strictHandler) GetAttachmentDownloadUrl(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetAttachmentDownloadUrlRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAttachmentDownloadUrl(ctx, request.(GetAttachmentDownloadUrlRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAttachmentDownloadUrl")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAttachmentDownloadUrlResponseObject); ok {
+		if err := validResponse.VisitGetAttachmentDownloadUrlResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

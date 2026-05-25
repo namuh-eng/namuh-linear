@@ -8,6 +8,7 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./tests/vitest.setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
+    maxWorkers: 4,
   },
   resolve: {
     alias: {

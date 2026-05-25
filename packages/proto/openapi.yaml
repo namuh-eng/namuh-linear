@@ -8,6 +8,50 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /attachments:
+    get:
+      operationId: attachmentsNamespace
+      summary: Attachments route namespace; concrete resources are presigned URL helpers.
+      responses:
+        default:
+          $ref: '#/components/responses/Problem'
+  /attachments/presigned-upload:
+    post:
+      operationId: createAttachmentPresignedUpload
+      summary: Create a presigned S3 upload URL for a comment attachment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAttachmentPresignedUploadRequest'
+      responses:
+        '200':
+          description: Presigned upload details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentPresignedUploadResponse'
+        default:
+          $ref: '#/components/responses/Problem'
+  /attachments/{id}/download-url:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getAttachmentDownloadUrl
+      summary: Create a presigned download URL for an attachment in the authenticated workspace
+      responses:
+        '200':
+          description: Presigned download URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttachmentDownloadUrlResponse'
+        default:
+          $ref: '#/components/responses/Problem'
   /issues:
     get:
       operationId: listIssues
@@ -3589,6 +3633,31 @@ components:
           anyOf:
             - $ref: '#/components/schemas/AuthProviderWorkspace'
             - type: 'null'
+    CreateAttachmentPresignedUploadRequest:
+      type: object
+      required: [fileName]
+      properties:
+        fileName: { type: string, minLength: 1, maxLength: 500 }
+        contentType: { type: string, maxLength: 255 }
+        size: { type: integer, minimum: 0 }
+    AttachmentPresignedUploadResponse:
+      type: object
+      required: [uploadUrl, storageKey, headers, expiresIn, method, contentType]
+      properties:
+        uploadUrl: { type: string, format: uri }
+        storageKey: { type: string }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+        expiresIn: { type: integer }
+        method: { type: string, enum: [PUT] }
+        contentType: { type: string }
+    AttachmentDownloadUrlResponse:
+      type: object
+      required: [downloadUrl, expiresIn]
+      properties:
+        downloadUrl: { type: string, format: uri }
+        expiresIn: { type: integer }
     CommentUser:
       type: object
       required: [name]

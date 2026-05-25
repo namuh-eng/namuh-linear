@@ -13,6 +13,7 @@ import (
 	"github.com/namuh-eng/exponential/apps/api/internal/account"
 	"github.com/namuh-eng/exponential/apps/api/internal/agentruns"
 	"github.com/namuh-eng/exponential/apps/api/internal/analytics"
+	"github.com/namuh-eng/exponential/apps/api/internal/attachments"
 	"github.com/namuh-eng/exponential/apps/api/internal/auth"
 	"github.com/namuh-eng/exponential/apps/api/internal/authproviders"
 	"github.com/namuh-eng/exponential/apps/api/internal/comments"
@@ -100,6 +101,7 @@ func mountAPIRoutes(r chi.Router, prefix string, db *pgxpool.Pool) {
 			protected.Mount("/account", account.Handler{DB: db}.Routes())
 			protected.Mount("/analytics", analytics.Handler{DB: db}.Routes())
 			protected.Mount("/agent/runs", agentruns.Handler{DB: db}.Routes())
+			protected.Mount("/attachments", attachments.Handler{DB: db}.Routes())
 			protected.Patch("/comments/{id}", commentsHandler.Update)
 			protected.Mount("/custom-emojis", emojis.Handler{DB: db}.Routes())
 			protected.Mount("/document-folders", documentsHandler.FolderRoutes())
