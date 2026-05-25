@@ -13,6 +13,9 @@ type ProviderCapabilities = {
   };
 };
 
+const WORKSPACE_HOST = "exponential.local";
+const WORKSPACE_VERSION = "v0.4.2";
+
 function isProviderEnabled(
   value: boolean | { configured?: boolean } | undefined,
 ) {
@@ -47,13 +50,13 @@ function getSafeCallbackPath(): string {
 function LinearLogo() {
   return (
     <svg
-      width="32"
-      height="32"
+      width="20"
+      height="20"
       viewBox="0 0 32 32"
       fill="none"
       role="img"
       aria-label="Linear logo"
-      className="mb-7 text-[var(--auth-logo)]"
+      className="text-[var(--auth-logo)]"
     >
       <path
         d="M.392 19.687c-.071-.303.29-.494.511-.274l11.684 11.684c.22.22.03.582-.274.51a16.04 16.04 0 0 1-11.92-11.92ZM0 15.005c-.005.09.029.179.093.243l16.66 16.659a.317.317 0 0 0 .242.092 16.02 16.02 0 0 0 2.229-.296c.244-.05.33-.35.152-.527L.825 12.624a.311.311 0 0 0-.527.152c-.15.726-.25 1.47-.296 2.229ZM1.347 9.506a.316.316 0 0 0 .067.352l20.728 20.728c.093.093.233.12.352.067a15.961 15.961 0 0 0 1.66-.86.314.314 0 0 0 .058-.492L2.7 7.788a.314.314 0 0 0-.493.058 15.965 15.965 0 0 0-.859 1.66ZM4.05 5.784a.315.315 0 0 1-.013-.434A15.976 15.976 0 0 1 15.985 0C24.83 0 32 7.17 32 16.015c0 4.75-2.067 9.015-5.35 11.948a.315.315 0 0 1-.434-.014L4.051 5.784Z"
@@ -63,33 +66,428 @@ function LinearLogo() {
   );
 }
 
+function TopBar({ mode }: { mode: AuthMode }) {
+  return (
+    <header className="flex items-center justify-between border-b border-[var(--auth-secondary-border)] px-6 py-3 text-[12px] text-[var(--auth-muted)]">
+      <div className="flex items-center gap-3">
+        <LinearLogo />
+        <span className="text-[var(--auth-text)]">exponential</span>
+        <span className="text-[var(--auth-faint)]">{WORKSPACE_VERSION}</span>
+      </div>
+      <div className="flex items-center gap-4">
+        <span>{WORKSPACE_HOST}</span>
+        <span className="text-[var(--auth-faint)]">·</span>
+        <span>{mode === "signup" ? "new workspace" : "session"}</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--auth-ok)]" />
+          ready
+        </span>
+      </div>
+    </header>
+  );
+}
+
+function HotkeyBar({ mode }: { mode: AuthMode }) {
+  const keys =
+    mode === "signup"
+      ? [
+          ["⏎", "submit step"],
+          ["⇥", "next field"],
+          ["esc", "cancel"],
+          ["⌘ K", "command bar"],
+        ]
+      : [
+          ["⏎", "submit"],
+          ["⌘ G", "google"],
+          ["⌘ M", "magic link"],
+          ["⌘ ⇧ S", "ssh challenge"],
+          ["?", "help"],
+        ];
+  return (
+    <footer className="border-t border-[var(--auth-secondary-border)] px-6 py-2 text-[11px] text-[var(--auth-muted)]">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+        {keys.map(([k, label]) => (
+          <span key={k} className="inline-flex items-center gap-2">
+            <kbd className="rounded border border-[var(--auth-secondary-border)] bg-[var(--auth-input-bg)] px-1.5 py-0.5 text-[10px] text-[var(--auth-text)]">
+              {k}
+            </kbd>
+            <span>{label}</span>
+          </span>
+        ))}
+        <span className="ml-auto text-[var(--auth-faint)]">
+          {WORKSPACE_HOST} · {WORKSPACE_VERSION}
+        </span>
+      </div>
+    </footer>
+  );
+}
+
+function PromptInput(props: {
+  prompt: string;
+  type: "text" | "email" | "password";
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  autoComplete?: string;
+  required?: boolean;
+}) {
+  return (
+    <label className="flex items-center gap-3 border-b border-[var(--auth-input-border)] py-2 focus-within:border-[var(--auth-accent)]">
+      <span
+        aria-hidden="true"
+        className="select-none text-[13px] text-[var(--auth-prompt)]"
+      >
+        {props.prompt}
+      </span>
+      <input
+        className="flex-1 bg-transparent text-[13px] text-[var(--auth-text)] outline-none placeholder:text-[var(--auth-input-placeholder)]"
+        type={props.type}
+        value={props.value}
+        required={props.required}
+        autoComplete={props.autoComplete}
+        placeholder={props.placeholder}
+        onChange={(event) => props.onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function OAuthButton({
+  provider,
+  hotkey,
+  onClick,
+  disabled,
+}: {
+  provider: string;
+  hotkey: string;
+  onClick: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={`Continue with ${provider}`}
+      className="group flex h-10 w-full items-center justify-between border border-[var(--auth-primary-border)] bg-[var(--auth-primary-bg)] px-3 text-[13px] text-[var(--auth-primary-text)] transition-colors hover:bg-[var(--auth-primary-bg-hover)] disabled:opacity-60"
+    >
+      <span className="inline-flex items-center gap-3">
+        <span aria-hidden="true" className="text-[var(--auth-prompt)]">
+          {">"}
+        </span>
+        <span>Continue with {provider}</span>
+      </span>
+      <span className="inline-flex items-center gap-2 text-[11px] text-[var(--auth-muted)] group-hover:text-[var(--auth-text)]">
+        <kbd className="rounded border border-[var(--auth-secondary-border)] bg-[var(--auth-input-bg)] px-1.5 py-0.5 text-[10px]">
+          {hotkey}
+        </kbd>
+        <span>↵</span>
+      </span>
+    </button>
+  );
+}
+
+function Divider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-[var(--auth-faint)]">
+      <span className="h-px flex-1 bg-[var(--auth-secondary-border)]" />
+      <span>{label}</span>
+      <span className="h-px flex-1 bg-[var(--auth-secondary-border)]" />
+    </div>
+  );
+}
+
+function AdvancedAuth() {
+  const [tab, setTab] = useState<"ssh" | "oidc" | "cli">("ssh");
+  const tabs: { id: typeof tab; label: string; soon?: boolean }[] = [
+    { id: "ssh", label: "ssh" },
+    { id: "oidc", label: "oidc", soon: true },
+    { id: "cli", label: "cli", soon: true },
+  ];
+  return (
+    <section className="border border-[var(--auth-secondary-border)] bg-[var(--auth-input-bg)]">
+      <div className="flex items-center gap-2 border-b border-[var(--auth-secondary-border)] px-3 py-2 text-[11px] text-[var(--auth-muted)]">
+        <span>{"// advanced auth"}</span>
+        <span className="ml-auto inline-flex items-center gap-2">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`rounded-sm px-1.5 py-0.5 text-[11px] ${
+                tab === t.id
+                  ? "bg-[var(--auth-secondary-bg-hover)] text-[var(--auth-text)]"
+                  : "text-[var(--auth-muted)] hover:text-[var(--auth-text)]"
+              }`}
+            >
+              {t.label}
+              {t.soon ? (
+                <span className="ml-1 text-[10px] text-[var(--auth-faint)]">
+                  soon
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </span>
+      </div>
+      <div className="px-3 py-3 text-[12px] text-[var(--auth-muted)]">
+        {tab === "ssh" ? (
+          <div className="space-y-2">
+            <p className="text-[var(--auth-text)]">
+              sign a workspace nonce with your local SSH key.
+            </p>
+            <p>
+              host fingerprint{" "}
+              <span className="text-[var(--auth-text)]">
+                sha256:9e:21:8c:4d:a3:91:7b:ee
+              </span>
+            </p>
+            <Link
+              href="/ssh-challenge"
+              className="inline-flex items-center gap-2 border border-[var(--auth-primary-border)] px-2 py-1 text-[var(--auth-primary-text)] hover:bg-[var(--auth-primary-bg-hover)]"
+            >
+              <span>{">"}</span>
+              <span>open ssh challenge</span>
+              <kbd className="ml-1 rounded border border-[var(--auth-secondary-border)] bg-[var(--auth-input-bg)] px-1 py-0.5 text-[10px]">
+                ⌘ ⇧ S
+              </kbd>
+            </Link>
+          </div>
+        ) : tab === "oidc" ? (
+          <div className="space-y-1">
+            <p className="text-[var(--auth-text)]">
+              OIDC discovery via {WORKSPACE_HOST}/.well-known
+            </p>
+            <p>backend wiring pending — coming soon.</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <p className="text-[var(--auth-text)]">
+              device-flow pairing for the exponential CLI.
+            </p>
+            <p>backend wiring pending — coming soon.</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+const PREFLIGHT_ROWS = [
+  { name: "tls handshake", status: "ok", detail: "TLSv1.3 · X25519" },
+  { name: "geo", status: "ok", detail: "iad1 · 17ms rtt" },
+  { name: "directory", status: "ok", detail: "scim · in sync" },
+  {
+    name: "device posture",
+    status: "warn",
+    detail: "screen lock < 5m recommended",
+  },
+  { name: "passkey", status: "ok", detail: "platform · touch id" },
+  { name: "audit log", status: "ok", detail: "streaming · last 12s" },
+];
+
+function PreflightRail() {
+  return (
+    <section className="border border-[var(--auth-secondary-border)] bg-[var(--auth-input-bg)]">
+      <div className="border-b border-[var(--auth-secondary-border)] px-3 py-2 text-[11px] text-[var(--auth-muted)]">
+        # preflight
+      </div>
+      <ul className="divide-y divide-[var(--auth-secondary-border)] text-[12px]">
+        {PREFLIGHT_ROWS.map((row) => (
+          <li
+            key={row.name}
+            className="flex items-center justify-between px-3 py-1.5"
+          >
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={`h-1.5 w-1.5 rounded-full ${
+                  row.status === "ok"
+                    ? "bg-[var(--auth-ok)]"
+                    : row.status === "warn"
+                      ? "bg-[var(--auth-warn)]"
+                      : "bg-[var(--auth-err)]"
+                }`}
+              />
+              <span className="text-[var(--auth-text)]">{row.name}</span>
+            </span>
+            <span className="text-[var(--auth-muted)]">{row.detail}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="border-t border-[var(--auth-secondary-border)] px-3 py-2 text-[11px] text-[var(--auth-faint)]">
+        {"// mock · backend not wired"}
+      </div>
+    </section>
+  );
+}
+
+const RECENT_SESSIONS = [
+  { when: "2m ago", host: "macbook-2024", region: "iad1", ok: true },
+  { when: "1h ago", host: "iphone-15", region: "iad1", ok: true },
+  { when: "yesterday", host: "macbook-2024", region: "sfo1", ok: true },
+  { when: "3d ago", host: "unknown · vpn", region: "fra1", ok: false },
+];
+
+function RecentSessionsRail() {
+  return (
+    <section className="border border-[var(--auth-secondary-border)] bg-[var(--auth-input-bg)]">
+      <div className="border-b border-[var(--auth-secondary-border)] px-3 py-2 text-[11px] text-[var(--auth-muted)]">
+        # recent sessions
+      </div>
+      <ul className="divide-y divide-[var(--auth-secondary-border)] text-[12px]">
+        {RECENT_SESSIONS.map((s) => (
+          <li key={`${s.when}-${s.host}`} className="px-3 py-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[var(--auth-text)]">{s.host}</span>
+              <span className="text-[var(--auth-muted)]">{s.when}</span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-[var(--auth-muted)]">
+              <span>{s.region}</span>
+              <span
+                className={
+                  s.ok ? "text-[var(--auth-ok)]" : "text-[var(--auth-err)]"
+                }
+              >
+                {s.ok ? "verified" : "unrecognized origin"}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="border-t border-[var(--auth-secondary-border)] px-3 py-2 text-[11px] text-[var(--auth-faint)]">
+        {"// mock · backend not wired"}
+      </div>
+    </section>
+  );
+}
+
+function NextStepsRail() {
+  const steps = [
+    "[ ] connect git provider",
+    "[ ] invite teammates",
+    "[ ] import from linear",
+    "[ ] set workspace timezone",
+  ];
+  return (
+    <section className="border border-[var(--auth-secondary-border)] bg-[var(--auth-input-bg)]">
+      <div className="border-b border-[var(--auth-secondary-border)] px-3 py-2 text-[11px] text-[var(--auth-muted)]">
+        # next steps
+      </div>
+      <ul className="divide-y divide-[var(--auth-secondary-border)] text-[12px]">
+        {steps.map((s) => (
+          <li
+            key={s}
+            className="px-3 py-1.5 text-[var(--auth-text)] hover:bg-[var(--auth-secondary-bg-hover)]"
+          >
+            {s}
+          </li>
+        ))}
+      </ul>
+      <div className="border-t border-[var(--auth-secondary-border)] px-3 py-2 text-[11px] text-[var(--auth-faint)]">
+        {"// mock · post-signup checklist"}
+      </div>
+    </section>
+  );
+}
+
+function WorkspaceTreeRail({ slug }: { slug: string }) {
+  const safe = slug.trim() || "acme";
+  const tree = [
+    `~/.exponential/workspaces/${safe}/`,
+    "├── config.toml",
+    "├── issues/",
+    "│   └── inbox/",
+    "├── projects/",
+    "└── teams/",
+    "    └── core/",
+  ];
+  return (
+    <section className="border border-[var(--auth-secondary-border)] bg-[var(--auth-input-bg)]">
+      <div className="border-b border-[var(--auth-secondary-border)] px-3 py-2 text-[11px] text-[var(--auth-muted)]">
+        # workspace layout
+      </div>
+      <pre className="overflow-x-auto px-3 py-3 text-[12px] leading-5 text-[var(--auth-text)]">
+        {tree.join("\n")}
+      </pre>
+      <div className="border-t border-[var(--auth-secondary-border)] px-3 py-2 text-[11px] text-[var(--auth-faint)]">
+        {"// preview · created on first sync"}
+      </div>
+    </section>
+  );
+}
+
+function SignupSteps({ current }: { current: number }) {
+  const steps = ["identity", "workspace", "team", "preferences"];
+  return (
+    <ol className="flex items-center gap-2 text-[11px] text-[var(--auth-muted)]">
+      {steps.map((label, idx) => {
+        const n = idx + 1;
+        const active = n === current;
+        const done = n < current;
+        return (
+          <li key={label} className="inline-flex items-center gap-2">
+            <span
+              className={`inline-flex h-5 w-5 items-center justify-center border text-[10px] ${
+                active
+                  ? "border-[var(--auth-primary-border)] text-[var(--auth-primary-text)]"
+                  : done
+                    ? "border-[var(--auth-secondary-border)] text-[var(--auth-ok)]"
+                    : "border-[var(--auth-secondary-border)] text-[var(--auth-faint)]"
+              }`}
+            >
+              {done ? "✓" : n}
+            </span>
+            <span
+              className={
+                active
+                  ? "text-[var(--auth-text)]"
+                  : done
+                    ? "text-[var(--auth-muted)]"
+                    : "text-[var(--auth-faint)]"
+              }
+            >
+              {label}
+            </span>
+            {n < steps.length ? (
+              <span aria-hidden="true" className="text-[var(--auth-faint)]">
+                →
+              </span>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function FooterLinks({ mode }: { mode: AuthMode }) {
   if (mode === "signup") {
     return (
-      <p className="mt-8 text-center text-[14px] text-[var(--auth-muted)]">
+      <p className="mt-6 text-[12px] text-[var(--auth-muted)]">
         Already have an account?{" "}
         <Link
           href="/login"
-          className="font-medium text-[var(--auth-link)] transition-opacity hover:opacity-80"
+          className="text-[var(--auth-link)] underline-offset-4 hover:underline"
         >
-          Log in
+          log in
         </Link>
       </p>
     );
   }
   return (
-    <p className="mt-8 text-center text-[14px] text-[var(--auth-muted)]">
-      Don’t have an account?{" "}
+    <p className="mt-6 text-[12px] text-[var(--auth-muted)]">
+      {"// new here? "}
       <Link
         href="/signup"
-        className="font-medium text-[var(--auth-link)] transition-opacity hover:opacity-80"
+        className="text-[var(--auth-link)] underline-offset-4 hover:underline"
       >
-        Sign up
-      </Link>{" "}
-      or{" "}
+        sign up
+      </Link>
+      {" · "}
       <Link
         href="/homepage"
-        className="font-medium text-[var(--auth-link)] transition-opacity hover:opacity-80"
+        className="text-[var(--auth-link)] underline-offset-4 hover:underline"
       >
         learn more
       </Link>
@@ -98,8 +496,10 @@ function FooterLinks({ mode }: { mode: AuthMode }) {
 }
 
 export function AuthPage({ mode }: { mode: AuthMode }) {
+  const isSignup = mode === "signup";
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [workspace, setWorkspace] = useState("");
   const [password, setPassword] = useState("");
   const [googleAvailable, setGoogleAvailable] = useState(true);
   const [samlAvailable, setSamlAvailable] = useState(false);
@@ -198,108 +598,197 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     });
   }
 
+  const ariaTitle = isSignup ? "Create your account" : "Log in to Linear";
+  const visibleTitle = isSignup
+    ? "create a workspace"
+    : "log in to exponential";
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--auth-bg)] px-6 py-12 text-[var(--auth-text)]">
-      <div className="w-full max-w-[400px]">
-        <LinearLogo />
-        <h1 className="text-[32px] font-medium tracking-[-0.03em]">
-          {mode === "signup" ? "Create your account" : "Log in to Linear"}
-        </h1>
-        <p className="mt-3 text-[14px] leading-6 text-[var(--auth-muted)]">
-          Authentication is handled by the headless Go API.
-        </p>
+    <>
+      <TopBar mode={mode} />
+      <main className="flex-1 px-6 py-8 text-[var(--auth-text)]">
+        <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <section className="space-y-6">
+            <div className="space-y-2">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-[var(--auth-muted)]">
+                {isSignup ? "# session · new workspace" : "# session · open"}
+              </p>
+              <h1
+                aria-label={ariaTitle}
+                className="text-[22px] font-medium tracking-[-0.01em] text-[var(--auth-text)]"
+              >
+                <span aria-hidden="true" className="text-[var(--auth-prompt)]">
+                  ${" "}
+                </span>
+                {visibleTitle}
+                <span
+                  aria-hidden="true"
+                  className="ml-1 inline-block h-4 w-[7px] translate-y-[2px] animate-pulse bg-[var(--auth-prompt)] align-middle"
+                />
+              </h1>
+              <p className="text-[12px] text-[var(--auth-muted)]">
+                {isSignup
+                  ? `we'll provision a workspace at ${WORKSPACE_HOST} · Authentication is handled by the headless Go API.`
+                  : "Authentication is handled by the headless Go API. session is bound to this device."}
+              </p>
+              {isSignup ? <SignupSteps current={1} /> : null}
+            </div>
 
-        {error ? (
-          <div
-            className="mt-5 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-200"
-            role="alert"
-          >
-            {error}
-          </div>
-        ) : null}
-        {magicLinkSent ? (
-          <div className="mt-5 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-[13px] text-[var(--auth-muted)]">
-            Check your email for the sign-in link.
-          </div>
-        ) : null}
+            {error ? (
+              <div
+                className="border border-[var(--auth-err)]/40 bg-[var(--auth-err)]/10 px-3 py-2 text-[12px] text-[var(--auth-err)]"
+                role="alert"
+              >
+                {error}
+              </div>
+            ) : null}
+            {magicLinkSent ? (
+              <div className="border border-[var(--auth-ok)]/40 bg-[var(--auth-ok)]/5 px-3 py-2 text-[12px] text-[var(--auth-ok)]">
+                Check your email for the sign-in link.
+              </div>
+            ) : null}
 
-        {googleAvailable ? (
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="mt-8 h-11 w-full rounded-md border border-[var(--auth-border)] bg-transparent text-[14px] font-medium text-[var(--auth-text)] transition-colors hover:bg-white/5 disabled:opacity-60"
-          >
-            Continue with Google
-          </button>
-        ) : null}
+            <div className="space-y-3">
+              {googleAvailable ? (
+                <OAuthButton
+                  provider="Google"
+                  hotkey="⌘ G"
+                  onClick={handleGoogleLogin}
+                  disabled={loading}
+                />
+              ) : null}
+              {samlAvailable ? (
+                <button
+                  type="button"
+                  aria-label="Continue with SAML SSO"
+                  className="flex h-10 w-full items-center justify-between border border-[var(--auth-secondary-border)] bg-[var(--auth-secondary-bg)] px-3 text-[13px] text-[var(--auth-secondary-text)] hover:bg-[var(--auth-secondary-bg-hover)]"
+                >
+                  <span className="inline-flex items-center gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="text-[var(--auth-prompt)]"
+                    >
+                      {">"}
+                    </span>
+                    <span>Continue with SAML SSO</span>
+                  </span>
+                  <span className="text-[11px] text-[var(--auth-faint)]">
+                    soon
+                  </span>
+                </button>
+              ) : null}
+            </div>
 
-        <form onSubmit={handlePasswordSubmit} className="mt-3 space-y-3">
-          {mode === "signup" ? (
-            <input
-              className="h-11 w-full rounded-md border border-[var(--auth-border)] bg-[var(--auth-input-bg)] px-3 text-[14px] outline-none"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Your name"
-              autoComplete="name"
-            />
-          ) : null}
-          <input
-            className="h-11 w-full rounded-md border border-[var(--auth-border)] bg-[var(--auth-input-bg)] px-3 text-[14px] outline-none"
-            type="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="Email address"
-            autoComplete="email"
-          />
-          <input
-            className="h-11 w-full rounded-md border border-[var(--auth-border)] bg-[var(--auth-input-bg)] px-3 text-[14px] outline-none"
-            type="password"
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Password"
-            autoComplete={
-              mode === "signup" ? "new-password" : "current-password"
-            }
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="h-11 w-full rounded-md bg-[var(--auth-button-bg)] text-[14px] font-medium text-[var(--auth-button-text)] transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {loading
-              ? "Please wait…"
-              : mode === "signup"
-                ? "Create account"
-                : "Log in"}
-          </button>
-        </form>
+            <Divider label="or paste credentials" />
 
-        {mode === "login" ? (
-          <>
-            <form onSubmit={handleMagicLink} className="mt-3">
+            <form
+              onSubmit={handlePasswordSubmit}
+              className="space-y-1"
+              aria-label={ariaTitle}
+            >
+              {isSignup ? (
+                <>
+                  <PromptInput
+                    prompt="name $"
+                    type="text"
+                    value={name}
+                    onChange={setName}
+                    placeholder="Your name"
+                    autoComplete="name"
+                  />
+                  <PromptInput
+                    prompt="org  $"
+                    type="text"
+                    value={workspace}
+                    onChange={setWorkspace}
+                    placeholder="workspace slug (e.g. acme)"
+                  />
+                </>
+              ) : null}
+              <PromptInput
+                prompt="mail $"
+                type="email"
+                value={email}
+                onChange={setEmail}
+                placeholder="Email address"
+                autoComplete="email"
+                required
+              />
+              <PromptInput
+                prompt="pass $"
+                type="password"
+                value={password}
+                onChange={setPassword}
+                placeholder="Password"
+                autoComplete={isSignup ? "new-password" : "current-password"}
+                required
+              />
               <button
                 type="submit"
-                disabled={loading || !email.trim()}
-                className="h-11 w-full rounded-md border border-[var(--auth-border)] bg-transparent text-[14px] font-medium text-[var(--auth-text)] transition-colors hover:bg-white/5 disabled:opacity-60"
+                disabled={loading}
+                aria-label={isSignup ? "Create account" : "Log in"}
+                className="mt-3 flex h-10 w-full items-center justify-between border border-[var(--auth-primary-border)] bg-[var(--auth-primary-bg)] px-3 text-[13px] text-[var(--auth-primary-text)] transition-colors hover:bg-[var(--auth-primary-bg-hover)] disabled:opacity-60"
               >
-                Send magic link instead
+                <span className="inline-flex items-center gap-3">
+                  <span aria-hidden="true">{"[↵]"}</span>
+                  <span>
+                    {loading
+                      ? "please wait…"
+                      : isSignup
+                        ? "create account"
+                        : "log in"}
+                  </span>
+                </span>
+                <span className="text-[11px] text-[var(--auth-muted)]">
+                  {isSignup ? "provisions workspace" : "binds session"}
+                </span>
               </button>
             </form>
-            {samlAvailable ? (
-              <button
-                type="button"
-                className="mt-3 h-11 w-full rounded-md border border-[var(--auth-border)] bg-transparent text-[14px] font-medium text-[var(--auth-text)] transition-colors hover:bg-white/5"
-              >
-                Continue with SAML SSO
-              </button>
+
+            {!isSignup ? (
+              <form onSubmit={handleMagicLink} aria-label="Send magic link">
+                <button
+                  type="submit"
+                  disabled={loading || !email.trim()}
+                  aria-label="Send magic link instead"
+                  className="flex h-10 w-full items-center justify-between border border-[var(--auth-secondary-border)] bg-[var(--auth-secondary-bg)] px-3 text-[13px] text-[var(--auth-secondary-text)] hover:bg-[var(--auth-secondary-bg-hover)] disabled:opacity-60"
+                >
+                  <span className="inline-flex items-center gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="text-[var(--auth-prompt)]"
+                    >
+                      {">"}
+                    </span>
+                    <span>Send magic link instead</span>
+                  </span>
+                  <kbd className="rounded border border-[var(--auth-secondary-border)] bg-[var(--auth-input-bg)] px-1.5 py-0.5 text-[10px] text-[var(--auth-muted)]">
+                    ⌘ M
+                  </kbd>
+                </button>
+              </form>
             ) : null}
-          </>
-        ) : null}
-        <FooterLinks mode={mode} />
-      </div>
-    </main>
+
+            <AdvancedAuth />
+            <FooterLinks mode={mode} />
+          </section>
+
+          <aside className="space-y-4">
+            {isSignup ? (
+              <>
+                <WorkspaceTreeRail slug={workspace} />
+                <NextStepsRail />
+              </>
+            ) : (
+              <>
+                <PreflightRail />
+                <RecentSessionsRail />
+              </>
+            )}
+          </aside>
+        </div>
+      </main>
+      <HotkeyBar mode={mode} />
+    </>
   );
 }

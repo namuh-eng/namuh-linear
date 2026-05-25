@@ -263,6 +263,6 @@ describe("Design tokens", () => {
 
     expect(editorialCss).toContain("--editorial-accent: oklch(0.56 0.16 32);");
     expect(editorialCss).toContain("--color-accent: var(--editorial-accent);");
-    expect(globalsCss).toContain("--auth-primary-bg: #7180ff;");
+    expect(globalsCss).toContain("--auth-prompt: #7180ff;");
   });
 });

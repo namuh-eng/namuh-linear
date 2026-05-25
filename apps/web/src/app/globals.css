@@ -79,49 +79,61 @@
   }
 
   .auth-shell {
-    --auth-background: #08090a;
-    --auth-text: #ffffff;
+    --auth-background: #07080a;
+    --auth-text: #e8ebf0;
     --auth-muted: #6b6f76;
-    --auth-link: #ffffff;
-    --auth-logo: #ffffff;
+    --auth-faint: #3a3e46;
+    --auth-link: #e8ebf0;
+    --auth-logo: #e8ebf0;
     --auth-accent: #7180ff;
-    --auth-primary-bg: #7180ff;
-    --auth-primary-bg-hover: #5f6df0;
-    --auth-primary-text: #ffffff;
-    --auth-secondary-bg: #1a1b1f;
-    --auth-secondary-bg-hover: #202127;
-    --auth-secondary-border: #272a31;
-    --auth-secondary-text: #f3f4f6;
-    --auth-input-bg: #121318;
-    --auth-input-border: #272a31;
-    --auth-input-placeholder: #6b6f76;
+    --auth-prompt: #7180ff;
+    --auth-ok: #6ee7a4;
+    --auth-warn: #e0a04a;
+    --auth-err: #f76a6a;
+    --auth-primary-bg: transparent;
+    --auth-primary-bg-hover: rgba(113, 128, 255, 0.08);
+    --auth-primary-text: #7180ff;
+    --auth-primary-border: rgba(113, 128, 255, 0.45);
+    --auth-secondary-bg: transparent;
+    --auth-secondary-bg-hover: rgba(255, 255, 255, 0.03);
+    --auth-secondary-border: rgba(255, 255, 255, 0.08);
+    --auth-secondary-text: #d6d9e0;
+    --auth-input-bg: rgba(255, 255, 255, 0.015);
+    --auth-input-border: rgba(255, 255, 255, 0.08);
+    --auth-input-placeholder: #4a4e57;
+    --auth-grid: rgba(255, 255, 255, 0.025);
     --auth-error: #f76a6a;
-    background: radial-gradient(
-        circle at top,
-        rgba(94, 106, 210, 0.08),
-        transparent 26%
-      ), var(--auth-background);
+    background: linear-gradient(var(--auth-grid) 1px, transparent 1px) 0 0 /
+      100% 24px, linear-gradient(90deg, var(--auth-grid) 1px, transparent 1px) 0
+      0 / 24px 100%,
+      radial-gradient(circle at top, rgba(94, 106, 210, 0.08), transparent 38%),
+      var(--auth-background);
+    color: var(--auth-text);
+    font-family: var(--editorial-mono), ui-monospace, "SF Mono", Menlo,
+      monospace;
   }
 
   @media (prefers-color-scheme: light) {
     .auth-shell {
-      --auth-background: #f7f7f8;
-      --auth-text: #23252a;
+      --auth-background: #fafafb;
+      --auth-text: #1f2125;
       --auth-muted: #6d727c;
-      --auth-link: #23252a;
-      --auth-logo: #23252a;
-      --auth-secondary-bg: #ffffff;
-      --auth-secondary-bg-hover: #f1f2f5;
-      --auth-secondary-border: #d7dbe3;
-      --auth-secondary-text: #42454d;
-      --auth-input-bg: #ffffff;
-      --auth-input-border: #d7dbe3;
-      --auth-input-placeholder: #8c919c;
-      background: radial-gradient(
-          circle at top,
-          rgba(94, 106, 210, 0.12),
-          transparent 26%
-        ), var(--auth-background);
+      --auth-faint: #b7bcc4;
+      --auth-link: #1f2125;
+      --auth-logo: #1f2125;
+      --auth-secondary-bg: transparent;
+      --auth-secondary-bg-hover: rgba(0, 0, 0, 0.03);
+      --auth-secondary-border: rgba(0, 0, 0, 0.08);
+      --auth-secondary-text: #2a2c31;
+      --auth-input-bg: rgba(0, 0, 0, 0.015);
+      --auth-input-border: rgba(0, 0, 0, 0.08);
+      --auth-input-placeholder: #9aa0a8;
+      --auth-grid: rgba(0, 0, 0, 0.03);
+      background: linear-gradient(var(--auth-grid) 1px, transparent 1px) 0 0 /
+        100% 24px, linear-gradient(90deg, var(--auth-grid) 1px, transparent 1px)
+        0 0 / 24px 100%,
+        radial-gradient(circle at top, rgba(94, 106, 210, 0.1), transparent 38%),
+        var(--auth-background);
     }
   }
 }

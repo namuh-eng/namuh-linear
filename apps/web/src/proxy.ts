@@ -20,6 +20,7 @@ export const PUBLIC_ROUTES = [
 const publicPaths = [
   "/login",
   "/signup",
+  "/ssh-challenge",
   ...PUBLIC_ROUTES,
   "/api/auth",
   "/api/workspaces",
