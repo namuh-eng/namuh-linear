@@ -27,7 +27,9 @@ const idempotencyKey = readOption(args, "idempotency-key");
 type MinimalWebSocket = {
   addEventListener: (
     type: "open" | "message" | "error" | "close",
-    listener: (event: { data?: string | ArrayBuffer | Uint8Array }) => void,
+    listener: (event: {
+      data?: string | ArrayBuffer | Uint8Array | Blob;
+    }) => void,
   ) => void;
   close: () => void;
 };
@@ -47,21 +49,28 @@ async function streamSyncWatch(input: { version: number; once: boolean }) {
   );
 
   await new Promise<void>((resolve, reject) => {
-    socket.addEventListener("message", (event) => {
-      const data = event.data;
-      if (typeof data === "string") {
-        process.stdout.write(`${data}
+    socket.addEventListener("message", async (event) => {
+      try {
+        const data = event.data;
+        if (typeof data === "string") {
+          process.stdout.write(`${data}
 `);
-      } else if (data instanceof ArrayBuffer) {
-        process.stdout.write(`${Buffer.from(data).toString("utf8")}
+        } else if (data instanceof ArrayBuffer) {
+          process.stdout.write(`${Buffer.from(data).toString("utf8")}
 `);
-      } else if (data) {
-        process.stdout.write(`${Buffer.from(data).toString("utf8")}
+        } else if (data instanceof Uint8Array) {
+          process.stdout.write(`${Buffer.from(data).toString("utf8")}
 `);
-      }
-      if (input.once) {
-        socket.close();
-        resolve();
+        } else if (typeof Blob !== "undefined" && data instanceof Blob) {
+          process.stdout.write(`${await data.text()}
+`);
+        }
+        if (input.once) {
+          socket.close();
+          resolve();
+        }
+      } catch (error) {
+        reject(error);
       }
     });
     socket.addEventListener("error", () =>

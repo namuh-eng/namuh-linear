@@ -4,18 +4,20 @@
   "private": true,
   "type": "module",
   "bin": {
-    "exponential": "src/index.ts"
+    "exponential": "bin/exponential"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "cli": "tsx src/index.ts"
   },
   "dependencies": {
-    "@exponential/sdk": "workspace:*"
+    "@exponential/sdk": "workspace:*",
+    "tsx": "^4.22.3"
   },
   "devDependencies": {
+    "@types/node": "^20.17.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.1.4",
-    "@types/node": "^20.17.0"
+    "vitest": "^4.1.4"
   }
 }

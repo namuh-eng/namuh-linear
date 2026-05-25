@@ -51,11 +51,23 @@ func (h Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = wsjsonWrite(r.Context(), conn, replayMessage{Type: "replay", Operations: ops})
 
+	clientClosed := make(chan struct{})
+	go func() {
+		defer close(clientClosed)
+		for {
+			if _, _, err := conn.Read(r.Context()); err != nil {
+				return
+			}
+		}
+	}()
+
 	ticker := time.NewTicker(25 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-clientClosed:
 			return
 		case <-ticker.C:
 			if err := conn.Ping(r.Context()); err != nil {
