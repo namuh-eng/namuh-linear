@@ -6,7 +6,7 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
-    "generate": "openapi-typescript ../proto/openapi.yaml -o src/generated.ts",
+    "generate": "openapi-typescript ../proto/openapi.yaml -o src/generated.ts && biome format --write src/generated.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
