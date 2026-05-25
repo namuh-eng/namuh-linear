@@ -1,28 +1,34 @@
 "use client";
 
 import { useAppShellContext } from "@/app/(app)/app-shell";
+import PreferencesPage from "@/app/(app)/settings/account/preferences/page";
 import { withWorkspaceSlug } from "@/lib/workspace-paths";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-const SETTINGS_ROOT_REDIRECT_DELAY_MS = 750;
-
 export default function SettingsPage() {
+  const pathname = usePathname();
   const router = useRouter();
   const shellContext = useAppShellContext();
+  const workspaceSlug = shellContext?.workspaceSlug;
+  const sluggedSettingsRoot = workspaceSlug
+    ? `/${encodeURIComponent(workspaceSlug)}/settings`
+    : null;
+  const isSluggedSettingsRoot = pathname === sluggedSettingsRoot;
 
   useEffect(() => {
-    const id = window.setTimeout(() => {
-      router.replace(
-        withWorkspaceSlug(
-          "/settings/account/preferences",
-          shellContext?.workspaceSlug,
-        ),
-      );
-    }, SETTINGS_ROOT_REDIRECT_DELAY_MS);
+    if (isSluggedSettingsRoot) {
+      return;
+    }
 
-    return () => window.clearTimeout(id);
-  }, [router, shellContext?.workspaceSlug]);
+    router.replace(
+      withWorkspaceSlug("/settings/account/preferences", workspaceSlug),
+    );
+  }, [isSluggedSettingsRoot, router, workspaceSlug]);
+
+  if (isSluggedSettingsRoot) {
+    return <PreferencesPage />;
+  }
 
   return (
     <div className="flex h-full items-center justify-center text-[var(--color-text-secondary)]">

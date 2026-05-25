@@ -9,6 +9,7 @@ vi.mock("@/app/(app)/app-shell", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/settings",
   useRouter: () => ({ replace }),
 }));
 
