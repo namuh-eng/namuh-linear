@@ -98,10 +98,7 @@ func operationChannel(workspaceID string) string {
 
 func getRedisClient() (*redis.Client, error) {
 	redisOnce.Do(func() {
-		redisURL := os.Getenv("REDIS_URL")
-		if redisURL == "" {
-			redisURL = "redis://localhost:6379"
-		}
+		redisURL := redisURLFromEnv()
 		options, err := redis.ParseURL(redisURL)
 		if err != nil {
 			redisErr = err
@@ -116,4 +113,14 @@ func getRedisClient() (*redis.Client, error) {
 		return nil, redisErr
 	}
 	return redisClient, nil
+}
+
+func redisURLFromEnv() string {
+	if redisURL := os.Getenv("EXPONENTIAL_API_REDIS_URL"); redisURL != "" {
+		return redisURL
+	}
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		return redisURL
+	}
+	return "redis://localhost:6379"
 }
