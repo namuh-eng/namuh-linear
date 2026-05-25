@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/namuh-eng/exponential/apps/api/internal/auth"
 	"github.com/namuh-eng/exponential/apps/api/internal/problem"
+	dbsqlc "github.com/namuh-eng/exponential/apps/api/internal/sqlc/generated"
 )
 
 type Handler struct{ DB *pgxpool.Pool }
@@ -861,11 +862,118 @@ func (h Handler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) findIssue(ctx context.Context, id string, workspaceID string) (Issue, error) {
-	where := "i.identifier = $2"
-	if strings.Count(id, "-") == 4 && len(id) >= 32 {
-		where = "i.id = $2::uuid"
+	workspaceUUID, err := uuidParam(workspaceID)
+	if err != nil {
+		return Issue{}, err
 	}
-	return scanIssue(h.DB.QueryRow(ctx, `select `+issueColumns()+` from issue i join team t on t.id=i.team_id where t.workspace_id=$1::uuid and `+where+` limit 1`, workspaceID, id))
+	queries := dbsqlc.New(h.DB)
+	if strings.Count(id, "-") == 4 && len(id) >= 32 {
+		issueUUID, err := uuidParam(id)
+		if err != nil {
+			return Issue{}, err
+		}
+		row, err := queries.GetIssueByID(ctx, dbsqlc.GetIssueByIDParams{WorkspaceID: workspaceUUID, ID: issueUUID})
+		if err != nil {
+			return Issue{}, err
+		}
+		return issueFromSQLCByID(row), nil
+	}
+	row, err := queries.GetIssueByIdentifier(ctx, dbsqlc.GetIssueByIdentifierParams{WorkspaceID: workspaceUUID, Identifier: id})
+	if err != nil {
+		return Issue{}, err
+	}
+	return issueFromSQLCByIdentifier(row), nil
+}
+
+func uuidParam(value string) (pgtype.UUID, error) {
+	var id pgtype.UUID
+	if err := id.Scan(value); err != nil {
+		return pgtype.UUID{}, err
+	}
+	return id, nil
+}
+
+func textPtr(value pgtype.Text) *string {
+	if !value.Valid {
+		return nil
+	}
+	return &value.String
+}
+
+func uuidPtr(value pgtype.UUID) *string {
+	if !value.Valid {
+		return nil
+	}
+	text := value.String()
+	return &text
+}
+
+func uuidString(value pgtype.UUID) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.String()
+}
+
+func float4Ptr(value pgtype.Float4) *float32 {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Float32
+}
+
+func issueFromSQLCByID(row dbsqlc.GetIssueByIDRow) Issue {
+	return Issue{
+		ID:                 uuidString(row.ID),
+		Number:             row.Number,
+		Identifier:         row.Identifier,
+		Title:              row.Title,
+		Description:        textPtr(row.Description),
+		TeamID:             uuidString(row.TeamID),
+		StateID:            uuidString(row.StateID),
+		AssigneeID:         textPtr(row.AssigneeID),
+		CreatorID:          row.CreatorID,
+		Priority:           row.Priority,
+		Estimate:           float4Ptr(row.Estimate),
+		ParentIssueID:      uuidPtr(row.ParentIssueID),
+		ProjectID:          uuidPtr(row.ProjectID),
+		ProjectMilestoneID: uuidPtr(row.ProjectMilestoneID),
+		CycleID:            uuidPtr(row.CycleID),
+		DueDate:            formatTS(row.DueDate),
+		SortOrder:          row.SortOrder,
+		CreatedAt:          *formatTS(row.CreatedAt),
+		UpdatedAt:          *formatTS(row.UpdatedAt),
+		ArchivedAt:         formatTS(row.ArchivedAt),
+		CanceledAt:         formatTS(row.CanceledAt),
+		CompletedAt:        formatTS(row.CompletedAt),
+	}
+}
+
+func issueFromSQLCByIdentifier(row dbsqlc.GetIssueByIdentifierRow) Issue {
+	return Issue{
+		ID:                 uuidString(row.ID),
+		Number:             row.Number,
+		Identifier:         row.Identifier,
+		Title:              row.Title,
+		Description:        textPtr(row.Description),
+		TeamID:             uuidString(row.TeamID),
+		StateID:            uuidString(row.StateID),
+		AssigneeID:         textPtr(row.AssigneeID),
+		CreatorID:          row.CreatorID,
+		Priority:           row.Priority,
+		Estimate:           float4Ptr(row.Estimate),
+		ParentIssueID:      uuidPtr(row.ParentIssueID),
+		ProjectID:          uuidPtr(row.ProjectID),
+		ProjectMilestoneID: uuidPtr(row.ProjectMilestoneID),
+		CycleID:            uuidPtr(row.CycleID),
+		DueDate:            formatTS(row.DueDate),
+		SortOrder:          row.SortOrder,
+		CreatedAt:          *formatTS(row.CreatedAt),
+		UpdatedAt:          *formatTS(row.UpdatedAt),
+		ArchivedAt:         formatTS(row.ArchivedAt),
+		CanceledAt:         formatTS(row.CanceledAt),
+		CompletedAt:        formatTS(row.CompletedAt),
+	}
 }
 
 func issueColumns() string {

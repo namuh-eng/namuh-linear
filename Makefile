@@ -1,4 +1,4 @@
-.PHONY: check test test-e2e typecheck lint format fix all dev build clean cpd api-build api-test api-dockerfile ecs-task-definitions ecs-render deploy-scripts smoke-script openapi-coverage openapi-strict web-api-empty web-sdk-usage
+.PHONY: check test test-e2e typecheck lint format fix all dev build clean cpd api-build api-test api-dockerfile ecs-task-definitions ecs-render deploy-scripts smoke-script openapi-coverage openapi-strict sqlc-generated web-api-empty web-sdk-usage
 .PHONY: check-header test-header check-verbose test-verbose
 .PHONY: dev-services dev-services-down
 
@@ -6,7 +6,7 @@
 all: check test
 
 # Static analysis: typecheck + lint/format
-check: check-header typecheck lint api-build api-dockerfile ecs-task-definitions ecs-render deploy-scripts smoke-script openapi-coverage openapi-strict web-api-empty web-sdk-usage
+check: check-header typecheck lint api-build api-dockerfile ecs-task-definitions ecs-render deploy-scripts smoke-script openapi-coverage openapi-strict sqlc-generated web-api-empty web-sdk-usage
 
 # TypeScript type checking
 typecheck:
@@ -62,6 +62,11 @@ openapi-coverage:
 openapi-strict:
 	@. ./hack/run_silent.sh && \
 	run_silent "OpenAPI strict-server stubs present" "node scripts/check-go-openapi-generated.mjs"
+
+# sqlc generated query coverage
+sqlc-generated:
+	@. ./hack/run_silent.sh && \
+	run_silent "sqlc generated queries present" "node scripts/check-sqlc-generated.mjs"
 
 # Ensure Next.js remains UI-only.
 web-api-empty:
