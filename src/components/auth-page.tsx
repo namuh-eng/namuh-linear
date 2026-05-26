@@ -64,8 +64,22 @@ type SamlDiscoveryResponse = {
   url?: string;
   error?: string;
 };
+type RecentSessionEntry = {
+  id: string;
+  workspaceName: string;
+  actor: string;
+  device: string;
+  ipFamily: string;
+  loggedInAt: string;
+  currentOrigin: boolean;
+};
+type RecentSessionsResponse = {
+  entries: RecentSessionEntry[];
+  recognizedOrigin: boolean;
+};
 
 const emptyEmailLoginError = "Please enter an email address for login.";
+const recentSessionFingerprintCookie = "exp_recent_session_fp";
 const signupStorageKey = "exponential.signupWizard";
 
 type SignupWizardState = {
@@ -107,6 +121,30 @@ function loadSignupState(): SignupWizardState {
 
 function saveSignupState(state: SignupWizardState) {
   window.localStorage.setItem(signupStorageKey, JSON.stringify(state));
+}
+
+function ensureRecentSessionFingerprint() {
+  const existing = document.cookie
+    .split("; ")
+    .find((cookie) => cookie.startsWith(`${recentSessionFingerprintCookie}=`));
+  if (existing) return;
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  const value = Array.from(bytes, (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  document.cookie = `${recentSessionFingerprintCookie}=${value}; path=/; max-age=31536000; samesite=lax`;
+}
+
+function formatRecentSessionTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Recently";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function shouldUseNativeEmailValidation(
@@ -243,6 +281,60 @@ function getTurnstileResponse(form: HTMLFormElement): string | undefined {
   return typeof response === "string" && response.trim()
     ? response.trim()
     : undefined;
+}
+
+function RecentSessionsRail({
+  sessions,
+  recognizedOrigin,
+}: {
+  sessions: RecentSessionEntry[];
+  recognizedOrigin: boolean;
+}) {
+  if (sessions.length === 0) return null;
+
+  return (
+    <aside className="hidden w-[360px] rounded-3xl border border-[var(--auth-secondary-border)] bg-[var(--auth-secondary-bg)] p-5 text-[var(--auth-text)] shadow-2xl lg:block">
+      <div className="mb-4">
+        <p className="text-[12px] font-medium uppercase tracking-[0.16em] text-[var(--auth-muted)]">
+          Recent sessions on this host
+        </p>
+        <h2 className="mt-2 text-[18px] font-medium tracking-[-0.02em]">
+          Recognized workspace activity
+        </h2>
+      </div>
+      {!recognizedOrigin ? (
+        <output className="mb-4 block rounded-2xl border border-amber-400/30 bg-amber-400/10 p-3 text-[13px] leading-5 text-amber-100">
+          Unrecognized origin. We have not seen this network in the recent
+          session list.
+        </output>
+      ) : null}
+      <div className="space-y-3">
+        {sessions.map((session) => (
+          <div
+            key={session.id}
+            className="rounded-2xl border border-[var(--auth-secondary-border)] bg-black/10 p-3"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="truncate text-[14px] font-medium">
+                {session.workspaceName}
+              </p>
+              {session.currentOrigin ? (
+                <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-200">
+                  This origin
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-1 text-[12px] text-[var(--auth-muted)]">
+              {session.actor} · {session.device}
+            </p>
+            <p className="mt-2 text-[12px] text-[var(--auth-muted)]">
+              {formatRecentSessionTime(session.loggedInAt)}
+            </p>
+          </div>
+        ))}
+      </div>
+    </aside>
+  );
 }
 
 function FooterLinks({ mode }: { mode: AuthMode }) {
@@ -626,11 +718,48 @@ export function AuthPage({
   const [preflightChecks, setPreflightChecks] = useState<
     PreflightCheck[] | null
   >(null);
+  const [recentSessions, setRecentSessions] = useState<RecentSessionEntry[]>(
+    [],
+  );
+  const [recognizedOrigin, setRecognizedOrigin] = useState(true);
   const emailSubmitAttemptRef = useRef(0);
 
   useEffect(() => {
     setPasskeySupported(browserSupportsPasskeys());
+    ensureRecentSessionFingerprint();
   }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === "test" || mode !== "login") return;
+    const controller = new AbortController();
+    async function loadRecentSessions() {
+      try {
+        const url = new URL(
+          "/api/auth/sessions/recent",
+          window.location.origin,
+        );
+        url.searchParams.set("host", window.location.hostname);
+        url.searchParams.set("callbackUrl", getSafeCallbackPath());
+        const response = await fetch(`${url.pathname}${url.search}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (!response.ok || response.status === 401) {
+          setRecentSessions([]);
+          return;
+        }
+        const data = (await response.json()) as RecentSessionsResponse;
+        setRecentSessions(Array.isArray(data.entries) ? data.entries : []);
+        setRecognizedOrigin(data.recognizedOrigin !== false);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setRecentSessions([]);
+        }
+      }
+    }
+    loadRecentSessions();
+    return () => controller.abort();
+  }, [mode]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1302,12 +1431,20 @@ export function AuthPage({
 
         {step === "choose" && <FooterLinks mode={mode} />}
       </div>
-      {preflightChecks ? (
-        <PreflightRail
-          checks={preflightChecks}
-          hasFailure={hasPreflightFailure}
-        />
-      ) : null}
+      <div className="flex w-full max-w-[360px] flex-col gap-4">
+        {mode === "login" ? (
+          <RecentSessionsRail
+            sessions={recentSessions}
+            recognizedOrigin={recognizedOrigin}
+          />
+        ) : null}
+        {preflightChecks ? (
+          <PreflightRail
+            checks={preflightChecks}
+            hasFailure={hasPreflightFailure}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
