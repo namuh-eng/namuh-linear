@@ -216,7 +216,7 @@ describe("TeamAnalyticsPage component", () => {
     return fetchMock;
   }
 
-  it("renders a Linear-like Insights builder with chart, table, actions, and cycle burndown", async () => {
+  it("renders a exponential-like Insights builder with chart, table, actions, and cycle burndown", async () => {
     vi.mocked(useParams).mockReturnValue({ key: "ENG" });
     stubFetch();
 
@@ -225,7 +225,7 @@ describe("TeamAnalyticsPage component", () => {
     expect(screen.getByText("Loading analytics...")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText("Linear Insights")).toBeInTheDocument();
+      expect(screen.getByText("exponential Insights")).toBeInTheDocument();
       expect(screen.getByLabelText("Measure")).toBeInTheDocument();
       expect(screen.getByLabelText("Slice")).toBeInTheDocument();
       expect(screen.getByLabelText("Segment")).toBeInTheDocument();

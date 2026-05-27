@@ -14,7 +14,7 @@ test.describe("Unauthenticated workspace deep links", () => {
       await page.goto(deepLink);
 
       await expect(
-        page.getByRole("heading", { name: "Log in to Linear" }),
+        page.getByRole("heading", { name: "Log in to exponential" }),
       ).toBeVisible();
       await expect(
         page.getByText(
@@ -50,7 +50,7 @@ test.describe("Unauthenticated workspace deep links", () => {
 
     await page.goto("/foreverbrowsing");
     await expect(
-      page.getByRole("heading", { name: "Log in to Linear" }),
+      page.getByRole("heading", { name: "Log in to exponential" }),
     ).toBeVisible();
     await expect(
       page.getByText(
@@ -81,11 +81,11 @@ test.describe("Unauthenticated workspace deep links", () => {
       await expect(page).toHaveURL(new RegExp(`${route.path}$`));
       await expect(page.getByText(route.text).first()).toBeVisible();
       await expect(
-        page.getByRole("heading", { name: "Log in to Linear" }),
+        page.getByRole("heading", { name: "Log in to exponential" }),
       ).toHaveCount(0);
 
       await expect(
-        page.getByRole("link", { name: "Linear" }).first(),
+        page.getByRole("link", { name: "exponential" }).first(),
       ).toHaveAttribute("href", "/homepage");
       await expect(
         page
@@ -120,7 +120,7 @@ test.describe("Unauthenticated workspace deep links", () => {
         new RegExp(`/login\\?callbackUrl=${encodeURIComponent(path)}$`),
       );
       await expect(
-        page.getByRole("heading", { name: "Log in to Linear" }),
+        page.getByRole("heading", { name: "Log in to exponential" }),
       ).toBeVisible();
     }
   });
@@ -129,7 +129,7 @@ test.describe("Unauthenticated workspace deep links", () => {
     await page.goto("/login");
     await expect(page).toHaveURL(/\/login$/);
     await expect(
-      page.getByRole("heading", { name: "Log in to Linear" }),
+      page.getByRole("heading", { name: "Log in to exponential" }),
     ).toBeVisible();
     await expect(
       page.getByText(
@@ -190,7 +190,7 @@ test.describe("Unauthenticated workspace deep links", () => {
       }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Log in to Linear" }),
+      page.getByRole("heading", { name: "Log in to exponential" }),
     ).toHaveCount(0);
     const publicNav = page.getByLabel("Public");
     await expect(
@@ -227,7 +227,7 @@ test.describe("Unauthenticated workspace deep links", () => {
       ),
     ).toBe(true);
     await expect(
-      page.getByRole("heading", { name: "Log in to Linear" }),
+      page.getByRole("heading", { name: "Log in to exponential" }),
     ).toBeVisible();
 
     await emailInput.focus();
@@ -250,7 +250,7 @@ test.describe("Unauthenticated workspace deep links", () => {
     await page.getByRole("button", { name: "Log in" }).click();
 
     await expect(
-      page.getByRole("heading", { name: "Log in to Linear" }),
+      page.getByRole("heading", { name: "Log in to exponential" }),
     ).toBeVisible();
     expect(
       await emailInput.evaluate(
@@ -294,7 +294,7 @@ test("first-party auth hides legacy workspace provider controls", async ({
   );
 
   await expect(
-    page.getByRole("heading", { name: "Log in to Linear" }),
+    page.getByRole("heading", { name: "Log in to exponential" }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Continue with Google" }),
@@ -328,11 +328,11 @@ const publicMarketingRoutes = [
   {
     path: "/customers",
     heading: /Built with the teams defining modern product development/i,
-    text: "Why OpenAI chose Linear and scaled to 3,000 users",
+    text: "Why OpenAI chose exponential and scaled to 3,000 users",
   },
   {
     path: "/changelog",
-    heading: /The latest from Linear product development/i,
+    heading: /The latest from exponential product development/i,
     text: "Code Intelligence",
   },
 ];
@@ -350,12 +350,12 @@ test.describe("Public marketing routes", () => {
       ).toBeVisible();
       await expect(page.getByText(route.text).first()).toBeVisible();
       await expect(
-        page.getByRole("heading", { name: "Log in to Linear" }),
+        page.getByRole("heading", { name: "Log in to exponential" }),
       ).toHaveCount(0);
 
       const publicNav = page.getByLabel("Public");
       await expect(
-        publicNav.getByRole("link", { name: "Linear" }),
+        publicNav.getByRole("link", { name: "exponential" }),
       ).toHaveAttribute("href", "/homepage");
       await expect(
         publicNav.getByRole("link", { name: "Pricing" }),
@@ -381,13 +381,13 @@ test.describe("Public marketing routes", () => {
     await expect(page).toHaveURL(/\/now$/);
     await expect(
       page.getByRole("heading", {
-        name: /The latest from Linear product development/i,
+        name: /The latest from exponential product development/i,
       }),
     ).toBeVisible();
     await expect(page.getByText("May 14, 2026")).toBeVisible();
     await expect(page.getByText("Code Intelligence")).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Log in to Linear" }),
+      page.getByRole("heading", { name: "Log in to exponential" }),
     ).toHaveCount(0);
   });
 
@@ -399,13 +399,13 @@ test.describe("Public marketing routes", () => {
       /\/login\?callbackUrl=%2Fsettings%2Fsecurity$/,
     );
     await expect(
-      page.getByRole("heading", { name: "Log in to Linear" }),
+      page.getByRole("heading", { name: "Log in to exponential" }),
     ).toBeVisible();
 
     await page.goto("/team/ENG/all");
     await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fteam%2FENG%2Fall$/);
     await expect(
-      page.getByRole("heading", { name: "Log in to Linear" }),
+      page.getByRole("heading", { name: "Log in to exponential" }),
     ).toBeVisible();
   });
 });

@@ -119,7 +119,7 @@ describe("IssueDetailView UI", () => {
     expect(screen.getByText("First comment")).toBeInTheDocument();
   });
 
-  it("renders Linear-like planning fields, relations, issue reactions, and actions", async () => {
+  it("renders exponential-like planning fields, relations, issue reactions, and actions", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => mockIssueDetail,

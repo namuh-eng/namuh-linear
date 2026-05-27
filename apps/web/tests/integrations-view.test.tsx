@@ -15,7 +15,8 @@ const integrations = [
   {
     provider: "github",
     name: "GitHub",
-    description: "Sync pull requests, commits, and issue links with Linear.",
+    description:
+      "Sync pull requests, commits, and issue links with exponential.",
     status: "configuration_required",
     displayName: null,
     connectedAt: null,

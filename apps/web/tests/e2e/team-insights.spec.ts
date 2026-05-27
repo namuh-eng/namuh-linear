@@ -29,7 +29,7 @@ test.describe("Team Insights analytics dashboard", () => {
 
     await page.goto(`/${workspaceSlug}/team/${teamKey}/insights`);
 
-    await expect(page.getByText("Linear Insights")).toBeVisible();
+    await expect(page.getByText("exponential Insights")).toBeVisible();
     await expect(page.getByLabel("Insights metric cards")).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Throughput/ }),
@@ -76,7 +76,7 @@ test.describe("Team Insights analytics dashboard", () => {
       `/${workspaceSlug}/team/${workspacePayload.team.key}/insights?status=completed`,
     );
 
-    await expect(page.getByText("Linear Insights")).toBeVisible();
+    await expect(page.getByText("exponential Insights")).toBeVisible();
     await expect(
       page
         .getByLabel("Insights trend chart")

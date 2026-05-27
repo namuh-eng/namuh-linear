@@ -17,7 +17,7 @@ export function MarketingHeader() {
         <span className="flex size-8 items-center justify-center rounded-lg bg-[var(--editorial-ink-1)] text-[var(--editorial-bg)]">
           L
         </span>
-        <span>Linear</span>
+        <span>exponential</span>
       </Link>
 
       <nav

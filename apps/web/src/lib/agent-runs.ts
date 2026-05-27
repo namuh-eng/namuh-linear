@@ -122,7 +122,7 @@ const seededRuns: AgentRun[] = [
       },
     },
     status: "needs_review",
-    owner: "Linear Agent",
+    owner: "exponential Agent",
     target: "EXP triage queue",
     createdAt: fallbackCreatedAt,
     updatedAt: "2026-05-15T12:06:00.000Z",

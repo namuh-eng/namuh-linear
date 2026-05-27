@@ -131,7 +131,7 @@ describe("Account Profile Page", () => {
     );
   });
 
-  it("renders editable Linear profile metadata controls", async () => {
+  it("renders editable exponential profile metadata controls", async () => {
     mockSession();
     render(<ProfilePage />);
     await waitForLoaded();

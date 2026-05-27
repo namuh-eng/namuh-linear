@@ -47,9 +47,9 @@ describe("public auth pages without a database", () => {
     render(<LoginPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Log in to Linear" }),
+      screen.getByRole("heading", { name: "Log in to exponential" }),
     ).toBeDefined();
-    expect(screen.getByRole("img", { name: "Linear logo" })).toBeDefined();
+    expect(screen.getByRole("img", { name: "exponential logo" })).toBeDefined();
     expect(
       await screen.findByRole("button", { name: /Continue with Google/i }),
     ).toBeDefined();
@@ -64,7 +64,7 @@ describe("public auth pages without a database", () => {
     expect(
       screen.getByRole("heading", { name: "Create your account" }),
     ).toBeDefined();
-    expect(screen.getByRole("img", { name: "Linear logo" })).toBeDefined();
+    expect(screen.getByRole("img", { name: "exponential logo" })).toBeDefined();
     expect(screen.getByText("Already have an account?")).toBeDefined();
     expect(screen.queryByText(/Internal Server Error/i)).toBeNull();
   });

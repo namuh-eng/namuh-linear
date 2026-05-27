@@ -1,5 +1,6 @@
 "use client";
 
+import { ExponentialMark } from "@/components/exponential-mark";
 import {
   apiErrorMessage,
   createBrowserApiClient,
@@ -133,44 +134,7 @@ function InviteTeamContent() {
       <div className="w-full max-w-[480px] px-4">
         {/* Header */}
         <div className="mb-8 flex flex-col items-center">
-          <svg
-            width="48"
-            height="48"
-            viewBox="0 0 100 100"
-            fill="none"
-            role="img"
-            aria-label="Linear logo"
-            className="mb-5"
-          >
-            <path
-              d="M5.22 51.09a49.4 49.4 0 0 0 43.69 43.69L5.22 51.09Z"
-              fill="#5E6AD2"
-            />
-            <path
-              d="M1.01 40.94a49.54 49.54 0 0 0 58.05 58.05L1.01 40.94Z"
-              fill="#5E6AD2"
-            />
-            <path
-              d="M3.42 27.2A49.58 49.58 0 0 0 72.8 96.58L3.42 27.2Z"
-              fill="#5E6AD2"
-            />
-            <path
-              d="M10.57 16.1A49.53 49.53 0 0 0 83.9 89.43L10.57 16.1Z"
-              fill="#5E6AD2"
-            />
-            <path
-              d="M21.07 8.53a49.46 49.46 0 0 0 70.4 70.4A49.53 49.53 0 0 0 21.07 8.53Z"
-              fill="#5E6AD2"
-            />
-            <path
-              d="M34.7 3.68a49.46 49.46 0 0 0 61.6 61.63A49.54 49.54 0 0 0 34.7 3.68Z"
-              fill="#5E6AD2"
-            />
-            <path
-              d="M50.58.16a49.4 49.4 0 0 0 49.26 49.26A49.41 49.41 0 0 0 50.58.16Z"
-              fill="#5E6AD2"
-            />
-          </svg>
+          <ExponentialMark size={48} className="mb-5 text-white" />
           <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-white">
             Invite your team
           </h1>

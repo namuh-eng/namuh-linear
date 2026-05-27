@@ -3,7 +3,7 @@
 import { OPEN_ASK_LINEAR_EVENT } from "@/lib/command-palette";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-interface AskLinearAssistantProps {
+interface AskAssistantProps {
   workspaceId?: string;
   workspaceSlug?: string;
   teamKey: string;
@@ -14,11 +14,11 @@ interface Message {
   content: string;
 }
 
-export function AskLinearAssistant({
+export function AskAssistant({
   workspaceId = "",
   workspaceSlug = "",
   teamKey,
-}: AskLinearAssistantProps) {
+}: AskAssistantProps) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -70,7 +70,9 @@ export function AskLinearAssistant({
           payload.capabilities?.canUseAgents !== false;
         setCanAskLinear(enabled);
         setPolicyMessage(
-          enabled ? null : "Ask Linear is disabled by workspace AI settings.",
+          enabled
+            ? null
+            : "Ask exponential is disabled by workspace AI settings.",
         );
       })
       .catch(() => undefined);
@@ -143,7 +145,7 @@ export function AskLinearAssistant({
     <>
       <button
         type="button"
-        aria-label="Ask Linear"
+        aria-label="Ask exponential"
         onClick={openAssistant}
         disabled={!canAskLinear}
         title={policyMessage ?? undefined}
@@ -152,18 +154,18 @@ export function AskLinearAssistant({
         <span aria-hidden="true" className="text-[15px]">
           ✦
         </span>
-        <span>Ask Linear</span>
+        <span>Ask exponential</span>
       </button>
 
       {open ? (
         <aside
-          aria-label="Ask Linear assistant"
+          aria-label="Ask exponential assistant"
           className="fixed right-5 bottom-20 z-[90] flex h-[min(560px,calc(100vh-7rem))] w-[min(420px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-[14px] border border-[var(--color-border-strong)] bg-[var(--color-content-bg)] shadow-[var(--shadow-editorial-md)]"
         >
           <header className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
             <div>
               <h2 className="text-[15px] font-semibold text-[var(--color-text-primary)]">
-                Ask Linear
+                Ask exponential
               </h2>
               <p className="mt-1 text-[12px] text-[var(--color-text-secondary)]">
                 Workspace-aware help for {workspaceSlug || "your workspace"}
@@ -171,7 +173,7 @@ export function AskLinearAssistant({
             </div>
             <button
               type="button"
-              aria-label="Close Ask Linear"
+              aria-label="Close Ask exponential"
               onClick={close}
               className="rounded-md px-2 py-1 text-[18px] leading-none text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
             >
@@ -200,7 +202,7 @@ export function AskLinearAssistant({
             ))}
             {status === "loading" ? (
               <output className="mr-8 rounded-[10px] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-[var(--color-text-secondary)]">
-                Ask Linear is thinking…
+                Ask exponential is thinking…
               </output>
             ) : null}
           </div>
@@ -210,7 +212,7 @@ export function AskLinearAssistant({
             className="border-t border-[var(--color-border)] p-3"
           >
             <label className="sr-only" htmlFor="ask-linear-prompt">
-              Ask Linear prompt
+              Ask exponential prompt
             </label>
             <textarea
               id="ask-linear-prompt"

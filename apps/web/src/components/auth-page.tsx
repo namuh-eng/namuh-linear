@@ -1,5 +1,6 @@
 "use client";
 
+import { ExponentialMark } from "@/components/exponential-mark";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -47,30 +48,11 @@ function getSafeCallbackPath(): string {
   return getCurrentPathCallback();
 }
 
-function LinearLogo() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 32 32"
-      fill="none"
-      role="img"
-      aria-label="Linear logo"
-      className="text-[var(--auth-logo)]"
-    >
-      <path
-        d="M.392 19.687c-.071-.303.29-.494.511-.274l11.684 11.684c.22.22.03.582-.274.51a16.04 16.04 0 0 1-11.92-11.92ZM0 15.005c-.005.09.029.179.093.243l16.66 16.659a.317.317 0 0 0 .242.092 16.02 16.02 0 0 0 2.229-.296c.244-.05.33-.35.152-.527L.825 12.624a.311.311 0 0 0-.527.152c-.15.726-.25 1.47-.296 2.229ZM1.347 9.506a.316.316 0 0 0 .067.352l20.728 20.728c.093.093.233.12.352.067a15.961 15.961 0 0 0 1.66-.86.314.314 0 0 0 .058-.492L2.7 7.788a.314.314 0 0 0-.493.058 15.965 15.965 0 0 0-.859 1.66ZM4.05 5.784a.315.315 0 0 1-.013-.434A15.976 15.976 0 0 1 15.985 0C24.83 0 32 7.17 32 16.015c0 4.75-2.067 9.015-5.35 11.948a.315.315 0 0 1-.434-.014L4.051 5.784Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
 function TopBar({ mode }: { mode: AuthMode }) {
   return (
     <header className="flex items-center justify-between border-b border-[var(--auth-secondary-border)] px-6 py-3 text-[12px] text-[var(--auth-muted)]">
       <div className="flex items-center gap-3">
-        <LinearLogo />
+        <ExponentialMark size={18} className="text-[var(--auth-text)]/80" />
         <span className="text-[var(--auth-text)]">exponential</span>
         <span className="text-[var(--auth-faint)]">{WORKSPACE_VERSION}</span>
       </div>
@@ -599,7 +581,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     });
   }
 
-  const ariaTitle = isSignup ? "Create your account" : "Log in to Linear";
+  const ariaTitle = isSignup ? "Create your account" : "Log in to exponential";
   const visibleTitle = isSignup
     ? "create a workspace"
     : "log in to exponential";

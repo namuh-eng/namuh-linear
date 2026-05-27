@@ -185,7 +185,7 @@ export function CommandPalette({
   const commands: CommandItem[] = [
     {
       id: "ask-linear",
-      label: "Ask Linear",
+      label: "Ask exponential",
       shortcut: "A",
       group: "Ask",
       action: () => {

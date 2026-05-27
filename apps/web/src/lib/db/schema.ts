@@ -114,7 +114,9 @@ export const user = pgTable("user", {
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expires_at").notNull(),
-  token: text("token").notNull().unique(),
+  // token column dropped; raw token is no longer stored at rest.
+  // tokenHash holds SHA-256(raw_token) as a hex string.
+  tokenHash: text("token_hash").notNull().unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   ipAddress: text("ip_address"),

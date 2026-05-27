@@ -26,7 +26,7 @@ test.describe("public homepage and auth footer navigation", () => {
       }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Log in to Linear" }),
+      page.getByRole("heading", { name: "Log in to exponential" }),
     ).toHaveCount(0);
     await expect(
       page.getByRole("link", { name: "Start building" }),

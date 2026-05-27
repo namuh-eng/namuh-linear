@@ -95,9 +95,9 @@ describe("Create Workspace page", () => {
     expect((urlInput as HTMLInputElement).value).toBe("custom-slug");
   });
 
-  it("renders the Linear logo", () => {
+  it("renders the exponential logo", () => {
     render(<CreateWorkspacePage />);
-    expect(screen.getByLabelText("Linear logo")).toBeDefined();
+    expect(screen.getByLabelText("exponential logo")).toBeDefined();
   });
 
   it("disables submit button when fields are empty", () => {
@@ -232,8 +232,8 @@ describe("Create Workspace page", () => {
     expect(screen.getByText("Creating...")).toBeDefined();
   });
 
-  it("displays the linear.app/ prefix in URL field", () => {
+  it("displays the exponential.app/ prefix in URL field", () => {
     render(<CreateWorkspacePage />);
-    expect(screen.getByText("linear.app/")).toBeDefined();
+    expect(screen.getByText("exponential.app/")).toBeDefined();
   });
 });

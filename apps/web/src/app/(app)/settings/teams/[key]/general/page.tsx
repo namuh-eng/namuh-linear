@@ -556,7 +556,7 @@ export default function TeamGeneralSettingsPage() {
             <div className="flex items-center justify-between gap-3">
               <span className="font-mono text-[var(--color-text-secondary)]">
                 {inboundEmailAddress ||
-                  `${identifier.toLowerCase()}@team.linear.app`}
+                  `${identifier.toLowerCase()}@team.exponential.app`}
               </span>
               <button
                 type="button"

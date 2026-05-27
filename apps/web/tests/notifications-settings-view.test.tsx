@@ -66,7 +66,7 @@ describe("NotificationsOverviewPage UI", () => {
     vi.clearAllMocks();
   });
 
-  it("renders Linear-specific notification domains and toggles an update", async () => {
+  it("renders exponential-specific notification domains and toggles an update", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => {
       if (url.toString().includes("/api/account/notifications")) {
         return Promise.resolve({

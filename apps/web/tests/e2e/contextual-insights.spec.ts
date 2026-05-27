@@ -46,7 +46,7 @@ test.describe("contextual Insights", () => {
     await page
       .getByRole("button", { name: /Open Insights for all issues/ })
       .click();
-    await expect(page.getByText("Linear Insights")).toBeVisible();
+    await expect(page.getByText("exponential Insights")).toBeVisible();
     await expect(page.getByText("1").first()).toBeVisible();
     await expect(page).toHaveURL(issueListUrl);
 
@@ -86,7 +86,7 @@ test.describe("contextual Insights", () => {
     await expect(
       page.getByRole("dialog", { name: "Insights panel" }),
     ).toBeVisible();
-    await expect(page.getByText("Linear Insights")).toBeVisible();
+    await expect(page.getByText("exponential Insights")).toBeVisible();
     await expect(page).toHaveURL(cycleUrl);
   });
 });

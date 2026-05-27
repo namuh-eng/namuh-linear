@@ -100,7 +100,7 @@ describe("Settings Layout Shell", () => {
     expect(notifLinks.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("links Connected accounts to Linear-compatible connections route", () => {
+  it("links Connected accounts to exponential-compatible connections route", () => {
     render(
       <SettingsLayout>
         <div>Content</div>

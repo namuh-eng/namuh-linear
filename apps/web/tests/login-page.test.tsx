@@ -46,7 +46,7 @@ describe("Login page", () => {
     render(<LoginPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Log in to Linear" }),
+      screen.getByRole("heading", { name: "Log in to exponential" }),
     ).toBeDefined();
     expect(
       screen.getByText(/Authentication is handled by the headless Go API/),

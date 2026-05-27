@@ -3,7 +3,7 @@ package inbound
 import "testing"
 
 func TestParseRecipient(t *testing.T) {
-	rec := parseRecipient("eng.foreverbrowsing@team.linear.app")
+	rec := parseRecipient("eng.foreverbrowsing@team.exponential.app")
 	if rec == nil || rec.TeamKey != "ENG" || rec.WorkspaceSlug != "foreverbrowsing" {
 		t.Fatalf("recipient = %#v", rec)
 	}

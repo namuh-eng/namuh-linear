@@ -7,7 +7,7 @@ const plans = [
   [
     "Free",
     "$0",
-    "For individuals and small teams starting with Linear-style planning.",
+    "For individuals and small teams starting with exponential-style planning.",
   ],
   [
     "Basic",
@@ -35,8 +35,8 @@ const features = [
 ];
 
 export const metadata = {
-  title: "Pricing | Linear clone",
-  description: "Public pricing plans for the Linear clone.",
+  title: "Pricing | exponential",
+  description: "Public pricing plans for exponential.",
 };
 
 export default function PricingPage() {
@@ -48,7 +48,7 @@ export default function PricingPage() {
         </h1>
         <p className="mt-5 max-w-2xl text-lg leading-8 text-[var(--editorial-ink-3)]">
           Choose a plan for your team and keep public pricing navigation inside
-          the clone.
+          exponential.
         </p>
         <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {plans.map(([name, price, copy]) => (

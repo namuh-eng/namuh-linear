@@ -106,7 +106,7 @@ describe("Workspace Settings Page", () => {
     mockWorkspace();
     render(<WorkspaceSettingsPage />);
     await waitForLoaded();
-    expect(screen.getByText("linear.app/")).toBeInTheDocument();
+    expect(screen.getByText("exponential.app/")).toBeInTheDocument();
     const urlInput = screen.getByLabelText(
       "Workspace URL slug",
     ) as HTMLInputElement;

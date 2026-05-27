@@ -20,7 +20,7 @@ export function PriorityIcon({
   const config = priorityConfig[priority];
 
   if (priority === 1) {
-    // Matches Linear's urgent priority glyph.
+    // Matches exponential's urgent priority glyph.
     return (
       <svg
         width={size}

@@ -51,7 +51,7 @@ describe("AccountSecurityPage component", () => {
     browserSupportsPasskeysMock.mockReturnValue(true);
   });
 
-  it("renders Linear-parity empty sections and personal API key controls", async () => {
+  it("renders exponential-parity empty sections and personal API key controls", async () => {
     const fetchMock = mockSecurityFetch(securityPayload());
 
     render(<AccountSecurityPage />);
@@ -287,7 +287,7 @@ describe("AccountSecurityPage component", () => {
                 {
                   id: "grant-1",
                   appId: "app-importer",
-                  name: "Linear Importer",
+                  name: "exponential Importer",
                   clientId: "lin_client_123",
                   imageUrl: null,
                   scopes: ["read", "write"],
@@ -322,7 +322,7 @@ describe("AccountSecurityPage component", () => {
 
     render(<AccountSecurityPage />);
 
-    expect(await screen.findByText("Linear Importer")).toBeInTheDocument();
+    expect(await screen.findByText("exponential Importer")).toBeInTheDocument();
     expect(screen.queryByText(/App ID: app-importer/)).not.toBeInTheDocument();
     expect(screen.queryByText(/read, write/)).not.toBeInTheDocument();
     expect(
@@ -334,7 +334,7 @@ describe("AccountSecurityPage component", () => {
     fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
     expect(
       screen.getByRole("alertdialog", {
-        name: "Confirm revoking Linear Importer",
+        name: "Confirm revoking exponential Importer",
       }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -372,7 +372,7 @@ describe("AccountSecurityPage component", () => {
                   id: "api-key-1",
                   name: "CLI",
                   keyPrefix: "lin_api_123…",
-                  workspaceName: "Linear QA",
+                  workspaceName: "exponential QA",
                   accessLevel: "Member",
                   createdAt: "2026-01-07T10:00:00.000Z",
                   lastUsedAt: null,

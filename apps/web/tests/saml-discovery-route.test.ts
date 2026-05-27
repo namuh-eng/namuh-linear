@@ -64,7 +64,7 @@ describeDb("SAML discovery API route", () => {
     });
   });
 
-  it("returns Linear's server-backed no-workspace message when no domain matches", async () => {
+  it("returns exponential's server-backed no-workspace message when no domain matches", async () => {
     const response = await post({ email: "person@missing.example" });
 
     expect(response.status).toBe(404);

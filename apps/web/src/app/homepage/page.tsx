@@ -20,9 +20,8 @@ const capabilities = [
 ];
 
 export const metadata = {
-  title: "Linear homepage | Exponential",
-  description:
-    "A clone-local Linear-style marketing homepage for unauthenticated visitors.",
+  title: "exponential — product workspace",
+  description: "Editorial marketing surface for the exponential workspace.",
 };
 
 export default function Homepage() {
@@ -37,9 +36,9 @@ export default function Homepage() {
             The product development system for teams and agents
           </h2>
           <p className="mt-6 max-w-2xl text-pretty text-lg leading-8 text-[var(--editorial-ink-3)]">
-            Linear brings planning, issue tracking, customer feedback, and
+            exponential brings planning, issue tracking, customer feedback, and
             product intelligence into one focused system. Explore the public
-            clone surface without signing in.
+            surface without signing in.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <Link

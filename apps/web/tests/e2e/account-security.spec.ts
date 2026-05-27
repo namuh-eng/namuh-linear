@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Account security and access", () => {
-  test("shows Linear-style sections with personal API key controls", async ({
+  test("shows exponential-style sections with personal API key controls", async ({
     page,
   }) => {
     const suffix = Date.now().toString(36);

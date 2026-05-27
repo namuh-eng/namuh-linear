@@ -42,7 +42,7 @@ export function StatusIcon({
 
   switch (category) {
     case "backlog":
-      // Matches Linear's backlog status glyph.
+      // Matches exponential's backlog status glyph.
       return (
         <svg
           width={size}
@@ -62,7 +62,7 @@ export function StatusIcon({
       );
 
     case "unstarted":
-      // Matches Linear's todo status glyph.
+      // Matches exponential's todo status glyph.
       return (
         <svg
           width={size}
@@ -82,7 +82,7 @@ export function StatusIcon({
       );
 
     case "started":
-      // Matches Linear's started status glyph.
+      // Matches exponential's started status glyph.
       return (
         <svg
           width={size}
@@ -98,7 +98,7 @@ export function StatusIcon({
       );
 
     case "completed":
-      // Matches Linear's completed status glyph.
+      // Matches exponential's completed status glyph.
       return (
         <svg
           width={size}
@@ -140,7 +140,7 @@ export function StatusIcon({
       );
 
     case "triage":
-      // Matches Linear's triage status glyph.
+      // Matches exponential's triage status glyph.
       return (
         <svg
           width={size}
