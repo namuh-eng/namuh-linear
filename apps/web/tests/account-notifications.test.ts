@@ -7,7 +7,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 describe("account notification settings", () => {
-  it("migrates legacy channel matrix into Linear-specific domains", () => {
+  it("migrates legacy channel matrix into exponential-specific domains", () => {
     const settings = normalizeAccountNotificationSettings({
       channels: { desktop: { events: { assignments: false, mentions: true } } },
     });

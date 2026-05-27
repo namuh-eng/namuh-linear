@@ -27,7 +27,7 @@ describe("SecurityPage component", () => {
   const mockSecurityData = {
     security: {
       inviteLinkEnabled: true,
-      inviteUrl: "https://linear.app/i/abc-123",
+      inviteUrl: "https://exponential.app/i/abc-123",
       approvedEmailDomains: ["example.com"],
       authentication: {
         google: true,
@@ -85,7 +85,7 @@ describe("SecurityPage component", () => {
     expect(screen.getByText("Loading security settings...")).toBeDefined();
 
     await waitFor(() => {
-      expect(screen.getByText("https://linear.app/i/abc-123")).toBeDefined();
+      expect(screen.getByText("https://exponential.app/i/abc-123")).toBeDefined();
     });
 
     expect(screen.getByText("example.com")).toBeDefined();
@@ -234,7 +234,7 @@ describe("SecurityPage component", () => {
     fireEvent.click(copyButton);
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-      "https://linear.app/i/abc-123",
+      "https://exponential.app/i/abc-123",
     );
     await waitFor(() => {
       expect(screen.getByText("Copied!")).toBeDefined();

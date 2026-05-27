@@ -17,7 +17,7 @@ test.describe("Project status settings", () => {
     await page.goto(`/${workspaceSlug}/settings/project-statuses`);
     await page.addStyleTag({
       content:
-        '[aria-label="Ask Linear"], [aria-label="Ask Linear assistant"], [aria-label="Open Next.js Dev Tools"] { display: none !important; }',
+        '[aria-label="Ask exponential"], [aria-label="Ask exponential assistant"], [aria-label="Open Next.js Dev Tools"] { display: none !important; }',
     });
     await expect(
       page.getByRole("heading", { name: "Project statuses" }),
@@ -76,7 +76,7 @@ test.describe("Project status settings", () => {
     );
     await page.addStyleTag({
       content:
-        '[aria-label="Ask Linear"], [aria-label="Ask Linear assistant"], [aria-label="Open Next.js Dev Tools"] { display: none !important; }',
+        '[aria-label="Ask exponential"], [aria-label="Ask exponential assistant"], [aria-label="Open Next.js Dev Tools"] { display: none !important; }',
     });
     await expect(page.getByText(projectName)).toBeVisible();
     await page.getByRole("button", { name: "Edit" }).last().click();

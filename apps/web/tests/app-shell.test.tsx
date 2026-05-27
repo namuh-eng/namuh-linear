@@ -239,7 +239,7 @@ describe("Sidebar", () => {
     expect(screen.getByText("More")).toBeDefined();
   });
 
-  it("toggles More menu to show Linear workspace navigation actions", () => {
+  it("toggles More menu to show exponential workspace navigation actions", () => {
     render(<Sidebar />);
     expect(screen.queryByText("Agent")).toBeNull();
 

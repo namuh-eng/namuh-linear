@@ -135,7 +135,7 @@ class OpenAiDiscussionSummaryProvider implements DiscussionSummaryProvider {
           {
             role: "system",
             content:
-              "Summarize an issue discussion for a Linear-style issue detail view. Be concise, factual, and preserve decisions, blockers, owners, and open questions. Do not invent facts.",
+              "Summarize an issue discussion for a exponential-style issue detail view. Be concise, factual, and preserve decisions, blockers, owners, and open questions. Do not invent facts.",
           },
           {
             role: "user",

@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { session as authSession, user } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -57,6 +57,7 @@ async function getBrowserSession(
 ): Promise<WebSession | null> {
   const rawToken = verifySessionToken(browserSessionCookie(headerList));
   if (!rawToken) return null;
+  const tokenHash = createHash("sha256").update(rawToken).digest("hex");
   const [record] = await db
     .select({
       id: user.id,
@@ -66,7 +67,7 @@ async function getBrowserSession(
     })
     .from(authSession)
     .innerJoin(user, eq(user.id, authSession.userId))
-    .where(eq(authSession.token, rawToken))
+    .where(eq(authSession.tokenHash, tokenHash))
     .limit(1);
   return record ? { user: record } : null;
 }

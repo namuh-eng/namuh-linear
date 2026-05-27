@@ -357,14 +357,14 @@ export function InsightsPanel({
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[12px] font-medium uppercase tracking-wider text-[var(--color-text-tertiary)]">
-            Linear Insights
+            exponential Insights
           </p>
           <h1 className="text-[24px] font-semibold text-[var(--color-text-primary)]">
             {data.team.name} Analytics
           </h1>
           <p className="mt-2 max-w-[720px] text-[13px] text-[var(--color-text-secondary)]">
             {contextLabel
-              ? `Review Linear-style analytics for the current ${contextLabel} issue set with trend cards, workload flow, shareable controls, and drilldowns into backing issues.`
+              ? `Review exponential-style analytics for the current ${contextLabel} issue set with trend cards, workload flow, shareable controls, and drilldowns into backing issues.`
               : "Review team throughput, cycle time, workload, completion trends, saved/shareable controls, and drilldowns into the backing issue set."}
           </p>
         </div>

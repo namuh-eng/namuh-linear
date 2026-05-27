@@ -57,7 +57,8 @@ export const INTEGRATION_CATALOG: Array<{
   {
     provider: "github",
     name: "GitHub",
-    description: "Sync pull requests, commits, and issue links with Linear.",
+    description:
+      "Sync pull requests, commits, and issue links with exponential.",
   },
   {
     provider: "slack",

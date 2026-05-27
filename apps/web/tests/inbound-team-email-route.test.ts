@@ -115,7 +115,7 @@ describe("inbound team email route", () => {
       new Request("http://localhost/api/inbound/team-email", {
         method: "POST",
         body: JSON.stringify({
-          recipient: "eng.foreverbrowsing@team.linear.app",
+          recipient: "eng.foreverbrowsing@team.exponential.app",
           from: "reporter@example.com",
           subject: "Forwarded bug",
           text: "Email body",
@@ -152,7 +152,7 @@ describe("inbound team email route", () => {
       new Request("http://localhost/api/inbound/team-email", {
         method: "POST",
         body: JSON.stringify({
-          recipient: "eng.foreverbrowsing@team.linear.app",
+          recipient: "eng.foreverbrowsing@team.exponential.app",
           subject: "Forwarded bug",
         }),
         headers: { "content-type": "application/json" },

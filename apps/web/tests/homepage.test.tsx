@@ -25,7 +25,7 @@ describe("public homepage route", () => {
       }),
     ).toBeDefined();
     expect(
-      screen.queryByRole("heading", { name: "Log in to Linear" }),
+      screen.queryByRole("heading", { name: "Log in to exponential" }),
     ).toBeNull();
     expect(
       screen.getByRole("link", { name: "Start building" }).getAttribute("href"),

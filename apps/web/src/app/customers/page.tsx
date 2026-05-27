@@ -7,12 +7,12 @@ const filters = ["All", "Startups", "Enterprise", "AI", "Design partners"];
 const stories = [
   [
     "OpenAI",
-    "Why OpenAI chose Linear and scaled to 3,000 users",
+    "Why OpenAI chose exponential and scaled to 3,000 users",
     "AI research and product teams coordinate fast-moving work with shared roadmaps and issue context.",
   ],
   [
     "Vercel",
-    "How Vercel ships frontend infrastructure with Linear",
+    "How Vercel ships frontend infrastructure with exponential",
     "Product, engineering, and support teams keep customer feedback close to execution.",
   ],
   [
@@ -23,8 +23,8 @@ const stories = [
 ];
 
 export const metadata = {
-  title: "Customers | Linear clone",
-  description: "Public customer stories for the Linear clone.",
+  title: "Customers | exponential",
+  description: "Public customer stories for exponential.",
 };
 
 export default function CustomersPage() {

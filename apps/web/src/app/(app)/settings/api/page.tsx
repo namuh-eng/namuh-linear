@@ -844,9 +844,9 @@ export default function ApiSettingsPage() {
         ) : null}
 
         <p className="mb-2 text-[13px] leading-6 text-[var(--color-text-secondary)]">
-          Linear&apos;s GraphQL API provides a programmable interface to your
-          data. Use our API to build public or private apps, workflows, and
-          integrations for Linear.{" "}
+          exponential&apos;s GraphQL API provides a programmable interface to
+          your data. Use our API to build public or private apps, workflows, and
+          integrations for exponential.{" "}
           <span className="text-[var(--color-accent)]">Join our Slack</span> for
           help and questions.
         </p>
@@ -890,7 +890,7 @@ export default function ApiSettingsPage() {
         <SectionHeader>Member API keys</SectionHeader>
         <p className="mb-4 text-[13px] text-[var(--color-text-tertiary)]">
           Members of your workspace can create API keys to interact with the
-          Linear API on their behalf. View your personal API keys from your{" "}
+          exponential API on their behalf. View your personal API keys from your{" "}
           <a
             href="/settings/account/security#personal-api-keys"
             className="font-medium text-[var(--color-accent)] hover:underline"
@@ -907,8 +907,8 @@ export default function ApiSettingsPage() {
                 API key creation
               </div>
               <div className="mt-0.5 text-[12px] text-[var(--color-text-tertiary)]">
-                Who can create API keys to interact with the Linear API on their
-                behalf
+                Who can create API keys to interact with the exponential API on
+                their behalf
               </div>
             </div>
             <select
@@ -968,7 +968,7 @@ export default function ApiSettingsPage() {
                     description: event.target.value,
                   }))
                 }
-                placeholder="Syncs Linear issues into the partner portal"
+                placeholder="Syncs exponential issues into the partner portal"
               />
             </Field>
 

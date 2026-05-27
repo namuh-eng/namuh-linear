@@ -13,7 +13,7 @@ import SecurityPage from "@/app/(app)/settings/security/page";
 const mockSecurityData = {
   security: {
     inviteLinkEnabled: true,
-    inviteUrl: "https://linear.app/i/test",
+    inviteUrl: "https://exponential.app/i/test",
     approvedEmailDomains: ["acme.com"],
     authentication: {
       google: true,

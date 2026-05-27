@@ -107,10 +107,17 @@ func authorized(r *http.Request) bool {
 	return r.Header.Get("x-inbound-email-secret") == secret
 }
 
+func inboundDomain() string {
+	if v := strings.TrimSpace(os.Getenv("EXPONENTIAL_INBOUND_DOMAIN")); v != "" {
+		return strings.ToLower(v)
+	}
+	return "team.exponential.app"
+}
+
 func parseRecipient(value string) *recipient {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	parts := strings.Split(normalized, "@")
-	if len(parts) != 2 || parts[1] != "team.linear.app" {
+	if len(parts) != 2 || parts[1] != inboundDomain() {
 		return nil
 	}
 	local := strings.Split(parts[0], ".")

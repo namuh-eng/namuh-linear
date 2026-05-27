@@ -291,7 +291,7 @@ export default function AISettingsPage() {
               }
             />
             <ToggleField
-              label="Ask Linear assistant"
+              label="Ask exponential assistant"
               description="Allow the assistant surface to use workspace context for answers."
               checked={settings.askLinearEnabled}
               disabled={!canManageAiSettings || saving}

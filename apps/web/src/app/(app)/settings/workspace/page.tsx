@@ -1,8 +1,11 @@
 "use client";
 
 import { Avatar } from "@/components/avatar";
+import { workspaceUrlHost } from "@/lib/workspace-url";
 import { usePathname, useRouter } from "next/navigation";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
+
+const URL_HOST = workspaceUrlHost();
 
 interface WorkspaceData {
   id: string | null;
@@ -312,7 +315,7 @@ export default function WorkspaceSettingsPage() {
         </label>
         <div className="flex items-center gap-0">
           <span className="rounded-l-md border border-r-0 border-[var(--color-border)] bg-[var(--color-surface-hover)] px-3 py-1.5 text-[13px] text-[var(--color-text-tertiary)]">
-            linear.app/
+            {URL_HOST}/
           </span>
           <input
             id="ws-url"

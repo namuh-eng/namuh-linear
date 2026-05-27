@@ -2,6 +2,7 @@ package testhelpers
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -138,7 +139,11 @@ func (h Handler) CreateSession(w http.ResponseWriter, r *http.Request) {
 	}
 	rawToken := randomBase64URL(24)
 	expires := time.Now().UTC().Add(7 * 24 * time.Hour)
-	_, err = h.DB.Exec(r.Context(), `insert into session (id,expires_at,token,created_at,updated_at,ip_address,user_agent,user_id) values ($1,$2,$3,now(),now(),$4,$5,$6)`, randomBase64URL(16), expires, rawToken, clientIP(r), userAgent(r), user.ID)
+	tokenHash := func() string {
+		sum := sha256.Sum256([]byte(rawToken))
+		return hex.EncodeToString(sum[:])
+	}()
+	_, err = h.DB.Exec(r.Context(), `insert into session (id,expires_at,token_hash,created_at,updated_at,ip_address,user_agent,user_id) values ($1,$2,$3,now(),now(),$4,$5,$6)`, randomBase64URL(16), expires, tokenHash, clientIP(r), userAgent(r), user.ID)
 	if err != nil {
 		problem.Write(w, 500, "Create test session failed", err.Error())
 		return

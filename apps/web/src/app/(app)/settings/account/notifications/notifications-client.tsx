@@ -21,7 +21,7 @@ const DOMAIN_METADATA: Record<
   inbox: {
     name: "Inbox",
     description:
-      "Control which workspace notifications appear in your Linear inbox.",
+      "Control which workspace notifications appear in your exponential inbox.",
   },
   email: {
     name: "Email",
@@ -36,7 +36,7 @@ const DOMAIN_METADATA: Record<
   slack: {
     name: "Slack",
     description:
-      "Connect Slack destinations and choose which Linear events are forwarded.",
+      "Connect Slack destinations and choose which exponential events are forwarded.",
   },
 };
 
@@ -233,7 +233,7 @@ export function NotificationsOverviewPage({
       <section className="mb-12">
         <SectionTitle
           title="Notification preferences"
-          description="Configure Linear-specific notification areas instead of a shared channel matrix. Each area has controls for how that destination behaves."
+          description="Configure exponential-specific notification areas instead of a shared channel matrix. Each area has controls for how that destination behaves."
         />
         <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
           {ACCOUNT_NOTIFICATION_DOMAINS.map((domain) => {
@@ -279,8 +279,8 @@ export function NotificationsOverviewPage({
 
       <section className="mb-12">
         <SectionTitle
-          title="Updates from Linear"
-          description="Subscribe to product announcements and important changes from the Linear team."
+          title="Updates from exponential"
+          description="Subscribe to product announcements and important changes from the exponential team."
         />
         <div className="mb-3 text-[12px] text-[var(--color-text-tertiary)]">
           Changelog
@@ -398,7 +398,7 @@ export function NotificationChannelPage({
         <section>
           <SectionTitle
             title="Inbox notifications"
-            description="Choose which Linear activity creates inbox items."
+            description="Choose which exponential activity creates inbox items."
           />
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4">
             <SettingRow
@@ -495,7 +495,7 @@ export function NotificationChannelPage({
               />
               <SettingRow
                 label="Product updates"
-                description="Receive Linear product announcements and release notes by email."
+                description="Receive exponential product announcements and release notes by email."
                 checked={settings.email.productUpdates}
                 onChange={(value) =>
                   updateSettings(patchFor("email", "productUpdates", value))
@@ -590,7 +590,7 @@ export function NotificationChannelPage({
           <section>
             <SectionTitle
               title="Slack delivery"
-              description="Choose which Linear events are forwarded to Slack."
+              description="Choose which exponential events are forwarded to Slack."
             />
             <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4">
               <SettingRow

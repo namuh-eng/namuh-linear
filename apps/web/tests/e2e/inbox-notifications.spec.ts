@@ -72,7 +72,7 @@ test.describe("Canonical inbox notifications", () => {
     );
   });
 
-  test("renders Linear-style all-read notification history instead of empty state", async ({
+  test("renders exponential-style all-read notification history instead of empty state", async ({
     page,
   }) => {
     await page.goto("/foreverbrowsing/inbox");

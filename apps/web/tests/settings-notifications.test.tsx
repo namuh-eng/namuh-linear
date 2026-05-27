@@ -88,7 +88,7 @@ describe("Account notification settings", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders Linear-specific notification domain cards as links", async () => {
+  it("renders exponential-specific notification domain cards as links", async () => {
     mockNotificationsFetch();
     render(<NotificationsOverviewPage />);
 

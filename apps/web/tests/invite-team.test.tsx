@@ -246,8 +246,8 @@ describe("Invite Team page", () => {
     expect(roleSelect.value).toBe("admin");
   });
 
-  it("renders the Linear logo", () => {
+  it("renders the exponential logo", () => {
     render(<InviteTeamPage />);
-    expect(screen.getByLabelText("Linear logo")).toBeDefined();
+    expect(screen.getByLabelText("exponential logo")).toBeDefined();
   });
 });

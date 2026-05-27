@@ -1,4 +1,5 @@
-const INBOUND_DOMAIN = "team.linear.app";
+const INBOUND_DOMAIN =
+  process.env.EXPONENTIAL_INBOUND_DOMAIN?.trim() || "team.exponential.app";
 
 export function buildTeamInboundEmailAddress(
   teamKey: string,

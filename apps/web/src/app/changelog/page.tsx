@@ -7,7 +7,7 @@ const posts = [
   [
     "May 14, 2026",
     "Code Intelligence",
-    "Linear's public Now feed highlights agent-aware code context, smarter issue linking, and faster product decisions.",
+    "The exponential Now feed highlights agent-aware code context, smarter issue linking, and faster product decisions.",
   ],
   [
     "May 7, 2026",
@@ -22,8 +22,8 @@ const posts = [
 ];
 
 export const metadata = {
-  title: "Changelog | Linear clone",
-  description: "Public Now and changelog feed for the Linear clone.",
+  title: "Changelog | exponential",
+  description: "Public Now and changelog feed for exponential.",
 };
 
 export default function ChangelogPage() {
@@ -31,7 +31,7 @@ export default function ChangelogPage() {
     <MarketingShell eyebrow="Now / Changelog">
       <div className="py-14">
         <h1 className="max-w-4xl text-balance text-5xl font-semibold leading-none tracking-[-0.05em] sm:text-6xl">
-          The latest from Linear product development
+          The latest from exponential product development
         </h1>
         <div className="mt-8 flex flex-wrap gap-3">
           <label className="sr-only" htmlFor="changelog-search">

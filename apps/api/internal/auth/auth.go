@@ -7,10 +7,13 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/namuh-eng/exponential/apps/api/internal/problem"
@@ -56,10 +59,25 @@ type Middleware struct {
 
 func (m Middleware) Require(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		isCookieAuth := bearerToken(r) == ""
 		principal, err := m.authenticate(r.Context(), r)
 		if err != nil {
 			problem.Write(w, http.StatusUnauthorized, "Unauthorized", err.Error())
 			return
+		}
+		// CSRF: for browser-session (cookie) auth on state-mutating methods,
+		// verify the Origin or Referer header against the app's known origin.
+		if isCookieAuth && isUnsafeMethod(r.Method) {
+			if denied, detail := csrfDenied(r); denied {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error":  "CSRF check failed",
+					"code":   "csrf_rejected",
+					"reason": detail,
+				})
+				return
+			}
 		}
 		if denied, detail := m.workspaceIPDenied(r.Context(), r, principal.WorkspaceID); denied {
 			w.Header().Set("Content-Type", "application/json")
@@ -73,6 +91,68 @@ func (m Middleware) Require(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey, principal)))
 	})
+}
+
+// isUnsafeMethod reports whether the HTTP method mutates server state.
+func isUnsafeMethod(method string) bool {
+	switch strings.ToUpper(method) {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	}
+	return false
+}
+
+// csrfDenied checks the Origin/Referer header against the configured app URL(s).
+// Returns (true, reason) when the request should be rejected.
+func csrfDenied(r *http.Request) (bool, string) {
+	allowed := csrfAllowedOrigins()
+	if len(allowed) == 0 {
+		// No app URL configured — allow (fail-open in unconfigured envs).
+		return false, ""
+	}
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		// Fall back to Referer.
+		ref := strings.TrimSpace(r.Header.Get("Referer"))
+		if ref != "" {
+			if u, err := url.Parse(ref); err == nil {
+				origin = u.Scheme + "://" + u.Host
+			}
+		}
+	}
+	if origin == "" {
+		// No origin information at all — reject to be safe.
+		return true, "missing_origin"
+	}
+	for _, a := range allowed {
+		if strings.EqualFold(origin, a) {
+			return false, ""
+		}
+	}
+	return true, "origin_not_allowed"
+}
+
+// csrfAllowedOrigins returns the set of origins that are permitted to make
+// cookie-authenticated state-mutating requests.
+func csrfAllowedOrigins() []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, env := range []string{"EXPONENTIAL_APP_URL", "PUBLIC_BASE_URL"} {
+		raw := strings.TrimRight(strings.TrimSpace(os.Getenv(env)), "/")
+		if raw == "" {
+			continue
+		}
+		u, err := url.Parse(raw)
+		if err != nil || u.Host == "" {
+			continue
+		}
+		origin := u.Scheme + "://" + u.Host
+		if !seen[origin] {
+			seen[origin] = true
+			out = append(out, origin)
+		}
+	}
+	return out
 }
 
 func (m Middleware) workspaceIPDenied(ctx context.Context, r *http.Request, workspaceID string) (bool, string) {
@@ -123,17 +203,73 @@ func record(value any) map[string]any {
 	return map[string]any{}
 }
 
+// trustedProxyState holds the parsed EXPONENTIAL_TRUSTED_PROXIES CIDRs and
+// a once-guard so the one-time warning is emitted exactly once at startup.
+var (
+	trustedProxyOnce    sync.Once
+	trustedProxyNetworks []*net.IPNet
+)
+
+// loadTrustedProxies parses EXPONENTIAL_TRUSTED_PROXIES and logs a one-time
+// warning when the variable is unset (so operators notice in production).
+func loadTrustedProxies() []*net.IPNet {
+	trustedProxyOnce.Do(func() {
+		raw := strings.TrimSpace(os.Getenv("EXPONENTIAL_TRUSTED_PROXIES"))
+		if raw == "" {
+			log.Println("[WARN] EXPONENTIAL_TRUSTED_PROXIES is not set — X-Forwarded-For will be ignored and RemoteAddr will be used for all client IP resolution. Set this to your ECS task subnet / ALB CIDRs in production.")
+			return
+		}
+		for _, entry := range strings.Split(raw, ",") {
+			entry = strings.TrimSpace(entry)
+			if entry == "" {
+				continue
+			}
+			if !strings.Contains(entry, "/") {
+				entry = entry + "/32"
+			}
+			_, network, err := net.ParseCIDR(entry)
+			if err == nil {
+				trustedProxyNetworks = append(trustedProxyNetworks, network)
+			}
+		}
+	})
+	return trustedProxyNetworks
+}
+
 func clientIP(r *http.Request) string {
-	for _, value := range []string{r.Header.Get("X-Test-Client-IP"), r.Header.Get("X-Forwarded-For"), r.Header.Get("X-Real-IP")} {
-		if first := strings.TrimSpace(strings.Split(value, ",")[0]); first != "" {
-			return first
+	// X-Test-Client-IP is only used in tests.
+	if testIP := strings.TrimSpace(strings.Split(r.Header.Get("X-Test-Client-IP"), ",")[0]); testIP != "" {
+		return testIP
+	}
+
+	// Resolve the direct peer IP from RemoteAddr.
+	peerHost, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		peerHost = strings.TrimSpace(r.RemoteAddr)
+	}
+
+	// Only honour XFF / X-Real-IP when the direct peer is a trusted proxy.
+	proxies := loadTrustedProxies()
+	if len(proxies) > 0 {
+		peerIP := net.ParseIP(peerHost)
+		isTrusted := peerIP != nil && func() bool {
+			for _, network := range proxies {
+				if network.Contains(peerIP) {
+					return true
+				}
+			}
+			return false
+		}()
+		if isTrusted {
+			for _, value := range []string{r.Header.Get("X-Forwarded-For"), r.Header.Get("X-Real-IP")} {
+				if first := strings.TrimSpace(strings.Split(value, ",")[0]); first != "" {
+					return first
+				}
+			}
 		}
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil {
-		return host
-	}
-	return strings.TrimSpace(r.RemoteAddr)
+
+	return peerHost
 }
 
 func ipInRange(ip net.IP, value string) bool {
@@ -151,7 +287,18 @@ func bearerToken(r *http.Request) string {
 	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
 		return parts[1]
 	}
-	return strings.TrimSpace(r.URL.Query().Get("access_token"))
+	// Only honour ?access_token= for WebSocket upgrade requests to avoid
+	// leaking tokens into server logs, Referer headers, and analytics.
+	if isWebSocketUpgrade(r) {
+		return strings.TrimSpace(r.URL.Query().Get("access_token"))
+	}
+	return ""
+}
+
+// isWebSocketUpgrade reports whether the request is a WebSocket upgrade.
+func isWebSocketUpgrade(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket") &&
+		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade")
 }
 
 func (m Middleware) authenticate(ctx context.Context, r *http.Request) (Principal, error) {
@@ -241,9 +388,17 @@ func (m Middleware) TestBrowserSession(ctx context.Context, r *http.Request) (Br
 	return m.BrowserSession(ctx, r)
 }
 
+// sessionTokenHash returns the hex-encoded SHA-256 hash of rawToken.
+// This is the value stored in the session.token_hash column.
+func sessionTokenHash(rawToken string) string {
+	sum := sha256.Sum256([]byte(rawToken))
+	return hex.EncodeToString(sum[:])
+}
+
 func (m Middleware) browserSessionByToken(ctx context.Context, r *http.Request, rawToken string) (BrowserSession, Principal, error) {
 	var session BrowserSession
 	var principal Principal
+	tokenHash := sessionTokenHash(rawToken)
 	requested := requestedWorkspace(r)
 	if requested.ID != "" {
 		err := m.DB.QueryRow(ctx, `
@@ -251,8 +406,8 @@ func (m Middleware) browserSessionByToken(ctx context.Context, r *http.Request, 
 			from session s
 			join "user" u on u.id = s.user_id
 			join member m on m.user_id = u.id
-			where s.token = $1 and s.expires_at > now() and m.workspace_id = $2::uuid
-			limit 1`, rawToken, requested.ID).Scan(
+			where s.token_hash = $1 and s.expires_at > now() and m.workspace_id = $2::uuid
+			limit 1`, tokenHash, requested.ID).Scan(
 			&session.User.ID,
 			&session.User.Name,
 			&session.User.Email,
@@ -273,8 +428,8 @@ func (m Middleware) browserSessionByToken(ctx context.Context, r *http.Request, 
 			join "user" u on u.id = s.user_id
 			join member m on m.user_id = u.id
 			join workspace w on w.id = m.workspace_id
-			where s.token = $1 and s.expires_at > now() and w.url_slug = $2
-			limit 1`, rawToken, requested.Slug).Scan(
+			where s.token_hash = $1 and s.expires_at > now() and w.url_slug = $2
+			limit 1`, tokenHash, requested.Slug).Scan(
 			&session.User.ID,
 			&session.User.Name,
 			&session.User.Email,
@@ -288,23 +443,30 @@ func (m Middleware) browserSessionByToken(ctx context.Context, r *http.Request, 
 			return session, principal, nil
 		}
 	}
+	var workspaceID, role *string
 	err := m.DB.QueryRow(ctx, `
 		select u.id, u.name, u.email, u.image, m.workspace_id::text, m.role::text
 		from session s
 		join "user" u on u.id = s.user_id
-		join member m on m.user_id = u.id
-		where s.token = $1 and s.expires_at > now()
-		order by m.created_at desc
-		limit 1`, rawToken).Scan(
+		left join member m on m.user_id = u.id
+		where s.token_hash = $1 and s.expires_at > now()
+		order by m.created_at desc nulls last
+		limit 1`, tokenHash).Scan(
 		&session.User.ID,
 		&session.User.Name,
 		&session.User.Email,
 		&session.User.Image,
-		&principal.WorkspaceID,
-		&principal.Role,
+		&workspaceID,
+		&role,
 	)
 	if err != nil {
 		return BrowserSession{}, Principal{}, errUnauthorized("browser session not found")
+	}
+	if workspaceID != nil {
+		principal.WorkspaceID = *workspaceID
+	}
+	if role != nil {
+		principal.Role = *role
 	}
 	principal.UserID = session.User.ID
 	principal.APIKeyID = "browser_session"

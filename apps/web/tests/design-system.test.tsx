@@ -56,7 +56,7 @@ describe("PriorityIcon", () => {
     expect(svg?.classList.contains("custom-class")).toBe(true);
   });
 
-  it("matches Linear's high priority bar ordering", () => {
+  it("matches exponential's high priority bar ordering", () => {
     const { container } = render(<PriorityIcon priority={2} />);
     const rects = [...container.querySelectorAll("rect")];
 
@@ -74,7 +74,7 @@ describe("PriorityIcon", () => {
     ]);
   });
 
-  it("matches Linear's low priority opacity treatment", () => {
+  it("matches exponential's low priority opacity treatment", () => {
     const { container } = render(<PriorityIcon priority={4} />);
     const rects = [...container.querySelectorAll("rect")];
 
@@ -135,7 +135,7 @@ describe("StatusIcon", () => {
     expect(svg?.getAttribute("height")).toBe("20");
   });
 
-  it("uses the Linear backlog symbol path instead of a dashed circle", () => {
+  it("uses the exponential backlog symbol path instead of a dashed circle", () => {
     const { container } = render(<StatusIcon category="backlog" />);
     const path = container.querySelector("path");
 
@@ -143,7 +143,7 @@ describe("StatusIcon", () => {
     expect(container.querySelector("circle")).toBeNull();
   });
 
-  it("uses the Linear triage symbol path", () => {
+  it("uses the exponential triage symbol path", () => {
     const { container } = render(<StatusIcon category="triage" />);
     const path = container.querySelector("path");
 

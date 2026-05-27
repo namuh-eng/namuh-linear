@@ -73,7 +73,7 @@ const ACCOUNT_PROVIDER_REGISTRY: ProviderRegistryEntry[] = [
     capabilityKey: "gitlab",
     unavailableReason: "GitLab account linking is not configured",
     description: "Connect your personal GitLab account when GitLab is enabled.",
-    attributionPurpose: "Maps synced GitLab activity to your Linear user.",
+    attributionPurpose: "Maps synced GitLab activity to your exponential user.",
   },
   {
     id: "slack",
@@ -81,7 +81,8 @@ const ACCOUNT_PROVIDER_REGISTRY: ProviderRegistryEntry[] = [
     capabilityKey: "slack",
     unavailableReason: "Slack account linking is not configured",
     description: "Connect your Slack identity for chat-backed attribution.",
-    attributionPurpose: "Maps synced Slack interactions to your Linear user.",
+    attributionPurpose:
+      "Maps synced Slack interactions to your exponential user.",
   },
   {
     id: "google",

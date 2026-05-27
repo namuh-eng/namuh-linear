@@ -22,10 +22,10 @@ function buildApiSettings(
     canManageWorkspaceApi: true,
     canCreateApiKeys: true,
     docs: {
-      graphql: "https://linear.app/developers/graphql",
+      graphql: "https://exponential.app/developers/graphql",
       oauthApplications:
-        "https://linear.app/developers/oauth-2-0-authentication",
-      webhooks: "https://linear.app/developers/webhooks",
+        "https://exponential.app/developers/oauth-2-0-authentication",
+      webhooks: "https://exponential.app/developers/webhooks",
     },
     oauthApplications: [],
     webhooks: [],
@@ -93,7 +93,7 @@ describe("API settings page", () => {
     expect(screen.getByText("Partner portal")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Docs ↗" })[0]).toHaveAttribute(
       "href",
-      "https://linear.app/developers/graphql",
+      "https://exponential.app/developers/graphql",
     );
     expect(
       screen.getByRole("combobox", { name: "API key creation permission" }),

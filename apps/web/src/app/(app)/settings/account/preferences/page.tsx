@@ -435,7 +435,7 @@ export default function PreferencesPage() {
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4">
           <SettingRow
             label="Default home view"
-            description="Select which view to display when launching Linear."
+            description="Select which view to display when launching exponential."
           >
             <Select
               aria-label="Default home view"

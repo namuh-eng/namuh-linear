@@ -1,6 +1,6 @@
 .PHONY: check test test-e2e typecheck lint format fix all dev build clean cpd api-build api-test api-dockerfile ecs-task-definitions ecs-render deploy-scripts smoke-script openapi-coverage openapi-strict sqlc-generated web-api-empty web-sdk-usage
 .PHONY: check-header test-header check-verbose test-verbose
-.PHONY: dev-services dev-services-down
+.PHONY: dev-services dev-services-down deploy deploy-oauth-secrets
 
 # Full validation: check + test
 all: check test
@@ -145,3 +145,13 @@ dev-services:
 # Stop development services
 dev-services-down:
 	docker compose -f docker-compose.dev.yml down
+
+# Build, push, and roll out ECS services (api + web). Tags images with the
+# current commit SHA and runs the prod smoke test at the end.
+deploy:
+	RUN_PROD_SMOKE=true IMAGE_TAG=$$(git rev-parse --short HEAD) bash scripts/deploy-ecs.sh
+
+# Push AUTH_GOOGLE_ID/AUTH_GOOGLE_SECRET from .env into Secrets Manager and
+# force-redeploy the API service so new tasks pick up the values.
+deploy-oauth-secrets:
+	bash scripts/sync-google-oauth-secrets.sh

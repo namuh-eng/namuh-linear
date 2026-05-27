@@ -87,8 +87,9 @@ const DEFAULT_SCIM: ScimSettings = {
   status: "disabled",
 };
 
-const INVITE_DOCS_URL = "https://linear.app/docs/invite-members";
-const SAML_SCIM_DOCS_URL = "https://linear.app/docs/saml-and-access-control";
+const INVITE_DOCS_URL = "https://exponential.app/docs/invite-members";
+const SAML_SCIM_DOCS_URL =
+  "https://exponential.app/docs/saml-and-access-control";
 
 function Toggle({
   enabled,
@@ -1177,7 +1178,7 @@ export default function SecurityPage() {
 
         <SettingRow
           title="Improve AI"
-          description="Allow Linear to use workspace data to improve AI features"
+          description="Allow exponential to use workspace data to improve AI features"
         >
           <Toggle
             enabled={security.improveAi}

@@ -1,6 +1,9 @@
 package authproviders
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestWorkspaceSlugFromCallbackURL(t *testing.T) {
 	got := workspaceSlugFromCallbackURL("/foreverbrowsing/settings/security", "http://localhost:7015")
@@ -45,5 +48,32 @@ func TestReadSAMLDiscoverySettings(t *testing.T) {
 	settings := readSAMLDiscoverySettings([]byte(`{"saml":{"enabled":true,"domains":["Example.com"],"ssoUrl":"https://idp.example.com/saml"}}`))
 	if !settings.enabled || settings.url != "https://idp.example.com/saml" || len(settings.domains) != 1 || settings.domains[0] != "example.com" {
 		t.Fatalf("settings = %#v", settings)
+	}
+}
+
+// Fix 3: PKCE S256 challenge derivation (RFC 7636 §4.2).
+func TestPKCES256Challenge(t *testing.T) {
+	// Known vector: verifier "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	// challenge = BASE64URL(SHA256(ASCII(verifier)))
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	challenge := pkceS256Challenge(verifier)
+	// Must be base64url without padding, non-empty, no + / = characters.
+	if challenge == "" {
+		t.Fatal("challenge is empty")
+	}
+	if strings.ContainsAny(challenge, "+/=") {
+		t.Fatalf("challenge contains non-base64url characters: %q", challenge)
+	}
+	// Re-derive and confirm determinism.
+	if got2 := pkceS256Challenge(verifier); got2 != challenge {
+		t.Fatalf("pkceS256Challenge not deterministic: %q != %q", challenge, got2)
+	}
+}
+
+func TestPKCES256ChallengeVariesWithVerifier(t *testing.T) {
+	c1 := pkceS256Challenge("verifier-one")
+	c2 := pkceS256Challenge("verifier-two")
+	if c1 == c2 {
+		t.Fatal("different verifiers produced the same challenge")
 	}
 }

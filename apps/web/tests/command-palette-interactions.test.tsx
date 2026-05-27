@@ -35,7 +35,7 @@ describe("CommandPalette component", () => {
     expect(screen.getByPlaceholderText(/type a command/i)).toBeInTheDocument();
   });
 
-  it("includes Ask Linear command that dispatches assistant open event", async () => {
+  it("includes Ask exponential command that dispatches assistant open event", async () => {
     const dispatchSpy = vi.spyOn(window, "dispatchEvent");
 
     render(<CommandPalette teamKey="ENG" />);
@@ -45,7 +45,7 @@ describe("CommandPalette component", () => {
       expect(screen.getByLabelText("Command palette")).toBeInTheDocument(),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Ask Linear/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Ask exponential/i }));
 
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ type: "open-ask-linear" }),
@@ -67,7 +67,7 @@ describe("CommandPalette component", () => {
     const buttons = screen.getAllByRole("button");
     expect(buttons[0]).toHaveClass("bg-[var(--color-accent-soft)]");
 
-    // Arrow down to 'Create new issue' (Ask Linear, Create view, Create new issue)
+    // Arrow down to 'Create new issue' (Ask exponential, Create view, Create new issue)
     fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "ArrowDown" });
     expect(buttons[2]).toHaveClass("bg-[var(--color-accent-soft)]");

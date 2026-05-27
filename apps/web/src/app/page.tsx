@@ -1,3 +1,4 @@
+import { LandingPage } from "@/components/landing-page";
 import { readAccountPreferencesFromUserSettings } from "@/lib/account-preferences";
 import { autoJoinWorkspaceForApprovedDomain } from "@/lib/approved-domain-auto-join";
 import { db } from "@/lib/db";
@@ -12,7 +13,7 @@ export default async function Home() {
   const session = await getWebSession(await headers());
 
   if (!session) {
-    redirect("/login");
+    return <LandingPage />;
   }
 
   // Check if user has any workspaces

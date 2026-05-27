@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("account notification settings", () => {
-  test("shows Linear-specific domains and persists email digest preference", async ({
+  test("shows exponential-specific domains and persists email digest preference", async ({
     page,
   }) => {
     const resetResponse = await page.request.patch(

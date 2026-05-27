@@ -100,7 +100,7 @@ test("workspace roadmap route aliases the initiatives experience without login r
     page.getByTestId("initiative-row").filter({ hasText: initiativeName }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Log in to Linear" }),
+    page.getByRole("heading", { name: "Log in to exponential" }),
   ).toHaveCount(0);
 
   await page.goto(`/${workspaceSlug}/initiatives`);

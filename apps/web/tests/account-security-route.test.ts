@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   accessRows: [
     {
       workspaceId: "workspace-1",
-      workspaceName: "Linear QA",
+      workspaceName: "exponential QA",
       settings: {
         security: { permissions: { apiKeyCreationRole: "members" } },
       },
@@ -154,7 +154,7 @@ describe("Account Security API Route", () => {
     mocks.accessRows = [
       {
         workspaceId: "workspace-1",
-        workspaceName: "Linear QA",
+        workspaceName: "exponential QA",
         settings: {
           security: { permissions: { apiKeyCreationRole: "members" } },
         },
@@ -189,7 +189,7 @@ describe("Account Security API Route", () => {
     expect(mocks.dbSelect).not.toHaveBeenCalled();
   });
 
-  it("returns Linear-parity account security resources without secrets", async () => {
+  it("returns exponential-parity account security resources without secrets", async () => {
     authenticate();
 
     const { GET } = await import("legacy-api/account/security/route");
@@ -317,7 +317,7 @@ describe("Account Security API Route", () => {
         id: "grant-1",
         appId: "app-linear-importer",
         clientId: "lin_client_123",
-        name: "Linear Importer",
+        name: "exponential Importer",
         imageUrl: "https://example.com/importer.png",
         scopes: ["read", "write"],
         webhooksEnabled: true,
@@ -336,7 +336,7 @@ describe("Account Security API Route", () => {
         id: "grant-1",
         appId: "app-linear-importer",
         clientId: "lin_client_123",
-        name: "Linear Importer",
+        name: "exponential Importer",
         imageUrl: "https://example.com/importer.png",
         publisher: null,
         scopes: ["read", "write"],
@@ -367,7 +367,7 @@ describe("Account Security API Route", () => {
         id: "grant-1",
         appId: "app-linear-importer",
         clientId: "lin_client_123",
-        name: "Linear Importer",
+        name: "exponential Importer",
         imageUrl: null,
         scopes: "read,write",
         webhooksEnabled: false,
@@ -420,7 +420,7 @@ describe("Account Security API Route", () => {
         id: "api-key-1",
         name: "CLI",
         keyPrefix: "lin_api_aaaa…",
-        workspaceName: "Linear QA",
+        workspaceName: "exponential QA",
         createdAt: new Date("2026-05-01T10:00:00.000Z"),
         lastUsedAt: null,
       },
@@ -436,7 +436,7 @@ describe("Account Security API Route", () => {
         id: "api-key-1",
         name: "CLI",
         keyPrefix: "lin_api_aaaa…",
-        workspaceName: "Linear QA",
+        workspaceName: "exponential QA",
         accessLevel: "Member",
         createdAt: "2026-05-01T10:00:00.000Z",
         lastUsedAt: null,
@@ -453,7 +453,7 @@ describe("Account Security API Route", () => {
           id: "api-key-1",
           name: value.name,
           keyPrefix: value.keyPrefix,
-          workspaceName: "Linear QA",
+          workspaceName: "exponential QA",
           createdAt: new Date("2026-05-01T10:00:00.000Z"),
           lastUsedAt: null,
         },
@@ -509,7 +509,7 @@ describe("Account Security API Route", () => {
         id: "api-key-1",
         name: "CLI",
         keyPrefix: "lin_api_aaaa…",
-        workspaceName: "Linear QA",
+        workspaceName: "exponential QA",
         createdAt: new Date("2026-05-01T10:00:00.000Z"),
         lastUsedAt: null,
       },
@@ -548,7 +548,7 @@ describe("Account Security API Route", () => {
     mocks.accessRows = [
       {
         workspaceId: "workspace-1",
-        workspaceName: "Linear QA",
+        workspaceName: "exponential QA",
         settings: {
           security: { permissions: { apiKeyCreationRole: "admins" } },
         },

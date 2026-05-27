@@ -1,0 +1,287 @@
+import { ExponentialMark } from "@/components/exponential-mark";
+import Link from "next/link";
+
+const NAV_LINKS = [
+  { href: "/docs", label: "docs" },
+  { href: "/self-host", label: "self-host" },
+  { href: "/changelog", label: "changelog" },
+  { href: "https://github.com/namuh-eng/exponential", label: "github" },
+];
+
+const STATUS_PILLS = ["postgres", "redis", "single binary", "< 80MB ram idle"];
+
+const FEATURES = [
+  {
+    n: "01",
+    title: "keyboard-first, mouse-optional",
+    body: "Every action has a binding. Vim-style modal nav: g for go, c for create, : for command. The mouse is for skimming, the keyboard is for working.",
+  },
+  {
+    n: "02",
+    title: "self-hosted by default",
+    body: "One docker-compose, one binary, one postgres. No paid tier hiding self-host behind a sales call. The hosted version runs on the same code.",
+  },
+  {
+    n: "03",
+    title: "text in, text out",
+    body: "Issues serialize as Markdown with YAML frontmatter. Diff them in git. Pipe them through grep. Apply them with a CLI. It is text. It stays text.",
+  },
+];
+
+const ISSUE_AS_TEXT = `---
+id: ENG-142
+title: rate limit cache stampede on cold start
+status: in-progress
+assignee: priya
+labels: [bug, infra, p1]
+---
+
+## context
+
+cold deploy of api-gateway → all instances refill
+the rate-limit cache from scratch → upstream auth
+service sees 14k qps for ~8s, then settles.
+
+## acceptance
+
+- [ ] add SWR layer in front of Redis
+- [ ] add p99 dashboard for /authorize
+- [ ] write regression for cold-start fanout`;
+
+const SELF_HOST = `# one network, one volume, three services.
+$ git clone github.com/namuh-eng/exponential
+$ cd exponential && cp .env.example .env
+$ docker compose up -d`;
+
+export function LandingPage() {
+  return (
+    <div className="min-h-screen bg-white font-mono text-black antialiased">
+      <TopNav />
+      <main className="mx-auto max-w-[1180px] px-6 pb-24 pt-10 sm:px-10">
+        <Hero />
+        <Features />
+        <CodeBlocks />
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
+function TopNav() {
+  return (
+    <header className="border-b border-black/15">
+      <div className="mx-auto flex max-w-[1180px] items-center justify-between px-6 py-4 sm:px-10">
+        <Link href="/" className="flex items-center gap-3">
+          <ExponentialMark size={20} className="text-black" />
+          <span className="text-[13px] font-medium tracking-tight">
+            exponential
+          </span>
+        </Link>
+        <nav className="hidden items-center gap-6 text-[12px] sm:flex">
+          {NAV_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-black/70 transition-colors hover:text-black"
+            >
+              {link.label}
+            </Link>
+          ))}
+          <span className="text-black/40">★ 14.2k</span>
+        </nav>
+        <Link
+          href="/login"
+          className="border border-black px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-black hover:text-white"
+        >
+          log in
+        </Link>
+      </div>
+    </header>
+  );
+}
+
+function Hero() {
+  return (
+    <section className="grid gap-10 pt-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+      <div>
+        <p className="text-[12px] text-black/55">$ npm i -g exponential-cli</p>
+        <p className="mt-2 text-[12px] text-black/55">
+          {"// source-available · ELv2 · self-hostable"}
+        </p>
+        <h1 className="mt-8 text-balance font-sans text-[44px] font-medium leading-[1.05] tracking-[-0.025em] sm:text-[56px] lg:text-[68px]">
+          the issue tracker
+          <br />
+          that <span className="italic">compiles</span>
+          <br />
+          on your machine.
+        </h1>
+        <div className="mt-10 flex flex-wrap items-center gap-4">
+          <button
+            type="button"
+            className="border border-black bg-black px-4 py-2.5 text-[13px] text-white transition-opacity hover:opacity-85"
+          >
+            $ docker run exponential
+          </button>
+          <Link
+            href="/docs"
+            className="text-[13px] text-black/80 underline-offset-4 hover:underline"
+          >
+            read the docs →
+          </Link>
+        </div>
+        <ul className="mt-10 flex flex-wrap gap-x-5 gap-y-2 text-[12px] text-black/65">
+          {STATUS_PILLS.map((pill) => (
+            <li key={pill} className="inline-flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="inline-block h-1.5 w-1.5 rounded-full bg-black"
+              />
+              {pill}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <TerminalWindow path="~/nimbus/core · exponential">
+        <div className="space-y-1 text-[12px] leading-relaxed">
+          <Line c="dim">$ exp issue list --team core --status open</Line>
+          <Line>
+            <span className="text-black/45">ENG-142</span> rate limit cache
+            stampede on cold start{" "}
+            <span className="ml-2 border border-black/25 px-1 text-[10px] text-black/55">
+              p1
+            </span>
+          </Line>
+          <Line>
+            <span className="text-black/45">ENG-138</span> sso jit-provisioning
+            fails for nested groups
+          </Line>
+          <Line>
+            <span className="text-black/45">ENG-131</span> editor: paste images
+            into markdown
+          </Line>
+          <Line>
+            <span className="text-black/45">ENG-129</span> cli: --json output
+            for `exp issue show`
+          </Line>
+          <Line c="dim">$ exp cycle status</Line>
+          <Line>
+            cycle 24 · 11 / 18 done ·{" "}
+            <span className="text-black/55">3 days left</span>
+          </Line>
+          <Line c="dim">$ _</Line>
+        </div>
+      </TerminalWindow>
+    </section>
+  );
+}
+
+function Features() {
+  return (
+    <section className="mt-28 border-t border-black/15 pt-14">
+      <div className="grid gap-10 md:grid-cols-3">
+        {FEATURES.map((f) => (
+          <article key={f.n}>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-black/45">
+              {`// ${f.n}`}
+            </p>
+            <h3 className="mt-3 font-sans text-[20px] font-medium tracking-tight">
+              {f.title}
+            </h3>
+            <p className="mt-3 text-[13px] leading-relaxed text-black/70">
+              {f.body}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CodeBlocks() {
+  return (
+    <section className="mt-24 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+      <TerminalWindow path="# issue as text" tone="dark">
+        <pre className="overflow-x-auto whitespace-pre text-[12px] leading-relaxed text-white/85">
+          {ISSUE_AS_TEXT}
+        </pre>
+      </TerminalWindow>
+      <TerminalWindow path="# self-host in 3 lines" tone="dark">
+        <pre className="overflow-x-auto whitespace-pre text-[12px] leading-relaxed text-white/85">
+          {SELF_HOST}
+        </pre>
+        <p className="mt-6 text-[11px] text-white/45">
+          backed by postgres · redis · S3-compatible blob
+        </p>
+      </TerminalWindow>
+    </section>
+  );
+}
+
+function TerminalWindow({
+  path,
+  tone = "light",
+  children,
+}: {
+  path: string;
+  tone?: "light" | "dark";
+  children: React.ReactNode;
+}) {
+  const isDark = tone === "dark";
+  return (
+    <div
+      className={
+        isDark
+          ? "border border-black bg-black text-white"
+          : "border border-black/20 bg-white"
+      }
+    >
+      <div
+        className={`flex items-center justify-between border-b px-3 py-2 text-[11px] ${
+          isDark
+            ? "border-white/15 text-white/60"
+            : "border-black/15 text-black/55"
+        }`}
+      >
+        <span>{path}</span>
+        <span className="flex items-center gap-1.5" aria-hidden="true">
+          <span
+            className={`h-2 w-2 ${isDark ? "bg-white/25" : "bg-black/25"}`}
+          />
+          <span
+            className={`h-2 w-2 ${isDark ? "bg-white/25" : "bg-black/25"}`}
+          />
+          <span
+            className={`h-2 w-2 ${isDark ? "bg-white/25" : "bg-black/25"}`}
+          />
+        </span>
+      </div>
+      <div className="px-4 py-4 sm:px-5 sm:py-5">{children}</div>
+    </div>
+  );
+}
+
+function Line({
+  c = "default",
+  children,
+}: {
+  c?: "default" | "dim";
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={c === "dim" ? "text-black/45" : "text-black/85"}>
+      {children}
+    </div>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-black/15">
+      <div className="mx-auto flex max-w-[1180px] flex-col gap-2 px-6 py-6 text-[11px] text-black/55 sm:flex-row sm:items-center sm:justify-between sm:px-10">
+        <span>© 2026 exponential · ELv2 (source-available)</span>
+        <span>v0.4.2 · build a3f10c2 · runs on your hardware</span>
+      </div>
+    </footer>
+  );
+}

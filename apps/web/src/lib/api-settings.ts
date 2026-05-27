@@ -108,10 +108,10 @@ export type ApiSettingsPayload = {
   apiKeys: WorkspaceApiKeyRecord[];
 };
 
-export const GRAPHQL_DOCS_URL = "https://linear.app/developers/graphql";
+export const GRAPHQL_DOCS_URL = "https://exponential.app/developers/graphql";
 export const OAUTH_APPLICATIONS_DOCS_URL =
-  "https://linear.app/developers/oauth-2-0-authentication";
-export const WEBHOOKS_DOCS_URL = "https://linear.app/developers/webhooks";
+  "https://exponential.app/developers/oauth-2-0-authentication";
+export const WEBHOOKS_DOCS_URL = "https://exponential.app/developers/webhooks";
 
 const WEBHOOK_EVENT_TYPES = new Set<WebhookEventType>([
   "created",

@@ -35,7 +35,7 @@ export function MarketingShell({
             >
               L
             </span>
-            <span>Linear</span>
+            <span>exponential</span>
           </Link>
           <div className="hidden items-center gap-1 md:flex">
             {navItems.map((item) => (

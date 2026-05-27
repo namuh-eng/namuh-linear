@@ -1,6 +1,6 @@
 "use client";
 
-import { AskLinearAssistant } from "@/components/ask-linear-assistant";
+import { AskAssistant } from "@/components/ask-assistant";
 import { CommandPalette } from "@/components/command-palette";
 import { CreateIssueModal } from "@/components/create-issue-modal";
 import { Sidebar, type SidebarTeam } from "@/components/sidebar";
@@ -419,7 +419,7 @@ export function AppShell({
           teamKey={shellContext.teamKey}
           teamName={shellContext.teamName}
         />
-        <AskLinearAssistant
+        <AskAssistant
           teamKey={shellContext.teamKey}
           workspaceId={shellContext.workspaceId}
           workspaceSlug={shellContext.workspaceSlug}

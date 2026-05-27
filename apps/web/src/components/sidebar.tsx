@@ -1356,7 +1356,7 @@ export function Sidebar({
           {helpMenuOpen && (
             <div className="absolute bottom-9 left-0 z-20 min-w-[220px] rounded-[10px] border border-[var(--color-border-strong)] bg-[var(--color-content-bg)] p-1 shadow-[var(--shadow-editorial-md)]">
               <a
-                href="https://linear.app/docs"
+                href="https://exponential.app/docs"
                 target="_blank"
                 rel="noreferrer"
                 className="block rounded-md px-3 py-2 text-[13px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"

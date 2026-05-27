@@ -22,6 +22,20 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+// pkceS256Challenge derives the S256 code_challenge from a code_verifier
+// per RFC 7636 §4.2.
+func pkceS256Challenge(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+// sessionTokenHashAuth returns the hex-encoded SHA-256 hash of rawToken.
+// This is the value stored in the session.token_hash column (Fix 5).
+func sessionTokenHashAuth(rawToken string) string {
+	sum := sha256.Sum256([]byte(rawToken))
+	return hex.EncodeToString(sum[:])
+}
+
 const authStateCookieName = "exponential_auth_state"
 
 type googleClaims struct {
@@ -39,10 +53,20 @@ func (h Handler) StartGoogle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	callbackURL := safeCallbackPath(r.URL.Query().Get("callback_url"))
-	stateRaw := randomBase64URLAuth(24) + "|" + callbackURL
+	// Generate PKCE code_verifier (RFC 7636 §4.1: 43-128 unreserved chars).
+	// 32 random bytes → 43-char base64url string, well within the allowed range.
+	codeVerifier := randomBase64URLAuth(32)
+	codeChallenge := pkceS256Challenge(codeVerifier)
+	// Encode verifier into the signed state so the callback can retrieve it
+	// without a server-side store: stateRaw = nonce|callbackURL|codeVerifier
+	stateRaw := randomBase64URLAuth(24) + "|" + callbackURL + "|" + codeVerifier
 	state := signAuthValue(stateRaw)
 	setTransientCookie(w, r, authStateCookieName, state, 10*time.Minute)
-	http.Redirect(w, r, cfg.AuthCodeURL(state, oauth2.AccessTypeOffline), http.StatusFound)
+	http.Redirect(w, r, cfg.AuthCodeURL(state,
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
+	), http.StatusFound)
 }
 
 func (h Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
@@ -56,17 +80,23 @@ func (h Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		problem.JSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid OAuth state."})
 		return
 	}
-	parts := strings.SplitN(stateRaw, "|", 2)
-	callbackURL := "/"
-	if len(parts) == 2 {
-		callbackURL = safeCallbackPath(parts[1])
+	// stateRaw format: nonce|callbackURL|codeVerifier (3 parts since PKCE was added)
+	// Older states without a verifier (2 parts) are rejected to enforce PKCE.
+	parts := strings.SplitN(stateRaw, "|", 3)
+	if len(parts) != 3 || parts[2] == "" {
+		problem.JSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid OAuth state (missing PKCE verifier)."})
+		return
 	}
+	callbackURL := safeCallbackPath(parts[1])
+	codeVerifier := parts[2]
 	cfg, err := googleOAuthConfig(r)
 	if err != nil {
 		problem.JSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
 		return
 	}
-	token, err := cfg.Exchange(r.Context(), r.URL.Query().Get("code"))
+	token, err := cfg.Exchange(r.Context(), r.URL.Query().Get("code"),
+		oauth2.SetAuthURLParam("code_verifier", codeVerifier),
+	)
 	if err != nil {
 		problem.Write(w, http.StatusUnauthorized, "Google OAuth exchange failed", err.Error())
 		return
@@ -176,7 +206,7 @@ func (h Handler) MagicLinkCallback(w http.ResponseWriter, r *http.Request) {
 
 func (h Handler) SignOut(w http.ResponseWriter, r *http.Request) {
 	if rawToken, ok := auth.VerifySignedSessionToken(auth.BrowserSessionCookie(r)); ok {
-		_, _ = h.DB.Exec(r.Context(), `delete from session where token=$1`, rawToken)
+		_, _ = h.DB.Exec(r.Context(), `delete from session where token_hash=$1`, sessionTokenHashAuth(rawToken))
 	}
 	clearCookie(w, auth.BrowserSessionCookieName)
 	problem.JSON(w, http.StatusOK, map[string]bool{"ok": true})
@@ -219,8 +249,9 @@ func (h Handler) upsertEmailUser(ctx context.Context, email, name string) (authU
 
 func (h Handler) createBrowserSession(r *http.Request, userID string) (string, time.Time, error) {
 	rawToken := randomBase64URLAuth(32)
+	tokenHash := sessionTokenHashAuth(rawToken)
 	expires := time.Now().UTC().Add(30 * 24 * time.Hour)
-	_, err := h.DB.Exec(r.Context(), `insert into session (id,expires_at,token,created_at,updated_at,ip_address,user_agent,user_id) values ($1,$2,$3,now(),now(),$4,$5,$6)`, "sess_"+randomBase64URLAuth(18), expires, rawToken, clientIPAuth(r), r.UserAgent(), userID)
+	_, err := h.DB.Exec(r.Context(), `insert into session (id,expires_at,token_hash,created_at,updated_at,ip_address,user_agent,user_id) values ($1,$2,$3,now(),now(),$4,$5,$6)`, "sess_"+randomBase64URLAuth(18), expires, tokenHash, clientIPAuth(r), r.UserAgent(), userID)
 	if err != nil {
 		return "", time.Time{}, err
 	}

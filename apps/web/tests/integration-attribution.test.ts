@@ -29,7 +29,7 @@ describe("integration attribution", () => {
     mocks.rows = [];
   });
 
-  it("resolves a synced GitHub actor to the connected Linear user", async () => {
+  it("resolves a synced GitHub actor to the connected exponential user", async () => {
     mocks.rows = [{ userId: "linear-user-1" }];
     setupDbMock();
 

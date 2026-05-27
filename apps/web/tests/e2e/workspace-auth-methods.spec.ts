@@ -24,7 +24,7 @@ test.describe("Workspace auth method enforcement", () => {
     await page.goto("/auth-methods-off/inbox");
 
     await expect(
-      page.getByRole("heading", { name: "Log in to Linear" }),
+      page.getByRole("heading", { name: "Log in to exponential" }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Continue with Google" }),
