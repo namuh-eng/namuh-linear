@@ -94,8 +94,15 @@ jobs:
         run: |
           # Isolate from Docker Desktop's user config so the launchd-spawned
           # runner does not hit the keychain-bound credsStore helper.
-          # The runner host owns ~/.docker-actions/config.json.
-          export DOCKER_CONFIG="${HOME}/.docker-actions"
+          # Use a per-repo DOCKER_CONFIG: deploy-ecs.sh runs `docker login`,
+          # but the shared ~/.docker-actions/config.json declares an
+          # ecr-login credHelper (used by sibling repos that build with
+          # `buildx --push` and never call login). That helper is read-only
+          # and returns "not implemented" on Store, breaking login here.
+          export DOCKER_CONFIG="${HOME}/.docker-actions-exponential"
+          rm -f "${DOCKER_CONFIG}/config.json"
+          mkdir -p "${DOCKER_CONFIG}"
+          printf '{"auths":{}}\n' > "${DOCKER_CONFIG}/config.json"
           # Re-expose cli-plugins (buildx) since DOCKER_CONFIG overrides the
           # plugin search path away from ~/.docker/cli-plugins.
           mkdir -p "${DOCKER_CONFIG}/cli-plugins"
