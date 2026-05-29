@@ -6,6 +6,7 @@ import {
   asRecord,
   canManageBilling,
   findBillingWorkspace,
+  getWorkspaceEntitlements,
   isSupportedBillingPlanInput,
   normalizeBillingPlan,
   readBillingState,
@@ -13,12 +14,16 @@ import {
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-function billingResponse(
+async function billingResponse(
   currentWorkspace: NonNullable<
     Awaited<ReturnType<typeof findBillingWorkspace>>
   >,
 ) {
   const billing = readBillingState(currentWorkspace.settings);
+  const entitlements = await getWorkspaceEntitlements({
+    workspaceId: currentWorkspace.id,
+    settings: currentWorkspace.settings,
+  });
 
   return NextResponse.json({
     workspace: {
@@ -30,10 +35,12 @@ function billingResponse(
     currentPlan: billing.plan,
     canManage: canManageBilling(currentWorkspace.role),
     usage: {
-      seatsUsed: billing.seatsUsed,
+      seatsUsed: entitlements.activeSeats,
+      seatLimit: entitlements.memberLimit,
       issuesUsed: billing.issuesUsed,
       issueLimit: billing.usageLimit,
     },
+    entitlements,
     plans: BILLING_PLANS,
     paymentMethods: billing.paymentMethods,
     invoices: billing.invoices,

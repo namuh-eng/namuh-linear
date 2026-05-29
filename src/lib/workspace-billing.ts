@@ -1,7 +1,7 @@
 import { resolveRequestWorkspaceId } from "@/lib/active-workspace";
 import { db } from "@/lib/db";
 import { member, workspace } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 
 import {
   BILLING_PRICING_PLANS,
@@ -10,6 +10,12 @@ import {
   isHostedPricingPlanId,
   normalizePricingPlanId,
 } from "@/lib/pricing";
+
+export type EntitlementCapability =
+  | "member-limit"
+  | "admin-analytics"
+  | "saml-sso"
+  | "scim";
 
 export type BillingPlanId = HostedPricingPlanId;
 
@@ -71,6 +77,114 @@ export function readBillingState(settings: unknown) {
     paymentMethods,
     invoices,
   };
+}
+
+export function isSelfHostedWorkspace(settings: unknown) {
+  const parsed = asRecord(settings);
+  const hostingMode = parsed.hostingMode ?? parsed.hosting ?? parsed.deployment;
+  return hostingMode === "self-hosted" || hostingMode === "self_hosted";
+}
+
+export const PLAN_ENTITLEMENTS: Record<
+  BillingPlanId,
+  {
+    memberLimit: number | null;
+    capabilities: EntitlementCapability[];
+  }
+> = {
+  cloud_free: { memberLimit: 3, capabilities: ["member-limit"] },
+  cloud_team: {
+    memberLimit: null,
+    capabilities: ["member-limit"],
+  },
+  cloud_business: {
+    memberLimit: null,
+    capabilities: ["member-limit", "admin-analytics"],
+  },
+  enterprise_cloud: {
+    memberLimit: null,
+    capabilities: ["member-limit", "admin-analytics", "saml-sso", "scim"],
+  },
+};
+
+export type EntitlementState = {
+  plan: BillingPlanId;
+  isSelfHosted: boolean;
+  activeSeats: number;
+  memberLimit: number | null;
+  capabilities: EntitlementCapability[];
+};
+
+export async function countActiveWorkspaceMembers(workspaceId: string) {
+  const [row] = await db
+    .select({ value: count(member.id) })
+    .from(member)
+    .where(eq(member.workspaceId, workspaceId));
+
+  return Number(row?.value ?? 0);
+}
+
+export async function getWorkspaceEntitlements(input: {
+  workspaceId: string;
+  settings: unknown;
+}): Promise<EntitlementState> {
+  const billing = readBillingState(input.settings);
+  const activeSeats = await countActiveWorkspaceMembers(input.workspaceId);
+  const isSelfHosted = isSelfHostedWorkspace(input.settings);
+  if (isSelfHosted) {
+    return {
+      plan: billing.plan,
+      isSelfHosted,
+      activeSeats,
+      memberLimit: null,
+      capabilities: ["member-limit", "admin-analytics", "saml-sso", "scim"],
+    };
+  }
+
+  const plan = PLAN_ENTITLEMENTS[billing.plan];
+  return {
+    plan: billing.plan,
+    isSelfHosted,
+    activeSeats,
+    memberLimit: plan.memberLimit,
+    capabilities: plan.capabilities,
+  };
+}
+
+export function checkWorkspaceEntitlement(
+  entitlements: EntitlementState,
+  capability: EntitlementCapability,
+) {
+  if (!entitlements.capabilities.includes(capability)) {
+    return {
+      allowed: false as const,
+      status: 402,
+      code: "upgrade_required",
+      error: "Upgrade your workspace plan to use this feature.",
+      currentPlan: entitlements.plan,
+      requiredPlan:
+        capability === "admin-analytics" ? "cloud_business" : "enterprise_cloud",
+    };
+  }
+
+  if (
+    capability === "member-limit" &&
+    entitlements.memberLimit !== null &&
+    entitlements.activeSeats >= entitlements.memberLimit
+  ) {
+    return {
+      allowed: false as const,
+      status: 402,
+      code: "member_limit_reached",
+      error: `Your workspace has reached the ${entitlements.memberLimit} member limit for the ${entitlements.plan} plan. Upgrade to invite more members.`,
+      currentPlan: entitlements.plan,
+      requiredPlan: "cloud_team",
+      limit: entitlements.memberLimit,
+      activeSeats: entitlements.activeSeats,
+    };
+  }
+
+  return { allowed: true as const };
 }
 
 export async function findBillingWorkspace(userId: string, request: Request) {

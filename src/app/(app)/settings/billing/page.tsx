@@ -33,6 +33,7 @@ interface WorkspaceBillingData {
   canManage: boolean;
   usage: {
     seatsUsed: number;
+    seatLimit: number | null;
     issuesUsed: number;
     issueLimit: number;
   };
@@ -66,7 +67,7 @@ export default function BillingSettingsPage() {
   }, []);
 
   async function updatePlan(plan: BillingPlanId) {
-    if (plan === "enterprise") {
+    if (plan === "enterprise_cloud") {
       window.location.href =
         "mailto:sales@exponential.dev?subject=Enterprise%20Cloud%20plan";
       return;
@@ -77,11 +78,12 @@ export default function BillingSettingsPage() {
 
     try {
       const endpoint =
-        plan === "basic" || plan === "business"
+        plan === "cloud_team" || plan === "cloud_business"
           ? "/api/workspaces/current/billing/checkout"
           : "/api/workspaces/current/billing";
       const response = await fetch(endpoint, {
-        method: plan === "basic" || plan === "business" ? "POST" : "PATCH",
+        method:
+          plan === "cloud_team" || plan === "cloud_business" ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
@@ -93,7 +95,7 @@ export default function BillingSettingsPage() {
         throw new Error(data.error ?? "Unable to update plan");
       }
 
-      if (plan === "basic" || plan === "business") {
+      if (plan === "cloud_team" || plan === "cloud_business") {
         const data = (await response.json()) as { url?: string };
         if (!data.url) throw new Error("Stripe checkout did not return a URL");
         window.location.href = data.url;
@@ -173,7 +175,10 @@ export default function BillingSettingsPage() {
                 <div className="font-medium text-[var(--color-text-primary)]">
                   Seats used
                 </div>
-                <div>{billing.usage.seatsUsed} active members</div>
+                <div>
+                  {billing.usage.seatsUsed} /{" "}
+                  {billing.usage.seatLimit ?? "Unlimited"} active members
+                </div>
               </div>
               <div>
                 <div className="font-medium text-[var(--color-text-primary)]">
@@ -202,6 +207,13 @@ export default function BillingSettingsPage() {
                   : "Manage billing in Stripe"}
               </button>
             )}
+            {billing.usage.seatLimit !== null &&
+              billing.usage.seatsUsed >= billing.usage.seatLimit && (
+                <div className="mt-4 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-[13px] text-amber-200">
+                  Your workspace has reached its member limit. Upgrade your plan
+                  to invite more teammates.
+                </div>
+              )}
           </section>
 
           <section className="mt-8">
@@ -250,7 +262,7 @@ export default function BillingSettingsPage() {
                         ? "Current plan"
                         : savingPlan === plan.id
                           ? "Saving..."
-                          : plan.id === "enterprise"
+                          : plan.id === "enterprise_cloud"
                             ? "Contact sales"
                             : "Upgrade / manage"}
                     </button>
