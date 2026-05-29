@@ -6,6 +6,7 @@ import {
   asRecord,
   canManageBilling,
   findBillingWorkspace,
+  isSupportedBillingPlanInput,
   normalizeBillingPlan,
   readBillingState,
 } from "@/lib/workspace-billing";
@@ -80,13 +81,14 @@ export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     plan?: unknown;
   } | null;
-  const requestedPlan = normalizeBillingPlan(body?.plan);
-  if (requestedPlan !== body?.plan) {
+  if (!isSupportedBillingPlanInput(body?.plan)) {
     return NextResponse.json(
       { error: "Unsupported billing plan" },
       { status: 400 },
     );
   }
+
+  const requestedPlan = normalizeBillingPlan(body?.plan);
 
   const settings = asRecord(currentWorkspace.settings);
   const existingBilling = asRecord(settings.billing);

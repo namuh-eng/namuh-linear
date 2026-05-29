@@ -3,46 +3,17 @@ import { db } from "@/lib/db";
 import { member, workspace } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 
-export type BillingPlanId = "free" | "basic" | "business" | "enterprise";
+import {
+  BILLING_PRICING_PLANS,
+  type HostedPricingPlanId,
+  LEGACY_PLAN_ID_MAP,
+  isHostedPricingPlanId,
+  normalizePricingPlanId,
+} from "@/lib/pricing";
 
-export const BILLING_PLANS: Array<{
-  id: BillingPlanId;
-  name: string;
-  price: string;
-  description: string;
-  features: string[];
-}> = [
-  {
-    id: "free",
-    name: "Free",
-    price: "$0",
-    description: "For individuals and small trials.",
-    features: ["3 members", "250 issues", "Basic workspace settings"],
-  },
-  {
-    id: "basic",
-    name: "Basic",
-    price: "$8/user/month",
-    description: "Core issue tracking for focused teams.",
-    features: ["Unlimited issues", "5 teams", "Basic automations"],
-  },
-  {
-    id: "business",
-    name: "Business",
-    price: "$14/user/month",
-    description: "Advanced controls for growing organizations.",
-    features: ["Unlimited teams", "Admin controls", "Priority support"],
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    price: "Custom",
-    description: "Security, scale, and support for large companies.",
-    features: ["SAML/SCIM", "Audit exports", "Dedicated support"],
-  },
-];
+export type BillingPlanId = HostedPricingPlanId;
 
-const PLAN_IDS = new Set(BILLING_PLANS.map((plan) => plan.id));
+export const BILLING_PLANS = BILLING_PRICING_PLANS;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -53,13 +24,14 @@ export function asRecord(value: unknown): JsonRecord {
 }
 
 export function normalizeBillingPlan(value: unknown): BillingPlanId {
-  if (value === "standard" || value === "plus") {
-    return "business";
-  }
+  return normalizePricingPlanId(value);
+}
 
-  return typeof value === "string" && PLAN_IDS.has(value as BillingPlanId)
-    ? (value as BillingPlanId)
-    : "free";
+export function isSupportedBillingPlanInput(value: unknown): boolean {
+  return (
+    isHostedPricingPlanId(value) ||
+    (typeof value === "string" && value in LEGACY_PLAN_ID_MAP)
+  );
 }
 
 export function readBillingState(settings: unknown) {

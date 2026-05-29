@@ -1,16 +1,10 @@
 "use client";
 
+import type { HostedPricingPlan, HostedPricingPlanId } from "@/lib/pricing";
 import { useEffect, useState } from "react";
 
-type BillingPlanId = "free" | "basic" | "business" | "enterprise";
-
-interface BillingPlan {
-  id: BillingPlanId;
-  name: string;
-  price: string;
-  description: string;
-  features: string[];
-}
+type BillingPlanId = HostedPricingPlanId;
+type BillingPlan = HostedPricingPlan;
 
 interface PaymentMethod {
   id: string;
@@ -127,7 +121,7 @@ export default function BillingSettingsPage() {
               Current plan:{" "}
               {
                 billing.plans.find((plan) => plan.id === billing.currentPlan)
-                  ?.name
+                  ?.displayName
               }
             </h2>
             <div className="mt-4 grid gap-3 text-[13px] text-[var(--color-text-secondary)] sm:grid-cols-3">
@@ -169,19 +163,21 @@ export default function BillingSettingsPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <h3 className="text-[15px] font-semibold text-[var(--color-text-primary)]">
-                          {plan.name}
+                          {plan.displayName}
                         </h3>
                         <p className="mt-1 text-[13px] text-[var(--color-text-tertiary)]">
                           {plan.description}
                         </p>
                       </div>
                       <div className="text-right text-[13px] font-medium text-[var(--color-text-primary)]">
-                        {plan.price}
+                        {plan.priceLabel}
                       </div>
                     </div>
                     <ul className="mt-4 space-y-1 text-[13px] text-[var(--color-text-secondary)]">
-                      {plan.features.map((feature) => (
-                        <li key={feature}>• {feature}</li>
+                      {plan.capabilities.slice(0, 4).map((capability) => (
+                        <li key={capability}>
+                          • {capability.replaceAll("_", " ")}
+                        </li>
                       ))}
                     </ul>
                     <button
