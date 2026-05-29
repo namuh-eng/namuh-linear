@@ -1,6 +1,9 @@
 import { createExponentialClient } from "@exponential/sdk";
 import { headers as nextHeaders } from "next/headers";
 
+const noStoreFetch: typeof fetch = (input, init) =>
+  fetch(input, { ...init, cache: "no-store" });
+
 function apiBaseUrl() {
   const raw = process.env.EXPONENTIAL_API_URL ?? "http://localhost:7016/v1";
   return raw.replace(/\/$/, "");
@@ -28,6 +31,15 @@ export function createServerApiClientFromHeaders(headerList: Headers) {
     baseUrl: apiBaseUrl(),
     cookie: headerList.get("cookie") ?? "",
     headers: forwardedRequestHeaders(headerList),
+  });
+}
+
+export function createNoStoreServerApiClientFromHeaders(headerList: Headers) {
+  return createExponentialClient({
+    baseUrl: apiBaseUrl(),
+    cookie: headerList.get("cookie") ?? "",
+    headers: forwardedRequestHeaders(headerList),
+    fetch: noStoreFetch,
   });
 }
 
