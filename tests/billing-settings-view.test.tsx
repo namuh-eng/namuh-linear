@@ -24,23 +24,23 @@ describe("BillingSettingsPage component", () => {
       name: "Acme Corp",
       role: "admin",
     },
-    currentPlan: "business",
+    currentPlan: "cloud_business",
     canManage: true,
     usage: { seatsUsed: 3, issuesUsed: 42, issueLimit: 250 },
     plans: [
       {
-        id: "free",
-        name: "Free",
-        price: "$0",
+        id: "cloud_free",
+        displayName: "Cloud Free",
+        priceLabel: "$0",
         description: "For individuals and small trials.",
-        features: ["3 members"],
+        capabilities: ["core_issues"],
       },
       {
-        id: "business",
-        name: "Business",
-        price: "$14/user/month",
+        id: "cloud_business",
+        displayName: "Cloud Business",
+        priceLabel: "$14",
         description: "Advanced controls for growing organizations.",
-        features: ["Unlimited teams"],
+        capabilities: ["admin_controls"],
       },
     ],
     paymentMethods: [
@@ -79,7 +79,7 @@ describe("BillingSettingsPage component", () => {
     });
 
     expect(screen.getByText(/Current plan:/)).toBeDefined();
-    expect(screen.getByText("Business")).toBeDefined();
+    expect(screen.getByText("Cloud Business")).toBeDefined();
     expect(
       screen.getByText(
         (content) => content.includes("42") && content.includes("250"),
@@ -98,13 +98,16 @@ describe("BillingSettingsPage component", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => mockBillingData })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ ...mockBillingData, currentPlan: "business" }),
+        json: async () => ({
+          ...mockBillingData,
+          currentPlan: "cloud_business",
+        }),
       });
 
     render(<BillingSettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Free")).toBeDefined();
+      expect(screen.getByText("Cloud Free")).toBeDefined();
     });
 
     fireEvent.click(screen.getAllByText("Upgrade / manage")[0]);
@@ -113,7 +116,7 @@ describe("BillingSettingsPage component", () => {
       expect(fetch).toHaveBeenCalledWith("/api/workspaces/current/billing", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "free" }),
+        body: JSON.stringify({ plan: "cloud_free" }),
       });
     });
   });

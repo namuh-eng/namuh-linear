@@ -2,37 +2,15 @@ import {
   MarketingCard,
   MarketingShell,
 } from "@/components/marketing/public-marketing";
+import { PRICING_PLANS, shouldShowUpgradeCta } from "@/lib/pricing";
 
-const plans = [
-  [
-    "Free",
-    "$0",
-    "For individuals and small teams starting with Linear-style planning.",
-  ],
-  [
-    "Basic",
-    "$8",
-    "Essential issue tracking, projects, cycles, and team collaboration.",
-  ],
-  [
-    "Business",
-    "$14",
-    "Advanced workflows, analytics, integrations, and admin controls.",
-  ],
-  [
-    "Enterprise",
-    "Custom",
-    "Security, SAML SSO, audit controls, and scaled support for large organizations.",
-  ],
-];
-
-const features = [
-  "Unlimited issues",
-  "Roadmaps and initiatives",
-  "Customer requests",
-  "Workflow automations",
-  "Priority support",
-];
+const comparisonCapabilities = [
+  "unlimited_issues",
+  "workflow_automations",
+  "priority_support",
+  "saml_sso",
+  "self_hosting",
+] as const;
 
 export const metadata = {
   title: "Pricing | Linear clone",
@@ -50,21 +28,26 @@ export default function PricingPage() {
           Choose a plan for your team and keep public pricing navigation inside
           the clone.
         </p>
-        <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {plans.map(([name, price, copy]) => (
-            <MarketingCard key={name}>
-              <h2 className="text-2xl font-semibold">{name}</h2>
+        <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {PRICING_PLANS.map((plan) => (
+            <MarketingCard key={plan.id}>
+              <h2 className="text-2xl font-semibold">{plan.displayName}</h2>
               <p className="mt-4 text-4xl font-semibold tracking-[-0.04em]">
-                {price}
+                {plan.priceLabel}
+              </p>
+              <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-[var(--editorial-ink-3)]">
+                {plan.billingCadenceLabel}
               </p>
               <p className="mt-4 min-h-24 text-sm leading-6 text-[var(--editorial-ink-3)]">
-                {copy}
+                {plan.description}
               </p>
               <a
-                href="/signup"
+                href={plan.priceLabel === "Custom" ? "/contact" : "/signup"}
                 className="mt-6 inline-flex rounded-full bg-[var(--editorial-ink-1)] px-4 py-2 text-sm font-medium text-[var(--editorial-bg)]"
               >
-                Get started
+                {shouldShowUpgradeCta("cloud_free", plan.id)
+                  ? plan.upgradeCta
+                  : "Get started"}
               </a>
             </MarketingCard>
           ))}
@@ -72,12 +55,12 @@ export default function PricingPage() {
         <MarketingCard className="mt-8">
           <h2 className="text-2xl font-semibold">Feature comparison</h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {features.map((feature) => (
+            {comparisonCapabilities.map((capability) => (
               <div
-                key={feature}
-                className="rounded-2xl border border-[var(--editorial-line-soft)] bg-[var(--editorial-surface-2)] px-4 py-3 text-sm"
+                key={capability}
+                className="rounded-2xl border border-[var(--editorial-line-soft)] bg-[var(--editorial-surface-2)] px-4 py-3 text-sm capitalize"
               >
-                {feature}
+                {capability.replaceAll("_", " ")}
               </div>
             ))}
           </div>

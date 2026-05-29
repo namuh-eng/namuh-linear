@@ -2,6 +2,7 @@ import { resolveActiveWorkspaceId } from "@/lib/active-workspace";
 import { requireApiSession } from "@/lib/api-auth";
 import { db } from "@/lib/db";
 import { member, workspace } from "@/lib/db/schema";
+import { normalizePricingPlanId } from "@/lib/pricing";
 import {
   MAX_WORKSPACE_NAME_LENGTH,
   validateWorkspaceName,
@@ -46,7 +47,8 @@ function readWorkspaceSettings(settings: unknown) {
       ? parsed.fiscalMonth
       : DEFAULT_FISCAL_MONTH;
 
-  const plan = typeof parsed.plan === "string" ? parsed.plan : "free";
+  const billing = asRecord(parsed.billing);
+  const plan = normalizePricingPlanId(billing.plan ?? parsed.plan);
   const welcomeMessage =
     typeof parsed.welcomeMessage === "string" ? parsed.welcomeMessage : "";
 
