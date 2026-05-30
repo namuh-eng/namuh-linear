@@ -16,6 +16,8 @@ const env = {
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:database",
   REDIS_URL_SECRET_ARN:
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:redis",
+  SESSION_SECRET_SECRET_ARN:
+    "arn:aws:secretsmanager:us-east-1:123456789012:secret:session",
   GOOGLE_CLIENT_ID_SECRET_ARN:
     "arn:aws:secretsmanager:us-east-1:123456789012:secret:google-id",
   GOOGLE_CLIENT_SECRET_SECRET_ARN:

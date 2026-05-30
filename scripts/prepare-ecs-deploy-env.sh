@@ -171,6 +171,10 @@ fi
 if [ -n "${REDIS_URL:-}" ]; then
   set_env REDIS_URL_SECRET_ARN "$(secret_arn "${APP_NAME}/redis-url" "$REDIS_URL")"
 fi
+if [ -z "${EXPONENTIAL_SESSION_SECRET:-}" ]; then
+  set_env EXPONENTIAL_SESSION_SECRET "$(random_hex 32)"
+fi
+set_env SESSION_SECRET_SECRET_ARN "$(secret_arn "${APP_NAME}/session-secret" "$EXPONENTIAL_SESSION_SECRET")"
 set_env GOOGLE_CLIENT_ID_SECRET_ARN "$(secret_arn "${APP_NAME}/google-client-id" "${GOOGLE_CLIENT_ID:-${AUTH_GOOGLE_ID:-dev-google-client-id}}")"
 set_env GOOGLE_CLIENT_SECRET_SECRET_ARN "$(secret_arn "${APP_NAME}/google-client-secret" "${GOOGLE_CLIENT_SECRET:-${AUTH_GOOGLE_SECRET:-dev-google-client-secret}}")"
 

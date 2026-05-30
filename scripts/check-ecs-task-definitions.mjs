@@ -75,4 +75,11 @@ for (const item of required) {
       );
     }
   }
+  if (item.container === "api") {
+    if (!secretNames.has("EXPONENTIAL_SESSION_SECRET")) {
+      throw new Error(
+        `${item.file}: api must receive EXPONENTIAL_SESSION_SECRET`,
+      );
+    }
+  }
 }

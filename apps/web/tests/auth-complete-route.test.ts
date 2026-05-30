@@ -61,7 +61,7 @@ describe("/auth/complete route", () => {
     );
   });
 
-  it("continues when verification is a false negative but the browser sent a session cookie", async () => {
+  it("redirects to login when verification fails even if a session cookie is present", async () => {
     process.env.PUBLIC_BASE_URL = "https://exponential.namuh.co";
     mockGet.mockResolvedValue({
       response: { status: 401 },
@@ -77,7 +77,7 @@ describe("/auth/complete route", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "https://exponential.namuh.co/inbox",
+      "https://exponential.namuh.co/login?callbackUrl=%2Finbox&error=session_not_created",
     );
   });
 });
