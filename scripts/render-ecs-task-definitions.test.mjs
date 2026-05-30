@@ -35,6 +35,13 @@ assert.throws(
   () => renderTemplate("${MISSING}", env),
   /Missing required environment variables/,
 );
+assert.throws(
+  () => renderTemplate("${DATABASE_URL_SECRET_ARN}", {
+    ...env,
+    DATABASE_URL_SECRET_ARN: "None",
+  }),
+  /Missing required environment variables: DATABASE_URL_SECRET_ARN/,
+);
 
 for (const file of [
   "infra/ecs/api-task-definition.json",
