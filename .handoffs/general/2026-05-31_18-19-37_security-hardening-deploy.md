@@ -1,7 +1,7 @@
 ---
 date: 2026-05-31T18:19:37+0900
 git_commit: a15ec82bb6d7342ae9cea9a30229bc7b16ab16a1
-branch: codex/fix-production-session-secret
+branch: main
 issue: PR #553
 tests: passing with one unrelated e2e failure noted
 ---
@@ -14,7 +14,7 @@ Security-hardening `exponential` after finding that `.env.prod.backup` contained
 PR: https://github.com/namuh-eng/exponential/pull/553
 
 ## Current State
-- Branch: `codex/fix-production-session-secret`, pushed to origin.
+- Branch: `main` now contains the merged security hardening via merge commit `b26f6a4`. Source branch was `codex/fix-production-session-secret`.
 - Production deploy: completed manually from this branch using image tag `a15ec82`.
   - API: `exponential-api:36`, running `699486076867.dkr.ecr.us-east-1.amazonaws.com/exponential-api:a15ec82`.
   - Web: `exponential-web:40`, running `699486076867.dkr.ecr.us-east-1.amazonaws.com/exponential-web:a15ec82`.
@@ -66,7 +66,7 @@ Full E2E caveat:
 
 ## Learnings
 - `.env.prod.backup` was ignored by git and not found in git history, but it was still a Docker build-context risk until `.dockerignore` was hardened. Final images checked earlier did not contain `.env*`, but excluding all `.env*` from context is the durable fix.
-- The deployed production branch is not yet on `main` at the time this handoff was created; PR #553 is open and mergeable (`mergeStateStatus: CLEAN`). The user explicitly requested this handoff be put into `main`, so this file should be force-added despite `.handoffs/` being gitignored, then PR #553 should be merged to `main`.
+- PR #553 was merged to `main` as merge commit `b26f6a4`; this handoff file is intentionally force-added under `.handoffs/` despite the directory normally being gitignored.
 - Production deploy initially required a metrics token because the new metrics guard made `/api/metrics/red` private. A new AWS Secrets Manager secret was created: `arn:aws:secretsmanager:us-east-1:699486076867:secret:exponential/metrics-token-1cAwo4`, and GitHub repo variable `METRICS_TOKEN_SECRET_ARN` was set to that ARN.
 - A manual GitHub Actions deploy run was started on the branch and then cancelled because it stayed queued/in-progress without jobs; local break-glass deploy succeeded.
 - Rotate secrets after code deploy, not before, so the deployed code can consume the new protected secret paths and metrics smoke can authenticate.
@@ -77,9 +77,8 @@ Full E2E caveat:
 - Full E2E has one unrelated failure in workspace AI settings that should be fixed separately before treating the whole suite as green.
 
 ## Next steps
-1. Merge PR #553 to `main` so deployed security fixes and this handoff are on the main branch.
-2. Rotate any real secrets that were in `.env.prod.backup`: session secret, DB password/URL, Redis auth if present, Google OAuth client secret, inbound/webhook secrets, and any copied PAT/API tokens.
-3. After each secret rotation, force ECS service redeploy so tasks reload Secrets Manager values:
+1. Rotate any real secrets that were in `.env.prod.backup`: session secret, DB password/URL, Redis auth if present, Google OAuth client secret, inbound/webhook secrets, and any copied PAT/API tokens.
+2. After each secret rotation, force ECS service redeploy so tasks reload Secrets Manager values:
    `aws ecs update-service --cluster exponential-cluster --service exponential-api --force-new-deployment --region us-east-1 && aws ecs update-service --cluster exponential-cluster --service exponential-web --force-new-deployment --region us-east-1`
-4. Re-run production smoke after rotation.
-5. Separately fix or update `workspace-ai-settings.spec.ts` self-demotion expectation/API behavior, then re-run full `make test-e2e`.
+3. Re-run production smoke after rotation.
+4. Separately fix or update `workspace-ai-settings.spec.ts` self-demotion expectation/API behavior, then re-run full `make test-e2e`.
